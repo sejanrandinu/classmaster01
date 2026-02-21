@@ -62,6 +62,7 @@ export const auth = {
     async login(email, password) {
         const data = await client.post('auth/login', { email, password });
         if (data.token) {
+            console.log('API: Login successful, saving token');
             localStorage.setItem('classmaster-token', data.token);
             localStorage.setItem('classmaster-user', JSON.stringify(data.user));
         }
@@ -84,8 +85,12 @@ export const auth = {
 
     async getUser() {
         try {
-            return await client.get('me');
-        } catch {
+            console.log('API: Fetching current user profile...');
+            const user = await client.get('me');
+            console.log('API: User profile fetched:', user?.email);
+            return user;
+        } catch (e) {
+            console.error('API: Failed to get user:', e.message);
             return null;
         }
     }

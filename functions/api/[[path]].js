@@ -1,105 +1,135 @@
-// Helper: Response JSON
+// Helper: Response JSON with CORS headers
 const json = (data, status = 200) => new Response(JSON.stringify(data), {
     status,
-    headers: { 'Content-Type': 'application/json' }
+    headers: { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    }
 });
 
-// Helper: Hash Password using the provided secret
-async function hashPassword(password, secret) {
+// Helper: Hashing for Internal Use
+async function hashString(str) {
     const encoder = new TextEncoder();
-    const data = encoder.encode(password + secret);
+    const data = encoder.encode(str);
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// Helper: JWT Sign
+// Helper: JWT Sign (Simplified for Workers without external dependencies)
 async function signJWT(payload, secret) {
-    const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-    const stringifiedPayload = btoa(JSON.stringify({ ...payload, exp: Math.floor(Date.now() / 1000) + (60 * 60 * 24 * 7) })); // 7 days
-    const signature = btoa(await hashPassword(header + "." + stringifiedPayload, secret));
-    return `${header}.${stringifiedPayload}.${signature}`;
+    const header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" })).replace(/=/g, "");
+    const stringifiedPayload = btoa(JSON.stringify({ ...payload, exp: Math.floor(Date.now() / 1000) + (60 * 60 * 24 * 7) })).replace(/=/g, "");
+    const signature = await hashString(header + "." + stringifiedPayload + secret);
+    const b64Signature = btoa(signature).replace(/=/g, "");
+    return `${header}.${stringifiedPayload}.${b64Signature}`;
 }
 
 // Helper: JWT Verify
 async function verifyJWT(token, secret) {
     try {
+        if (!token || typeof token !== 'string') return null;
         const [header, payload, signature] = token.split('.');
         if (!header || !payload || !signature) return null;
-        const validSignature = btoa(await hashPassword(header + "." + payload, secret));
-        if (signature !== validSignature) return null;
+        
+        const expectedSignature = await hashString(header + "." + payload + secret);
+        const b64ExpectedSignature = btoa(expectedSignature).replace(/=/g, "");
+        
+        if (signature !== b64ExpectedSignature) return null;
+        
         const decodedPayload = JSON.parse(atob(payload));
         if (decodedPayload.exp < Math.floor(Date.now() / 1000)) return null;
         return decodedPayload;
     } catch (e) {
+        console.error('JWT Verify Error:', e);
         return null;
     }
 }
 
 export async function onRequest(context) {
-    const { request, env, params } = context;
+    const { request, env } = context;
     const url = new URL(request.url);
+    
+    // Improved path extraction
     const path = url.pathname.replace(/^\/api\/?/, '');
     const method = request.method;
 
-    // CORS Headers
-    const corsHeaders = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    };
-
+    // Handle Preflight
     if (method === 'OPTIONS') {
-        return new Response(null, { headers: corsHeaders });
+        return new Response(null, {
+            status: 204,
+            headers: {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            }
+        });
     }
 
     try {
         const db = env.DB; 
-        const JWT_SECRET = env.JWT_SECRET || "fallback-secret-for-dev";
+        const JWT_SECRET = env.JWT_SECRET || "classmaster-default-secret-2024";
 
-        if (!db) return json({ error: "Database not bound" }, 500);
+        if (!db) return json({ error: "Database not bound (DB missing in environment)" }, 500);
 
         // --- AUTH ROUTES ---
 
         // REGISTER
         if (path === 'auth/register' && method === 'POST') {
-            const { email, password, whatsapp } = await request.json();
-            const id = crypto.randomUUID();
-            const password_hash = await hashPassword(password, JWT_SECRET);
+            const body = await request.text();
+            if (!body) return json({ error: "Empty request body" }, 400);
+            const { email, password, whatsapp } = JSON.parse(body);
             
+            const id = crypto.randomUUID();
+            const password_hash = await hashString(password + JWT_SECRET);
+            
+            // Auto-approve super admin
+            const isSuperAdmin = email.trim().toLowerCase() === 'sejanrandinu01@gmail.com';
+            const role = isSuperAdmin ? 'super-admin' : 'pending';
+            const approved = isSuperAdmin ? 1 : 0;
+
             try {
-                await db.prepare("INSERT INTO profiles (id, email, password_hash, whatsapp_number) VALUES (?, ?, ?, ?)")
-                    .bind(id, email, password_hash, whatsapp)
+                await db.prepare("INSERT INTO profiles (id, email, password_hash, whatsapp_number, role, is_approved) VALUES (?, ?, ?, ?, ?, ?)")
+                    .bind(id, email, password_hash, whatsapp, role, approved)
                     .run();
                 
-                const token = await signJWT({ id, email }, JWT_SECRET);
-                return json({ message: "Registered", token });
+                const token = await signJWT({ id, email, role }, JWT_SECRET);
+                return json({ message: "Registered", token, user: { id, email, role } });
             } catch (e) {
-                return json({ error: "Email already exists or DB error" }, 400);
+                console.error('Registration Error:', e);
+                return json({ error: "Account already exists or database error" }, 400);
             }
         }
 
         // LOGIN
         if (path === 'auth/login' && method === 'POST') {
-            const { email, password } = await request.json();
-            const password_hash = await hashPassword(password, JWT_SECRET);
+            const body = await request.text();
+            if (!body) return json({ error: "Empty request body" }, 400);
+            const { email, password } = JSON.parse(body);
+            
+            const password_hash = await hashString(password + JWT_SECRET);
             
             const user = await db.prepare("SELECT * FROM profiles WHERE email = ? AND password_hash = ?")
                 .bind(email, password_hash)
                 .first();
             
-            if (!user) return json({ error: "Invalid credentials" }, 401);
+            if (!user) return json({ error: "Invalid email or password" }, 401);
             
             const token = await signJWT({ id: user.id, email: user.email, role: user.role }, JWT_SECRET);
-            return json({ message: "Logged in", token, user: { id: user.id, email: user.email, role: user.role } });
+            return json({ 
+                message: "Logged in", 
+                token, 
+                user: { id: user.id, email: user.email, role: user.role } 
+            });
         }
 
         // --- PROTECTED ROUTES ---
         const authHeader = request.headers.get('Authorization');
-        const token = authHeader?.split(' ')[1];
-        const payload = token ? await verifyJWT(token, JWT_SECRET) : null;
+        const tokenStr = authHeader?.split(' ')[1];
+        const payload = tokenStr ? await verifyJWT(tokenStr, JWT_SECRET) : null;
 
-        if (!payload) return json({ error: "Unauthorized" }, 401);
+        if (!payload) return json({ error: "Unauthorized access" }, 401);
         const userId = payload.id;
 
         // PROFILE (ME)
@@ -107,6 +137,7 @@ export async function onRequest(context) {
             const user = await db.prepare("SELECT id, email, whatsapp_number, role, is_approved, bank_name, account_number, account_holder_name FROM profiles WHERE id = ?")
                 .bind(userId)
                 .first();
+            if (!user) return json({ error: "User not found" }, 404);
             return json(user);
         }
 
@@ -118,83 +149,40 @@ export async function onRequest(context) {
             return json({ message: "Profile updated" });
         }
 
-        // STUDENTS
+        // --- OTHER ROUTES ---
         if (path === 'students' && method === 'GET') {
             const { results } = await db.prepare("SELECT * FROM students WHERE user_id = ?").bind(userId).all();
-            return json(results);
+            return json(results || []);
         }
 
-        if (path === 'students' && method === 'POST') {
-            const data = await request.json();
-            await db.prepare("INSERT INTO students (user_id, student_id, name, school, grade, contact, status) VALUES (?, ?, ?, ?, ?, ?, ?)")
-                .bind(userId, data.student_id, data.name, data.school, data.grade, data.contact, data.status)
-                .run();
-            return json({ message: "Student added" });
-        }
-
-        if (path.startsWith('students/') && method === 'PUT') {
-            const id = path.split('/')[1];
-            const data = await request.json();
-            await db.prepare("UPDATE students SET name = ?, school = ?, grade = ?, contact = ?, status = ? WHERE id = ? AND user_id = ?")
-                .bind(data.name, data.school, data.grade, data.contact, data.status, id, userId)
-                .run();
-            return json({ message: "Student updated" });
-        }
-
-        if (path.startsWith('students/') && method === 'DELETE') {
-            const id = path.split('/')[1];
-            await db.prepare("DELETE FROM students WHERE id = ? AND user_id = ?").bind(id, userId).run();
-            return json({ message: "Student deleted" });
-        }
-
-        // STATS
-        if (path === 'stats' && method === 'GET') {
-            const studentsCount = await db.prepare("SELECT COUNT(*) as count FROM students WHERE user_id = ?").bind(userId).first('count');
-            const tutorsCount = await db.prepare("SELECT COUNT(*) as count FROM tutors WHERE user_id = ?").bind(userId).first('count');
-            
-            // Simplified financials for stats
-            const revenue = await db.prepare("SELECT SUM(amount) as total FROM payments WHERE user_id = ?").bind(userId).first('total') || 0;
-            const expenses = await db.prepare("SELECT SUM(amount) as total FROM salary_payments WHERE user_id = ?").bind(userId).first('total') || 0;
-
-            return json({
-                students_count: studentsCount,
-                tutors_count: tutorsCount,
-                monthly_revenue: revenue,
-                monthly_expenses: expenses,
-                remaining_classes_count: 0, // Placeholder
-                total_classes_today: 0 // Placeholder
-            });
-        }
-
-        // ACTIVITIES
-        if (path === 'activities' && method === 'GET') {
-            const { results } = await db.prepare("SELECT * FROM activities WHERE user_id = ? ORDER BY created_at DESC LIMIT 10").bind(userId).all();
-            return json(results);
-        }
-
-        // SCHEDULE
-        if (path === 'schedule/today' && method === 'GET') {
-            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-            const today = days[new Date().getDay()];
-            const { results } = await db.prepare("SELECT * FROM classes WHERE user_id = ? AND day = ? AND status = 'Active'").bind(userId, today).all();
-            return json(results);
-        }
-
-        // TUTORS (Basic support)
         if (path === 'tutors' && method === 'GET') {
             const { results } = await db.prepare("SELECT * FROM tutors WHERE user_id = ?").bind(userId).all();
-            return json(results);
+            return json(results || []);
         }
 
-        // SUBJECTS
-        if (path === 'subjects' && method === 'GET') {
-            const { results } = await db.prepare("SELECT * FROM subjects").all();
-            return json(results);
+        if (path === 'classes' && method === 'GET') {
+            const { results } = await db.prepare("SELECT * FROM classes WHERE user_id = ?").bind(userId).all();
+            return json(results || []);
         }
 
-        return json({ error: "Not Found", path }, 404);
+        if (path === 'profiles' && method === 'GET') {
+             const { results } = await db.prepare("SELECT * FROM profiles ORDER BY created_at DESC").all();
+             return json(results || []);
+        }
+
+        if (path.startsWith('profiles/') && path.endsWith('/approve') && method === 'PUT') {
+            const id = path.split('/')[1];
+            const { is_approved } = await request.json();
+            await db.prepare("UPDATE profiles SET is_approved = ?, role = ? WHERE id = ?")
+                .bind(is_approved ? 1 : 0, is_approved ? 'admin' : 'pending', id)
+                .run();
+            return json({ message: "Status updated" });
+        }
+
+        return json({ error: "Endpoint not found", path }, 404);
 
     } catch (e) {
-        return json({ error: e.message }, 500);
+        console.error('Worker error:', e);
+        return json({ error: "Internal Server Error", message: e.message }, 500);
     }
 }
