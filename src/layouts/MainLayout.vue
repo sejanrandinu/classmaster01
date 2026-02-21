@@ -96,9 +96,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { supabase } from 'src/supabase'
+import { auth } from 'src/api'
 import { useQuasar } from 'quasar'
 import ChatbotComponent from 'src/components/ChatbotComponent.vue'
 
@@ -106,11 +106,9 @@ const router = useRouter()
 const $q = useQuasar()
 
 const user = ref(null)
-let authListener = null
 
 const handleLogout = async () => {
-    await supabase.auth.signOut()
-    
+    auth.logout()
     // Force clear all local state
     if (typeof window !== 'undefined') {
         window.localStorage.clear()
@@ -125,26 +123,14 @@ const handleLogout = async () => {
     })
 }
 
-onMounted(() => {
-    // Get initial user
-    supabase.auth.getUser().then(({ data }) => {
-        user.value = data.user
-    })
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-        console.log('Auth state changed (Main):', event, session?.user?.email)
-        user.value = session?.user || null
-    })
-    authListener = subscription
-})
-
-onUnmounted(() => {
-    if (authListener) {
-        console.log('Cleaning up Main auth listener')
-        authListener.unsubscribe()
+onMounted(async () => {
+    // Get initial user from local storage
+    const userData = localStorage.getItem('classmaster-user')
+    if (userData) {
+        user.value = JSON.parse(userData)
     }
 })
+
 const openWhatsapp = () => {
   window.open('https://wa.me/94702838364', '_blank')
 }

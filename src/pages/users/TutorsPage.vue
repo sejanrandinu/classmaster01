@@ -125,7 +125,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
-import { supabase } from 'src/supabase'
+import { client } from 'src/api'
 
 const $q = useQuasar()
 const filter = ref('')
@@ -165,42 +165,24 @@ onMounted(() => {
 })
 
 const fetchSubjects = async () => {
-    const { data, error } = await supabase
-        .from('subjects')
-        .select('name')
-        .order('name', { ascending: true })
-    
-    if (!error && data) {
-        subjectOptions.value = data.map(s => s.name)
+    try {
+        const data = await client.get('subjects')
+        if (data) subjectOptions.value = data.map(s => s.name)
+    } catch {
+        console.warn('Could not fetch subjects')
     }
 }
 
-const fetchTutors = async (retryCount = 3) => {
+const fetchTutors = async () => {
     loading.value = true
-    const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Tutors lookup timed out')), 60000)
-    )
-
     try {
-        const { data, error } = await Promise.race([
-            supabase.from('tutors').select('*').order('created_at', { ascending: false }),
-            timeoutPromise
-        ])
-        
-        if (error) throw error
+        const data = await client.get('tutors')
         rows.value = data || []
-    } catch (error) {
-        console.error('Error fetching tutors:', error)
-        if (retryCount > 0) {
-            console.log(`Retrying fetchTutors... (${retryCount} left)`)
-            await new Promise(r => setTimeout(r, 2000))
-            return fetchTutors(retryCount - 1)
-        }
+    } catch {
         $q.notify({ 
             type: 'negative', 
-            message: 'ගුරුවරුන්ගේ ලැයිස්තුව ලබා ගැනීමට අපොහොසත් විය (Network Error)',
-            actions: [{ label: 'නැවත උත්සාහ කරන්න', color: 'white', handler: () => fetchTutors() }],
-            timeout: 10000
+            message: 'ගුරුවරුන්ගේ ලැයිස්තුව ලබා ගැනීමට අපොහොසත් විය',
+            actions: [{ label: 'නැවත උත්සාහ කරන්න', color: 'white', handler: () => fetchTutors() }]
         })
     } finally {
         loading.value = false
@@ -234,32 +216,19 @@ const saveTutor = async () => {
         bank_branch: form.value.bank_branch
     }
 
-    let error = null
-
-    if (isEdit.value && form.value.id) {
-        // Update
-        const { error: updateError } = await supabase
-            .from('tutors')
-            .update(tutorData)
-            .eq('id', form.value.id)
-        error = updateError
-    } else {
-        // Insert
-        const { error: insertError } = await supabase
-            .from('tutors')
-            .insert([tutorData])
-        error = insertError
-    }
-
-    loading.value = false
-
-    if (error) {
-        console.error('Error saving tutor:', error)
-        $q.notify({ type: 'negative', message: 'Error saving tutor' })
-    } else {
+    try {
+        if (isEdit.value && form.value.id) {
+            await client.put(`tutors/${form.value.id}`, tutorData)
+        } else {
+            await client.post('tutors', tutorData)
+        }
         $q.notify({ type: 'positive', message: isEdit.value ? 'Tutor updated' : 'Tutor added' })
         showDialog.value = false
         fetchTutors()
+    } catch {
+        $q.notify({ type: 'negative', message: 'Error saving tutor' })
+    } finally {
+        loading.value = false
     }
 }
 
@@ -271,19 +240,14 @@ const deleteTutor = (id) => {
         persistent: true
     }).onOk(async () => {
         loading.value = true
-        const { error } = await supabase
-            .from('tutors')
-            .delete()
-            .eq('id', id)
-        
-        loading.value = false
-
-        if (error) {
-            console.error('Error deleting tutor:', error)
-            $q.notify({ type: 'negative', message: `Error deleting tutor: ${error.message}` })
-        } else {
+        try {
+            await client.delete(`tutors/${id}`)
             $q.notify({ type: 'positive', message: 'Tutor deleted successfully' })
             fetchTutors()
+        } catch (error) {
+            $q.notify({ type: 'negative', message: 'Error deleting tutor' })
+        } finally {
+            loading.value = false
         }
     })
 }
