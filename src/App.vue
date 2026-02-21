@@ -4,7 +4,6 @@
 
 <script setup>
 import { onMounted } from 'vue'
-import { useQuasar } from 'quasar'
 
 
 onMounted(async () => {
