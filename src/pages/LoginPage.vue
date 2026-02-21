@@ -86,7 +86,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
-import { supabase } from 'src/supabase'
+import { auth } from 'src/api'
 
 const router = useRouter()
 const $q = useQuasar()
@@ -126,13 +126,8 @@ const onSubmit = async () => {
   errorMessage.value = ''
   
   try {
-    console.log('Attempting Supabase sign in for:', email.value)
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.value,
-      password: password.value,
-    })
-
-    if (error) throw error
+    console.log('Attempting custom API sign in for:', email.value)
+    await auth.login(email.value, password.value)
 
     console.log('Login successful, notifying user...')
     $q.notify({
@@ -147,10 +142,8 @@ const onSubmit = async () => {
     console.error('Full login error object:', error)
     let msg = error.message || 'Error logging in'
     
-    if (msg.includes('Invalid login credentials')) {
+    if (msg.includes('Invalid credentials')) {
       msg = 'Incorrect email or password.'
-    } else if (msg.includes('Email not confirmed')) {
-      msg = 'Please verify your email address before logging in.'
     }
     
     errorMessage.value = msg
@@ -165,6 +158,7 @@ const onSubmit = async () => {
     loading.value = false
   }
 }
+
 </script>
 
 <style scoped lang="scss">

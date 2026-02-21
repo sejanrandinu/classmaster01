@@ -114,7 +114,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useQuasar } from 'quasar'
-import { supabase } from 'src/supabase'
+import { auth, client } from 'src/api'
 
 const $q = useQuasar()
 const loading = ref(false)
@@ -134,87 +134,42 @@ const isApproved = computed(() => {
 })
 
 onMounted(async () => {
-  // Pre-fill email from session if possible for faster UI response
-  const { data: { user } } = await supabase.auth.getUser()
-  if (user) {
-    profile.value.email = user.email
-    if (user.email === 'sejanrandinu01@gmail.com') {
-      profile.value.is_approved = true
-    }
-  }
   fetchProfile()
 })
 
 const fetchProfile = async () => {
   try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-        console.warn('No user found in ProfilePage')
-        return
-    }
-
-    // 1. Initial State from Auth
-    const currentEmail = user.email
-    const isSuper = currentEmail === 'sejanrandinu01@gmail.com'
-
-    profile.value.email = currentEmail
-    if (isSuper) {
-        profile.value.is_approved = true
-    }
-    
-    // 2. DB Fetch
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single()
-    
-    if (!error && data) {
-       // Merge, but prefer Auth email if DB is empty
-       profile.value = {
-           ...data,
-           email: data.email || currentEmail,
-           is_approved: isSuper ? true : data.is_approved // Force super admin
-       }
-       
-       // If DB email was missing, fix it now
-       if (!data.email || data.email !== currentEmail) {
-           console.log('Syncing email to DB profile...')
-           supabase.from('profiles').update({ email: currentEmail }).eq('id', user.id).then(() => {})
-       }
-
-    } else {
-      console.warn('Profile fetch failed or empty, keeping basic auth info.', error)
-      // If no profile exists, create one? DashboardLayout does this, but maybe we missed it.
+    loading.value = true
+    const data = await auth.getUser()
+    if (data) {
+       profile.value = data
     }
   } catch (e) {
     console.error('Exception in fetchProfile:', e)
+  } finally {
+    loading.value = false
   }
 }
 
 const updateProfile = async () => {
   loading.value = true
-  const { data: { user } } = await supabase.auth.getUser()
-  
-  const { error } = await supabase
-    .from('profiles')
-    .update({
+  try {
+    await client.post('me', {
       whatsapp_number: profile.value.whatsapp_number,
       bank_name: profile.value.bank_name,
       account_number: profile.value.account_number,
-      account_holder_name: profile.value.account_holder_name,
-      updated_at: new Date()
+      account_holder_name: profile.value.account_holder_name
     })
-    .eq('id', user.id)
 
-  loading.value = false
-  
-  if (error) {
-    $q.notify({ type: 'negative', message: 'Update failed: ' + error.message })
-  } else {
     $q.notify({ type: 'positive', message: 'Profile updated successfully' })
+    fetchProfile()
+  } catch (error) {
+    $q.notify({ type: 'negative', message: 'Update failed: ' + error.message })
+  } finally {
+    loading.value = false
   }
 }
+
 
 const formatDate = (dateStr) => {
   if (!dateStr) return 'N/A'

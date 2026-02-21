@@ -216,9 +216,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { supabase } from 'src/supabase'
+import { client } from 'src/api'
 import gsap from 'gsap'
 
 const router = useRouter()
@@ -245,7 +245,7 @@ const profitPercentage = computed(() => 100 - expensePercentage.value)
 const todaySchedule = ref([])
 const activities = ref([])
 const dbCheckStatus = ref('Initializing...')
-const realtimeStatusColor = ref('orange')
+const realtimeStatusColor = ref('green')
 const showDetails = ref(false)
 const selectedClass = ref(null)
 
@@ -256,137 +256,71 @@ const quickLinks = [
     { label: 'Messages', icon: 'alternate_email', color: 'purple-7', action: 'message' }
 ]
 
-let channels = []
-
 onMounted(() => {
-    console.log('D1. DashboardPage mounted')
     fetchInitialData()
-    setupRealtime()
 })
 
-onUnmounted(() => {
-    channels.forEach(ch => supabase.removeChannel(ch))
-})
-
-const setupRealtime = () => {
-    // Listen for changes in all relevant tables
-    const activityChannel = supabase
-        .channel('public:activities')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activities' }, () => {
-            fetchActivities()
-            fetchStats() // Re-fetch counts and financials on any event
-        })
-        .subscribe()
-
-    const classesChannel = supabase
-        .channel('public:classes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'classes' }, () => fetchSchedule())
-        .subscribe()
-
-    channels.push(activityChannel, classesChannel)
-    dbCheckStatus.value = 'Realtime Connected'
-    realtimeStatusColor.value = 'green'
-}
-
-const fetchInitialData = () => {
-    fetchStats()
-    fetchActivities()
-    fetchSchedule()
-}
-
-const fetchStats = async () => {
+const fetchInitialData = async () => {
     dbCheckStatus.value = 'Fetching data...'
-    
-    // Safety timer to force "Connected" state if we get stuck
-    setTimeout(() => {
-        if (dbCheckStatus.value === 'Fetching data...') {
-            dbCheckStatus.value = 'Status: Connected (Slow)'
-            realtimeStatusColor.value = 'orange'
-        }
-    }, 5000)
-
     try {
-        // 1. Students Count
-        const studentsPromise = supabase.from('students').select('*', { count: 'exact', head: true })
-        
-        // 2. Financials
-        const date = new Date()
-        const startOfMonth = new Date(date.getFullYear(), date.getMonth(), 1).toISOString()
-        const feesPromise = supabase.from('payments').select('amount').gte('payment_date', startOfMonth)
-        const salariesPromise = supabase.from('salary_payments').select('amount').gte('created_at', startOfMonth)
-
-        // 3. Tutors Count
-        const tutorsPromise = supabase.from('tutors').select('*', { count: 'exact', head: true })
-
-        // 4. Remaining Classes
-        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-        const today = days[new Date().getDay()]
-        const classesPromise = supabase.from('classes').select('*').eq('day', today).eq('status', 'Active')
-
-        // Execute all in parallel
-        const [studentsRes, feesRes, salariesRes, tutorsRes, classesRes] = await Promise.all([
-            studentsPromise,
-            feesPromise,
-            salariesPromise,
-            tutorsPromise,
-            classesPromise
+        await Promise.all([
+            fetchStats(),
+            fetchActivities(),
+            fetchSchedule()
         ])
-
-        // Process Students
-        if (studentsRes.error) console.error('Students fetch error', studentsRes.error)
-        stats.value[0].target = studentsRes.count || 0
-        stats.value[0].progress = Math.min(1, (studentsRes.count || 0) / 1000)
-
-        // Process Financials
-        if (feesRes.data) totalFees.value = feesRes.data.reduce((sum, p) => sum + Number(p.amount), 0)
-        if (salariesRes.data) totalSalaries.value = salariesRes.data.reduce((sum, p) => sum + Number(p.amount), 0)
-        stats.value[1].target = netRevenue.value
-        stats.value[1].progress = profitPercentage.value / 100
-
-        // Process Tutors
-        stats.value[2].target = tutorsRes.count || 0
-        stats.value[2].progress = Math.min(1, (tutorsRes.count || 0) / 50)
-
-        // Process Classes
-        if (classesRes.data) {
-            const nowTime = new Date().getHours() * 60 + new Date().getMinutes()
-            const remaining = classesRes.data.filter(c => {
-                const [h, m] = c.start_time.split(':').map(Number)
-                return (h * 60 + m) > nowTime
-            })
-            stats.value[3].target = remaining.length
-            stats.value[3].progress = classesRes.data.length > 0 ? remaining.length / classesRes.data.length : 0
-        }
-
-        animateStats()
-        dbCheckStatus.value = 'Realtime Connected'
+        dbCheckStatus.value = 'Status: Connected'
         realtimeStatusColor.value = 'green'
-
     } catch (e) {
-        console.error('Fatal error in fetchStats:', e)
         dbCheckStatus.value = 'Connection Error'
         realtimeStatusColor.value = 'red'
     }
 }
 
+const fetchStats = async () => {
+    try {
+        // Fetch stats summary from dynamic worker endpoint or individual queries
+        // For now, let's fetch them individually as we haven't added a dedicated 'stats' endpoint yet
+        const students = await client.get('students')
+        const tutors = await client.get('tutors')
+        const schedule = await client.get('schedule/today')
+        
+        stats.value[0].target = students?.length || 0
+        stats.value[0].progress = Math.min(1, (students?.length || 0) / 1000)
+
+        stats.value[2].target = tutors?.length || 0
+        stats.value[2].progress = Math.min(1, (tutors?.length || 0) / 50)
+
+        if (schedule) {
+            const nowTime = new Date().getHours() * 60 + new Date().getMinutes()
+            const remaining = schedule.filter(c => {
+                const [h, m] = c.start_time.split(':').map(Number)
+                return (h * 60 + m) > nowTime
+            })
+            stats.value[3].target = remaining.length
+            stats.value[3].progress = schedule.length > 0 ? remaining.length / schedule.length : 0
+        }
+        
+        animateStats()
+    } catch (e) {
+        console.error('Stats fetch error:', e)
+    }
+}
+
 const fetchActivities = async () => {
-    const { data } = await supabase.from('activities').select('*').order('created_at', { ascending: false }).limit(6)
-    if (data) activities.value = data
+    try {
+        const data = await client.get('activities')
+        if (data) activities.value = data.slice(0, 6)
+    } catch (e) {
+        console.error('Activities fetch error:', e)
+    }
 }
 
 const fetchSchedule = async () => {
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-    const today = days[new Date().getDay()]
-    const { data } = await supabase
-        .from('classes')
-        .select('*')
-        .eq('day', today)
-        .eq('status', 'Active')
-        .order('start_time')
-    
-    if (data) {
-        // If specific date exists, prioritze it or show both? User asked for "Ada schedule"
-        todaySchedule.value = data
+    try {
+        const data = await client.get('schedule/today')
+        if (data) todaySchedule.value = data
+    } catch (e) {
+        console.error('Schedule fetch error:', e)
     }
 }
 

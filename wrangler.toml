@@ -5,14 +5,18 @@ compatibility_date = "2024-01-08"
 # Node.js compatibility
 compatibility_flags = ["nodejs_compat"]
 
+# D1 Database Binding
+[[d1_databases]]
+binding = "DB"
+database_name = "classmaster-db"
+database_id = "793c3274-ca23-4d2e-9e2e-d300429da083" # CHANGE THIS locally or use dashboard
+
+[vars]
+# You can set your JWT secret here for the Worker
+# JWT_SECRET = "your-secret-key"
+
 # Build configuration is set in Cloudflare Dashboard:
 # Build command: npm run build
 # Build output directory: dist/spa
 # Root directory: (leave blank)
-#
-# Note: Quasar automatically creates dist/spa folder in SPA mode
-#
-# Environment variables (set these in Cloudflare Dashboard):
-# VITE_SUPABASE_URL = your_supabase_url
-# VITE_SUPABASE_KEY = your_supabase_anon_key
-# NODE_VERSION = 20
+

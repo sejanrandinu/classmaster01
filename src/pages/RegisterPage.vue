@@ -159,10 +159,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
-import { supabase } from 'src/supabase'
+import { auth } from 'src/api'
 
 const router = useRouter()
 const $q = useQuasar()
@@ -172,57 +172,21 @@ const password = ref('')
 const confirmPassword = ref('')
 const whatsapp = ref('')
 const loading = ref(false)
-const adminDetails = ref({
-  bank_name: 'Bank of Ceylon (BOC)',
-  account_number: '86019560',
-  account_holder_name: 'B.L Ruwan Manjula'
-})
-
-const fetchAdminDetails = async () => {
-  try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('bank_name, account_number, account_holder_name')
-      .eq('email', 'sejanrandinu01@gmail.com')
-      .single()
-    
-    if (!error && data) {
-      adminDetails.value = data
-    }
-  } catch (e) {
-    // Keep default values if fetch fails
-    console.log('Using default bank details', e)
-  }
-}
-
-onMounted(() => {
-  fetchAdminDetails()
-})
 
 const onSubmit = async () => {
   loading.value = true
   
   try {
-    const { error } = await supabase.auth.signUp({
-      email: email.value,
-      password: password.value,
-      options: {
-        data: {
-          whatsapp: whatsapp.value
-        }
-      }
-    })
-
-    if (error) throw error
+    await auth.register(email.value, password.value, whatsapp.value)
 
     $q.notify({
       type: 'positive',
-      message: 'Registration successful! Please check your email to verify your account.',
+      message: 'Registration successful!',
       position: 'top',
       timeout: 5000
     })
     
-     router.push('/login')
+     router.push('/dashboard')
   } catch (error) {
     $q.notify({
       type: 'negative',
@@ -233,6 +197,7 @@ const onSubmit = async () => {
     loading.value = false
   }
 }
+
 </script>
 
 <style scoped lang="scss">

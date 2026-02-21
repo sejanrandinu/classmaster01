@@ -281,10 +281,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
-import { supabase } from 'src/supabase'
+import { auth, client } from 'src/api'
 import { useAppStore } from 'src/store/app'
 import layoutTranslations from 'src/i18n/layout'
 import ChatbotComponent from 'src/components/ChatbotComponent.vue'
@@ -305,54 +305,21 @@ const showPaymentDetails = () => {
     })
 }
 
-const getStoredEmailHint = () => {
-    try {
-        const storage = typeof window !== 'undefined' ? window.localStorage : null
-        if (!storage) return ''
-        
-        const key = 'classmaster-live-session'
-        const stored = storage.getItem(key)
-        console.log('Checking storage for session:', key, stored ? 'Found' : 'Not found')
-        if (stored) {
-            const data = JSON.parse(stored)
-            const email = data?.user?.email || data?.currentSession?.user?.email || data?.session?.user?.email
-            console.log('Extracted email from storage:', email)
-            if (email) return email
-        }
-    } catch (e) {
-        console.warn('Error reading email hint from storage (Security blocked?):', e)
-    }
-    return ''
-}
-
-const dbApproved = ref(false)
-const userEmail = ref(getStoredEmailHint()) 
-
-// Initial loading state
+const userEmail = ref('')
+const userName = ref('')
 const loadingProfile = ref(true)
+const dbApproved = ref(false)
+const userRole = ref('')
 
-// Immediate Super Admin Check (pre-verification)
 const isSuperAdmin = computed(() => {
-    const email = userEmail.value?.trim().toLowerCase()
-    return email === 'sejanrandinu01@gmail.com'
+    return userEmail.value?.trim().toLowerCase() === 'sejanrandinu01@gmail.com'
 })
-
-// If it's the Super Admin hint, we can skip the dots earlier
-if (isSuperAdmin.value) {
-    console.log('Detected Super Admin hint, allowing early entry.')
-    loadingProfile.value = false
-}
 
 const isApproved = computed(() => {
     if (isSuperAdmin.value) return true
     return dbApproved.value
 })
 
-const userName = ref('')
-const pendingCount = ref(0)
-const notificationsCount = computed(() => pendingCount.value)
-
-// Dynamic User Info for Header
 const userDisplayName = computed(() => {
     if (isSuperAdmin.value) return 'Sejan Randinu'
     return userName.value || (userEmail.value ? userEmail.value.split('@')[0] : 'Member')
@@ -363,251 +330,63 @@ const userRoleLabel = computed(() => {
     return isApproved.value ? 'Active Member' : 'Pending Member'
 })
 
-// WhatsApp Dialog State
 const showWhatsAppDialog = ref(false)
 const whatsappNumber = ref('')
 const whatsappLoading = ref(false)
 
-let authListener = null
-
-onMounted(() => {
-    console.log('DashboardLayout mounted. current userEmail:', userEmail.value)
-
-    // Safety Force Quit for dots
-    // Safety Force Quit for dots - JUST stop loading, don't redirect
-    const globalLoadTimeout = setTimeout(() => {
-        if (loadingProfile.value) {
-            console.warn('Global load timeout reached. Forcing dots off.')
-            loadingProfile.value = false
-        }
-    }, 8000)
-
-    // 1. Check current session with a hard timeout
-    console.log('Auth check: Starting getSession...')
-    
-    // INSTANT RECOVERY FOR SUPER ADMIN
-    const hintEmail = getStoredEmailHint()?.trim().toLowerCase()
-    const adminEmail = 'sejanrandinu01@gmail.com'
-    
-    if (hintEmail === adminEmail) {
-        console.log('Super Admin detected via hint. FORCING Entry.')
-        userEmail.value = adminEmail
-        loadingProfile.value = false
-        dbApproved.value = true
-        // Refresh session in background
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            if (session) {
-                userEmail.value = session.user.email
-                fetchProfile(session.user)
-            }
-        })
-    }
-
-    // 2. Initial Session Check (Passive)
-    const sessionPromise = supabase.auth.getSession()
-
-    sessionPromise.then(({ data: { session } = {}, error } = {}) => {
-        if (session) {
-            console.log('Session found via lookup.')
-            clearTimeout(globalLoadTimeout)
-            if (!userEmail.value) {
-                userEmail.value = session.user.email
-                fetchProfile(session.user)
-            }
-        } else {
-            if (error) console.warn('Session lookup error:', error)
-            console.log('No active session found. Waiting for user action or listener.')
-            // DO NOT REDIRECT HERE. Let the user see a guest state if needed.
-            loadingProfile.value = false
-        }
-    }).catch(e => {
-        console.warn('Session check failed:', e)
-        loadingProfile.value = false
-    })
-
-    // 2. Active Listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-        console.log('Auth state changed (Dashboard):', event, session?.user?.email)
-        if (session) {
-            clearTimeout(globalLoadTimeout)
-            userEmail.value = session.user.email
-            await fetchProfile(session.user)
-        } else if (event === 'SIGNED_OUT') {
-            console.log('User signed out, redirecting to login.')
-            router.replace('/login')
-        }
-    })
-    authListener = subscription
+onMounted(async () => {
+    await fetchProfile()
 })
 
-onUnmounted(() => {
-    if (authListener) {
-        console.log('Cleaning up Dashboard auth listener')
-        authListener.unsubscribe()
-    }
-})
-
-const fetchProfile = async (user) => {
-    console.log('Fetching profile for:', user.id)
-    userEmail.value = user.email
-
-    // 1. Instant Admin Access (Bypass DB delay)
-    // Direct check to avoid reactivity delays
-    if (user.email === 'sejanrandinu01@gmail.com' || isSuperAdmin.value) {
-        console.log('Super Admin detected, bypassing profile fetch.')
-        dbApproved.value = true
-        loadingProfile.value = false
-        return
-    }
-
+const fetchProfile = async () => {
     loadingProfile.value = true
-    
-    // Safety Force Quit after 6 seconds for profile specifically
-    const safetyTimer = setTimeout(() => {
-        if (loadingProfile.value) {
-            console.warn('Profile fetch timeout. Showing current state.')
-            loadingProfile.value = false
-        }
-    }, 6000)
-
-    let retries = 3
-
-    while (retries >= 0) {
-        try {
-            const { data, error } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', user.id)
-                .single()
-
-            if (error) {
-                if (retries > 0 && (error.code === 'PGRST116' || !data)) {
-                    retries--
-                    await new Promise(resolve => setTimeout(resolve, 1500))
-                    continue
-                }
-                
-                if (error.code === 'PGRST116' || !data) {
-                    // Create profile if missing - AUTO APPROVE Everyone for now
-                    console.log('Creating new profile (Auto-Approved)')
-                    await supabase.from('profiles').upsert({
-                        id: user.id,
-                        email: user.email,
-                        role: 'admin', // Default to admin for now
-                        is_approved: true, // EXPLICIT AUTO APPROVAL
-                        created_at: new Date().toISOString()
-                    }, { onConflict: 'id' })
-                    retries = 0 
-                    continue
-                }
-
-                console.error('Profile DB Error:', error)
-                // Fallback: If DB error, assume approved to avoid lockout if it's a connection blip
-                if (retries === 0) {
-                     dbApproved.value = true 
-                }
-                break
-            }
-            
-            // Success
-            dbApproved.value = data.is_approved
+    try {
+        const data = await auth.getUser()
+        if (data) {
+            userEmail.value = data.email
             userName.value = data.full_name || ''
+            dbApproved.value = data.is_approved
+            userRole.value = data.role
 
-            if (!data.whatsapp_number) {
+            if (!data.whatsapp_number && !isSuperAdmin.value) {
                 showWhatsAppDialog.value = true
             }
-            break 
-
-        } catch (err) {
-            console.error('Fetch exception:', err)
-            dbApproved.value = false
-            break
+        } else {
+            router.replace('/login')
         }
+    } catch (err) {
+        console.error('Fetch profile error:', err)
+        router.replace('/login')
+    } finally {
+        loadingProfile.value = false
     }
-    
-    clearTimeout(safetyTimer)
-    loadingProfile.value = false
 }
 
 const saveWhatsApp = async () => {
     if (!whatsappNumber.value) return
-
     whatsappLoading.value = true
     try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) throw new Error('No user found')
-
-        const { error } = await supabase
-            .from('profiles')
-            .update({ whatsapp_number: whatsappNumber.value })
-            .eq('id', user.id)
-
-        if (error) throw error
-
-        $q.notify({
-            type: 'positive',
-            message: 'WhatsApp number saved successfully!',
-            position: 'top'
-        })
+        await client.post('me', { whatsapp_number: whatsappNumber.value })
+        $q.notify({ type: 'positive', message: 'WhatsApp number saved!' })
         showWhatsAppDialog.value = false
     } catch (error) {
-        console.error('Error saving WhatsApp:', error)
-        $q.notify({
-            type: 'negative',
-            message: 'Error saving WhatsApp number. Please try again.',
-            position: 'top'
-        })
+        $q.notify({ type: 'negative', message: 'Error saving WhatsApp number.' })
     } finally {
         whatsappLoading.value = false
     }
 }
 
-const handleSupport = () => {
-    window.open('https://wa.me/94702838364', '_blank')
+const handleSupport = () => window.open('https://wa.me/94702838364', '_blank')
+const toggleLeftDrawer = () => { leftDrawerOpen.value = !leftDrawerOpen.value }
+const handleProfile = () => router.push('/dashboard/profile')
+const handleSettings = () => router.push('/dashboard/settings')
+const handleHelp = () => router.push('/dashboard/help-support')
+
+const handleLogout = () => {
+    auth.logout()
+    $q.notify({ type: 'positive', message: 'Logged out successfully' })
 }
 
-function toggleLeftDrawer () {
-  leftDrawerOpen.value = !leftDrawerOpen.value
-}
-
-const handleProfile = () => {
-    router.push('/dashboard/profile')
-}
-
-const handleSettings = () => {
-    router.push('/dashboard/settings')
-}
-
-const handleHelp = () => {
-    router.push('/dashboard/help-support')
-}
-
-const handleNotifications = () => {
-    $q.notify({ 
-        message: appStore.language === 'English' ? `You have ${notificationsCount.value} new updates.` : `ඔබට නව යාවත්කාලීන ${notificationsCount.value} ක් ඇත.`, 
-        icon: 'notifications', 
-        color: 'primary' 
-    })
-}
-
-const handleSearch = () => {
-    if (search.value) {
-         $q.notify({ message: appStore.language === 'English' ? `Searching for: ${search.value}` : `${search.value} සොයමින් සිටී...`, icon: 'search', color: 'primary' })
-    }
-}
-
-const handleLogout = async () => {
-  await supabase.auth.signOut()
-  
-  // Force clear all local state
-  if (typeof window !== 'undefined') {
-      window.localStorage.clear()
-      window.sessionStorage.clear()
-  }
-
-  router.push('/login')
-  $q.notify({ type: 'positive', message: appStore.language === 'English' ? 'App reset & logged out' : 'පද්ධතිය Reset කර ඉවත් විය' })
-}
 </script>
 
 <style scoped>

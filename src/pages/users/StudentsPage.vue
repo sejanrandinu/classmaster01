@@ -213,7 +213,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
-import { supabase } from 'src/supabase'
+import { client } from 'src/api'
 import QrcodeVue from 'qrcode.vue'
 import html2canvas from 'html2canvas'
 
@@ -243,8 +243,13 @@ const form = ref({
 const subjectOptions = ref([])
 
 const fetchSubjects = async () => {
-    const { data } = await supabase.from('subjects').select('name').order('name')
-    if (data) subjectOptions.value = data.map(s => s.name)
+    try {
+        // This endpoint should be added to the worker as well
+        const data = await client.get('subjects')
+        if (data) subjectOptions.value = data.map(s => s.name)
+    } catch (e) {
+        console.warn('Could not fetch subjects')
+    }
 }
 
 
@@ -268,8 +273,7 @@ onMounted(() => {
 const fetchStudents = async () => {
     loading.value = true
     try {
-        const { data, error } = await supabase.from('students').select('*').order('created_at', { ascending: false })
-        if (error) throw error
+        const data = await client.get('students')
         rows.value = data || []
     } catch (error) {
         console.error('Error fetching students:', error)
@@ -336,7 +340,6 @@ const downloadCard = async () => {
 
 const openAddDialog = () => {
     isEdit.value = false
-    // Generate a temporary ID for display, backend should handle real unique IDs or we keep this logic
     const nextId = 'ST-2024' + Math.floor(Math.random() * 10000)
     form.value = { id: null, student_id: nextId, name: '', school: '', grade: '', contact: '', status: 'Active', photo_url: '', subjects: [] }
     showDialog.value = true
@@ -350,8 +353,7 @@ const openEditDialog = (row) => {
 
 const saveStudent = async () => {
     loading.value = true
-    let error = null
-
+    
     const studentData = {
         student_id: form.value.student_id,
         name: form.value.name,
@@ -362,30 +364,20 @@ const saveStudent = async () => {
         subjects: form.value.subjects
     }
 
-    if (isEdit.value && form.value.id) {
-        // Update
-        const { error: updateError } = await supabase
-            .from('students')
-            .update(studentData)
-            .eq('id', form.value.id)
-        error = updateError
-    } else {
-        // Insert
-        const { error: insertError } = await supabase
-            .from('students')
-            .insert([studentData])
-        error = insertError
-    }
-
-    loading.value = false
-
-    if (error) {
-        console.error('Error saving student:', error)
-        $q.notify({ type: 'negative', message: 'Error saving student - Please check if institute exists in students table' })
-    } else {
+    try {
+        if (isEdit.value && form.value.id) {
+            await client.put(`students/${form.value.id}`, studentData)
+        } else {
+            await client.post('students', studentData)
+        }
         $q.notify({ type: 'positive', message: isEdit.value ? 'Student updated' : 'Student added' })
         showDialog.value = false
         fetchStudents()
+    } catch (error) {
+        console.error('Error saving student:', error)
+        $q.notify({ type: 'negative', message: 'Error saving student' })
+    } finally {
+        loading.value = false
     }
 }
 
@@ -396,27 +388,20 @@ const deleteStudent = (id) => {
         cancel: true,
         persistent: true
     }).onOk(async () => {
-        console.log('Attempting to delete student with ID:', id)
         loading.value = true
-        const { error, data } = await supabase
-            .from('students')
-            .delete()
-            .eq('id', id)
-            .select() // Select to confirm deletion
-        
-        console.log('Delete result:', { error, data })
-
-        loading.value = false
-
-        if (error) {
-            console.error('Error deleting student:', error)
-            $q.notify({ type: 'negative', message: `Error deleting student: ${error.message}` })
-        } else {
+        try {
+            await client.delete(`students/${id}`)
             $q.notify({ type: 'positive', message: 'Student deleted successfully' })
             fetchStudents()
+        } catch (error) {
+            console.error('Error deleting student:', error)
+            $q.notify({ type: 'negative', message: `Error deleting student: ${error.message}` })
+        } finally {
+            loading.value = false
         }
     })
 }
+
 </script>
 
 <style scoped>

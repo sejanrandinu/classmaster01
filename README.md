@@ -1,32 +1,50 @@
 # ClassMaster (tuition-manager)
 
-All in one tuition class management system
+All-in-one tuition class management system. Now powered by **Cloudflare Workers** and **D1 Database**.
 
-## Install the dependencies
+## Features
+- **Multi-tenant isolation**: Every user has their own data workspace.
+- **D1 Database**: High-performance SQLite on the edge.
+- **JWT Authentication**: Secure, stateless user sessions.
+- **Quasar Frontend**: Modern, responsive UI.
+
+## Local Development
+
+### 1. Install dependencies
 ```bash
-yarn
-# or
 npm install
 ```
 
-### Start the app in development mode (hot-code reloading, error reporting, etc.)
+### 2. Configure Workers & D1
+- Create a D1 database in Cloudflare dashboard.
+- Update `wrangler.toml` with your `database_id`.
+- Apply schema:
+```bash
+npx wrangler d1 execute classmaster-db --file=./schema.sql
+```
+
+### 3. Environment Variables
+Create a `functions/api/.env` (or set in Cloudflare dashboard):
+- `JWT_SECRET`: Your secret key for signing tokens.
+
+### 4. Run Quasar Dev Server
 ```bash
 quasar dev
 ```
 
+## Deployment
 
-### Lint the files
+Deploy to Cloudflare Pages & Workers:
 ```bash
-yarn lint
-# or
-npm run lint
+npm run build
+npx wrangler pages deploy dist/spa
 ```
 
+## Technology Stack
+- **Frontend**: Vue 3, Quasar Framework, Pinia.
+- **Backend**: Cloudflare Pages Functions (Node.js compat).
+- **Database**: Cloudflare D1 (SQLite).
+- **Auth**: Custom JWT implementation.
 
-### Build the app for production
-```bash
-quasar build
-```
-
-### Customize the configuration
-See [Configuring quasar.config.js](https://v2.quasar.dev/quasar-cli-vite/quasar-config-js).
+---
+Built with ❤️ by ClassMaster Team.

@@ -1,0 +1,79 @@
+
+// Custom API Client for Cloudflare Workers + D1
+// Replaces Supabase SDK
+
+const API_URL = '/api';
+
+const getAuthToken = () => localStorage.getItem('classmaster-token');
+
+export const client = {
+    async request(path, options = {}) {
+        const token = getAuthToken();
+        const headers = {
+            'Content-Type': 'application/json',
+            ...options.headers,
+        };
+
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(`${API_URL}/${path}`, {
+            ...options,
+            headers,
+        });
+
+        if (response.status === 401) {
+            // Unauthorized - clear token and potentially redirect to login
+            localStorage.removeItem('classmaster-token');
+            if (!window.location.pathname.includes('/login')) {
+                window.location.href = '/login';
+            }
+        }
+
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'API Request failed');
+        }
+
+        return data;
+    },
+
+    get(path) { return this.request(path, { method: 'GET' }); },
+    post(path, data) { return this.request(path, { method: 'POST', body: JSON.stringify(data) }); },
+    put(path, data) { return this.request(path, { method: 'PUT', body: JSON.stringify(data) }); },
+    delete(path) { return this.request(path, { method: 'DELETE' }); }
+};
+
+export const auth = {
+    async login(email, password) {
+        const data = await client.post('auth/login', { email, password });
+        if (data.token) {
+            localStorage.setItem('classmaster-token', data.token);
+            localStorage.setItem('classmaster-user', JSON.stringify(data.user));
+        }
+        return data;
+    },
+
+    async register(email, password, whatsapp) {
+        const data = await client.post('auth/register', { email, password, whatsapp });
+        if (data.token) {
+            localStorage.setItem('classmaster-token', data.token);
+        }
+        return data;
+    },
+
+    logout() {
+        localStorage.removeItem('classmaster-token');
+        localStorage.removeItem('classmaster-user');
+        window.location.href = '/login';
+    },
+
+    async getUser() {
+        try {
+            return await client.get('me');
+        } catch (e) {
+            return null;
+        }
+    }
+};
