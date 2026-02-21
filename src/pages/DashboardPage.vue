@@ -268,9 +268,8 @@ const fetchInitialData = async () => {
             fetchActivities(),
             fetchSchedule()
         ])
-        dbCheckStatus.value = 'Status: Connected'
         realtimeStatusColor.value = 'green'
-    } catch (e) {
+    } catch {
         dbCheckStatus.value = 'Connection Error'
         realtimeStatusColor.value = 'red'
     }
@@ -301,8 +300,8 @@ const fetchStats = async () => {
         }
         
         animateStats()
-    } catch (e) {
-        console.error('Stats fetch error:', e)
+    } catch {
+        console.error('Stats fetch error')
     }
 }
 

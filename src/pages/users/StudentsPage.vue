@@ -247,7 +247,7 @@ const fetchSubjects = async () => {
         // This endpoint should be added to the worker as well
         const data = await client.get('subjects')
         if (data) subjectOptions.value = data.map(s => s.name)
-    } catch (e) {
+    } catch {
         console.warn('Could not fetch subjects')
     }
 }

@@ -369,7 +369,7 @@ const saveWhatsApp = async () => {
         await client.post('me', { whatsapp_number: whatsappNumber.value })
         $q.notify({ type: 'positive', message: 'WhatsApp number saved!' })
         showWhatsAppDialog.value = false
-    } catch (error) {
+    } catch {
         $q.notify({ type: 'negative', message: 'Error saving WhatsApp number.' })
     } finally {
         whatsappLoading.value = false

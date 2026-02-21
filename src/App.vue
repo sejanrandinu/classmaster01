@@ -6,7 +6,6 @@
 import { onMounted } from 'vue'
 import { useQuasar } from 'quasar'
 
-const $q = useQuasar()
 
 onMounted(async () => {
     // Force unregister any Service Workers to prevent caching issues

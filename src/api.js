@@ -72,7 +72,7 @@ export const auth = {
     async getUser() {
         try {
             return await client.get('me');
-        } catch (e) {
+        } catch {
             return null;
         }
     }
