@@ -252,8 +252,34 @@ export async function onRequest(context) {
 
         // SUBJECTS
         if (path === 'subjects' && method === 'GET') {
-            const { results } = await db.prepare("SELECT * FROM subjects WHERE user_id = ?").bind(userId).all();
+            const { results } = await db.prepare("SELECT * FROM subjects WHERE user_id = ? ORDER BY created_at DESC").bind(userId).all();
             return json(results || []);
+        }
+
+        if (path === 'subjects' && method === 'POST') {
+            const data = await request.json();
+            await db.prepare("INSERT INTO subjects (user_id, name, code, description) VALUES (?, ?, ?, ?)")
+                .bind(userId, data.name, data.code, data.description)
+                .run();
+            await logActivity('subject', `Added new subject: ${data.name}`);
+            return json({ message: "Subject added" });
+        }
+
+        if (path.startsWith('subjects/') && method === 'PUT') {
+            const id = path.split('/')[1];
+            const data = await request.json();
+            await db.prepare("UPDATE subjects SET name = ?, code = ?, description = ? WHERE id = ? AND user_id = ?")
+                .bind(data.name, data.code, data.description, id, userId)
+                .run();
+            await logActivity('subject', `Updated subject: ${data.name}`);
+            return json({ message: "Subject updated" });
+        }
+
+        if (path.startsWith('subjects/') && method === 'DELETE') {
+            const id = path.split('/')[1];
+            await db.prepare("DELETE FROM subjects WHERE id = ? AND user_id = ?").bind(id, userId).run();
+            await logActivity('subject', `Deleted a subject`);
+            return json({ message: "Subject deleted" });
         }
 
         // ACTIVITIES (Using messages table as log)

@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS subjects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id TEXT NOT NULL,
     name TEXT NOT NULL,
+    code TEXT,
     description TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(user_id) REFERENCES profiles(id) ON DELETE CASCADE
