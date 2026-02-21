@@ -28,7 +28,7 @@
             </div>
             <div class="col-12 q-mt-sm">
               <div class="text-body2 text-grey-4">Account Holder</div>
-              <div class="text-body1 text-weight-medium text-white">B.L Ruwan Manjula</div>
+              <div class="text-body1 text-weight-medium text-white">B.L. Ruwan Manjula</div>
             </div>
           </div>
         </div>

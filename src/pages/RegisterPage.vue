@@ -159,10 +159,10 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
-import { auth } from 'src/api'
+import { auth, client } from 'src/api'
 
 const router = useRouter()
 const $q = useQuasar()
@@ -172,6 +172,12 @@ const password = ref('')
 const confirmPassword = ref('')
 const whatsapp = ref('')
 const loading = ref(false)
+
+const adminDetails = ref({
+  bank_name: 'Bank of Ceylon (BOC)',
+  account_number: '86019560',
+  account_holder_name: 'B.L. Ruwan Manjula'
+})
 
 const onSubmit = async () => {
   loading.value = true

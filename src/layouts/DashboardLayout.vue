@@ -310,6 +310,8 @@ const userName = ref('')
 const loadingProfile = ref(true)
 const dbApproved = ref(false)
 const userRole = ref('')
+const notificationsCount = ref(0)
+const pendingCount = ref(0)
 
 const isSuperAdmin = computed(() => {
     return userEmail.value?.trim().toLowerCase() === 'sejanrandinu01@gmail.com'
@@ -336,6 +338,9 @@ const whatsappLoading = ref(false)
 
 onMounted(async () => {
     await fetchProfile()
+    if (isSuperAdmin.value) {
+        fetchPendingCount()
+    }
 })
 
 const fetchProfile = async () => {
@@ -343,8 +348,8 @@ const fetchProfile = async () => {
     try {
         const data = await auth.getUser()
         if (data) {
-            userEmail.value = data.email
-            userName.value = data.full_name || ''
+            userEmail.value = data.email || ''
+            userName.value = data.account_holder_name || '' // Use account_holder_name as fallback name
             dbApproved.value = data.is_approved
             userRole.value = data.role
 
@@ -359,6 +364,17 @@ const fetchProfile = async () => {
         router.replace('/login')
     } finally {
         loadingProfile.value = false
+    }
+}
+
+const fetchPendingCount = async () => {
+    try {
+        const profiles = await client.get('profiles')
+        if (profiles) {
+            pendingCount.value = profiles.filter(p => !p.is_approved && p.role === 'pending').length
+        }
+    } catch (err) {
+        console.error('Error fetching pending count:', err)
     }
 }
 
@@ -381,6 +397,17 @@ const toggleLeftDrawer = () => { leftDrawerOpen.value = !leftDrawerOpen.value }
 const handleProfile = () => router.push('/dashboard/profile')
 const handleSettings = () => router.push('/dashboard/settings')
 const handleHelp = () => router.push('/dashboard/help-support')
+
+const handleSearch = () => {
+    if (!search.value) return
+    $q.notify({ message: `Searching for: ${search.value}` })
+    // Real search logic could go here
+}
+
+const handleNotifications = () => {
+    $q.notify({ message: 'No new notifications' })
+    notificationsCount.value = 0
+}
 
 const handleLogout = () => {
     auth.logout()
