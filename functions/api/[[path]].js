@@ -39,7 +39,7 @@ async function verifyJWT(token, secret) {
 export async function onRequest(context) {
     const { request, env, params } = context;
     const url = new URL(request.url);
-    const path = url.pathname.replace('/api/', '');
+    const path = url.pathname.replace(/^\/api\/?/, '');
     const method = request.method;
 
     // CORS Headers

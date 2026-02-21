@@ -24,16 +24,29 @@ export const client = {
         });
 
         if (response.status === 401) {
-            // Unauthorized - clear token and potentially redirect to login
             localStorage.removeItem('classmaster-token');
             if (!window.location.pathname.includes('/login')) {
                 window.location.href = '/login';
             }
         }
 
-        const data = await response.json();
+        let data = {};
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            try {
+                data = await response.json();
+            } catch (e) {
+                console.error('JSON Parse Error:', e);
+            }
+        } else {
+            // Probably HTML or text error from Cloudflare
+            const text = await response.text();
+            console.error('Non-JSON response:', text);
+            throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+        }
+
         if (!response.ok) {
-            throw new Error(data.error || 'API Request failed');
+            throw new Error(data.error || `API Error ${response.status}`);
         }
 
         return data;
