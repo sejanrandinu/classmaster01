@@ -82,7 +82,7 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import { supabase } from 'src/supabase'
+import { client } from 'src/api'
 import { useQuasar } from 'quasar'
 
 const $q = useQuasar()
@@ -118,30 +118,16 @@ const filteredUsers = computed(() => {
   return list
 })
 
-const fetchUsers = async (retryCount = 3) => {
+const fetchUsers = async () => {
   loading.value = true
-  const timeoutPromise = new Promise((_, reject) => 
-    setTimeout(() => reject(new Error('User verification timed out')), 60000)
-  )
-
   try {
-    const { data: profiles, error: profileError } = await Promise.race([
-      supabase.from('profiles').select('*').order('created_at', { ascending: false }),
-      timeoutPromise
-    ])
-
-    if (profileError) throw profileError
+    const profiles = await client.get('profiles')
     allUsers.value = profiles || []
   } catch (error) {
-    if (retryCount > 0) {
-      console.log(`Retrying fetchUsers... (${retryCount} left)`)
-      await new Promise(r => setTimeout(r, 2000))
-      return fetchUsers(retryCount - 1)
-    }
+    console.error('Fetch users error:', error)
     $q.notify({ 
         type: 'negative', 
-        message: 'පරිශීලක ලැයිස්තුව ලබා ගැනීමට අපොහොසත් විය (Network Error): ' + error.message,
-        actions: [{ label: 'නැවත උත්සාහ කරන්න', color: 'white', handler: () => fetchUsers() }]
+        message: 'Failed to load user list'
     })
   } finally {
     loading.value = false
@@ -150,24 +136,16 @@ const fetchUsers = async (retryCount = 3) => {
 
 const toggleStatus = async (user, status) => {
   try {
-    const { error } = await supabase
-      .from('profiles')
-      .update({ is_approved: status })
-      .eq('id', user.id)
-
-    if (error) throw error
+    await client.put(`profiles/${user.id}/approve`, { is_approved: status })
 
     $q.notify({ 
         type: 'positive', 
         message: `User ${status ? 'approved' : 'disapproved'} successfully` 
     })
 
-    // Send WhatsApp notification if approved
     if (status && user.whatsapp_number) {
         let phone = user.whatsapp_number
-        // Format for SL if starts with 0
         if (phone.startsWith('0')) phone = '94' + phone.substring(1)
-        // Clean non-digits
         phone = phone.replace(/\D/g, '')
         
         const message = encodeURIComponent(`Hello! Your ClassMaster account (${user.email}) has been approved. You can now log in to your dashboard.`)
@@ -177,7 +155,7 @@ const toggleStatus = async (user, status) => {
 
     fetchUsers()
   } catch (error) {
-    $q.notify({ type: 'negative', message: `Action failed: ` + error.message })
+    $q.notify({ type: 'negative', message: `Action failed` })
   }
 }
 
@@ -189,17 +167,11 @@ const confirmDelete = (user) => {
     persistent: true
   }).onOk(async () => {
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', user.id)
-
-      if (error) throw error
-      
+      await client.delete(`profiles/${user.id}`)
       $q.notify({ type: 'positive', message: 'User deleted' })
       fetchUsers()
     } catch (error) {
-      $q.notify({ type: 'negative', message: 'Delete failed: ' + error.message })
+      $q.notify({ type: 'negative', message: 'Delete failed' })
     }
   })
 }

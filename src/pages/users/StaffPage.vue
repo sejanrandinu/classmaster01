@@ -187,7 +187,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
-import { supabase } from 'src/supabase'
+import { client } from 'src/api'
 
 const $q = useQuasar()
 const filter = ref('')
@@ -243,15 +243,18 @@ onMounted(() => {
 })
 
 const fetchRoles = async () => {
-    const { data, error } = await supabase.from('roles').select('*')
-    if (!error && data) {
-        roleOptions.value = data.map(r => r.name)
-        data.forEach(r => {
-            rolesMap.value[r.name] = r.color
-        })
+    try {
+        const data = await client.get('roles')
+        if (data) {
+            roleOptions.value = data.map(r => r.name)
+            data.forEach(r => {
+                rolesMap.value[r.name] = r.color
+            })
+        }
+    } catch {
+        // Fallback or ignore
     }
     
-    // Add defaults if empty or just to ensure common options exist
     if (roleOptions.value.length === 0) {
         const defaultRoles = ['Manager', 'Clerk', 'Cleaner', 'Security', 'Other']
         roleOptions.value = defaultRoles
@@ -264,57 +267,39 @@ const getRoleColor = (role) => {
 
 const fetchStaff = async () => {
     loading.value = true
-    // Fetch staff with their payment history
-    const { data, error } = await supabase
-        .from('staff')
-        .select(`
-            *,
-            salary_payments (
-                payment_date,
-                amount
-            )
-        `)
-        .order('created_at', { ascending: false })
+    try {
+        // Updated API call to fetch with payments if needed, or process from results
+        const data = await client.get('staff')
+        if (data) {
+            const currentMonth = new Date().getMonth()
+            const currentYear = new Date().getFullYear()
 
-    if (error) {
-         console.error('Error fetching staff:', error)
-         if (error.code === '42P01') { 
-            $q.notify({ 
-                message: 'Staff table not found. Please run existing SETUP_STAFF.sql in your database.', 
-                color: 'negative',
-                icon: 'warning',
-                timeout: 10000 
-            })
-         }
-    } else {
-        // Process rows to determine payment status
-        const currentMonth = new Date().getMonth()
-        const currentYear = new Date().getFullYear()
-
-        rows.value = data.map(staff => {
-            const payments = staff.salary_payments || []
-            // Sort payments by date desc (if not already)
-            payments.sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date))
-            
-            const lastPayment = payments[0]
-            let isPaidThisMonth = false
-            
-            if (lastPayment) {
-                const payDate = new Date(lastPayment.payment_date)
-                if (payDate.getMonth() === currentMonth && payDate.getFullYear() === currentYear) {
-                    isPaidThisMonth = true
+            rows.value = data.map(staff => {
+                const payments = staff.salary_payments || []
+                payments.sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date))
+                
+                const lastPayment = payments[0]
+                let isPaidThisMonth = false
+                
+                if (lastPayment) {
+                    const payDate = new Date(lastPayment.payment_date)
+                    if (payDate.getMonth() === currentMonth && payDate.getFullYear() === currentYear) {
+                        isPaidThisMonth = true
+                    }
                 }
-            }
 
-            return {
-                ...staff,
-                salary_payments: payments, // Keep full history here if needed, or re-fetch on dialog
-                isPaidThisMonth,
-                lastPaymentDate: lastPayment ? lastPayment.payment_date : null
-            }
-        })
+                return {
+                    ...staff,
+                    isPaidThisMonth,
+                    lastPaymentDate: lastPayment ? lastPayment.payment_date : null
+                }
+            })
+        }
+    } catch (e) {
+        console.error('Error fetching staff:', e)
+    } finally {
+        loading.value = false
     }
-    loading.value = false
 }
 
 const openAddDialog = () => {
@@ -338,40 +323,36 @@ const saveStaff = async () => {
         salary: form.value.salary
     }
 
-    let error = null
-    if (isEdit.value && form.value.id) {
-         const { error: err } = await supabase.from('staff').update(staffData).eq('id', form.value.id)
-         error = err
-    } else {
-         const { error: err } = await supabase.from('staff').insert([staffData])
-         error = err
-    }
-
-    loading.value = false
-    if (error) {
-        console.error(error)
-        $q.notify({ type: 'negative', message: 'Error saving staff' })
-    } else {
+    try {
+        if (isEdit.value && form.value.id) {
+            await client.put(`staff/${form.value.id}`, staffData)
+        } else {
+            await client.post('staff', staffData)
+        }
         $q.notify({ type: 'positive', message: 'Staff saved successfully' })
         showDialog.value = false
         fetchStaff()
+    } catch {
+        $q.notify({ type: 'negative', message: 'Error saving staff' })
+    } finally {
+        loading.value = false
     }
 }
 
 const deleteStaff = (id) => {
     $q.dialog({
         title: 'Confirm',
-        message: 'Delete this staff member? This will delete all payment history as well.',
+        message: 'Delete this staff member?',
         cancel: true,
         persistent: true
     }).onOk(async () => {
-         const { error } = await supabase.from('staff').delete().eq('id', id)
-         if (error) {
-            $q.notify({ type: 'negative', message: 'Error deleting staff' })
-         } else {
-             $q.notify({ type: 'positive', message: 'Staff deleted' })
-             fetchStaff()
-         }
+        try {
+            await client.delete(`staff/${id}`)
+            $q.notify({ type: 'positive', message: 'Staff deleted' })
+            fetchStaff()
+        } catch {
+             $q.notify({ type: 'negative', message: 'Error deleting staff' })
+        }
     })
 }
 
@@ -379,7 +360,7 @@ const openPayDialog = (row) => {
     payForm.value = {
         staffId: row.id,
         staffName: row.name,
-        amount: row.salary, // Suggest base salary
+        amount: row.salary, 
         date: new Date().toISOString().split('T')[0],
         notes: ''
     }
@@ -388,21 +369,20 @@ const openPayDialog = (row) => {
 
 const processPayment = async () => {
     loading.value = true
-    const { error } = await supabase.from('salary_payments').insert([{
-        staff_id: payForm.value.staffId,
-        amount: payForm.value.amount,
-        payment_date: payForm.value.date,
-        notes: payForm.value.notes
-    }])
-    
-    loading.value = false
-    if (error) {
-        console.error(error)
-        $q.notify({ type: 'negative', message: 'Payment failed' })
-    } else {
+    try {
+        await client.post('salary_payments', {
+            staff_id: payForm.value.staffId,
+            amount: payForm.value.amount,
+            payment_date: payForm.value.date,
+            notes: payForm.value.notes
+        })
         $q.notify({ type: 'positive', message: 'Payment recorded successfully' })
         showPayDialog.value = false
-        fetchStaff() // Refresh to update status
+        fetchStaff()
+    } catch {
+        $q.notify({ type: 'negative', message: 'Payment failed' })
+    } finally {
+        loading.value = false
     }
 }
 
@@ -412,18 +392,13 @@ const openHistoryDialog = async (row) => {
     showHistoryDialog.value = true
     loadingHistory.value = true
 
-    const { data, error } = await supabase
-        .from('salary_payments')
-        .select('*')
-        .eq('staff_id', row.id)
-        .order('payment_date', { ascending: false })
-    
-    if (error) {
-        console.error(error)
+    try {
+        const data = await client.get(`staff/${row.id}/payments`)
+        if (data) historyRows.value = data
+    } catch {
         $q.notify({ type: 'negative', message: 'Failed to load history' })
-    } else {
-        historyRows.value = data
+    } finally {
+        loadingHistory.value = false
     }
-    loadingHistory.value = false
 }
 </script>

@@ -116,7 +116,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
-import { supabase } from 'src/supabase'
+import { client } from 'src/api'
 
 const $q = useQuasar()
 const showRoleDialog = ref(false)
@@ -143,7 +143,7 @@ const colors = ['red', 'pink', 'purple', 'deep-purple', 'indigo', 'blue', 'cyan'
 
 // Data
 const roles = ref([])
-const staffRows = ref([]) // For now empty or fetch from profiles
+const staffRows = ref([]) 
 
 const staffColumns = [
   { name: 'name', align: 'left', label: 'Name', field: 'name' },
@@ -157,29 +157,24 @@ onMounted(() => {
 })
 
 const fetchStaff = async () => {
-    const { data, error } = await supabase
-        .from('staff')
-        .select('*')
-    
-    if (!error && data) {
-        staffRows.value = data
+    try {
+        const data = await client.get('staff')
+        if (data) staffRows.value = data
+    } catch (e) {
+        console.error('Error fetching staff:', e)
     }
 }
 
 const fetchRoles = async () => {
     loading.value = true
-    const { data, error } = await supabase
-        .from('roles')
-        .select('*')
-        .order('id', { ascending: true })
-    
-    if (error) {
-        console.error('Error fetching roles:', error)
-         // Omit notify to avoid spamming if table doesn't exist yet
-    } else {
-        roles.value = data
+    try {
+        const data = await client.get('roles')
+        if (data) roles.value = data
+    } catch (e) {
+        console.error('Error fetching roles:', e)
+    } finally {
+        loading.value = false
     }
-    loading.value = false
 }
 
 const openCreateRoleDialog = () => {
@@ -204,18 +199,15 @@ const saveRole = async () => {
         permissions: roleForm.value.permissions
     }
 
-    const { error } = await supabase
-        .from('roles')
-        .insert([roleData])
-
-    loading.value = false
-
-    if (error) {
-        $q.notify({ type: 'negative', message: `Error creating role: ${error.message}` })
-    } else {
+    try {
+        await client.post('roles', roleData)
         $q.notify({ type: 'positive', message: 'Role created successfully' })
         showRoleDialog.value = false
         fetchRoles()
+    } catch (e) {
+        $q.notify({ type: 'negative', message: `Error creating role` })
+    } finally {
+        loading.value = false
     }
 }
 
@@ -226,12 +218,12 @@ const deleteRole = (id) => {
         cancel: true,
         persistent: true
     }).onOk(async () => {
-        const { error } = await supabase.from('roles').delete().eq('id', id)
-        if (error) {
+        try {
+            await client.delete(`roles/${id}`)
+            $q.notify({ type: 'positive', message: 'Role deleted' })
+            fetchRoles()
+        } catch {
             $q.notify({ type: 'negative', message: 'Error deleting role' })
-        } else {
-             $q.notify({ type: 'positive', message: 'Role deleted' })
-             fetchRoles()
         }
     })
 }

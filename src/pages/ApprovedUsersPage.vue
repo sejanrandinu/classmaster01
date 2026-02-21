@@ -60,7 +60,7 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import { supabase } from 'src/supabase'
+import { client } from 'src/api'
 import { useQuasar } from 'quasar'
 
 const $q = useQuasar()
@@ -85,56 +85,29 @@ const filteredUsers = computed(() => {
   )
 })
 
-const isFetching = ref(false)
-const fetchApprovedUsers = async (retryCount = 3) => {
-  if (isFetching.value && retryCount === 3) return
-  isFetching.value = true
+const fetchApprovedUsers = async () => {
   loading.value = true
-  
   try {
-    const { data: profiles, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('is_approved', true)
-
-    if (error) throw error
-    users.value = profiles || []
-    
+    const profiles = await client.get('profiles')
+    users.value = (profiles || []).filter(u => u.is_approved)
   } catch (error) {
     console.error('Fetch error:', error)
-    if (retryCount > 0) {
-      console.log(`Retrying... (${retryCount} left)`)
-      await new Promise(r => setTimeout(r, 2000))
-      // Recursively retry, but don't hang execution
-      loading.value = false // temporarily stop loading indicator for clarity
-      isFetching.value = false
-      return fetchApprovedUsers(retryCount - 1)
-    }
-
     $q.notify({ 
       type: 'negative', 
-      message: 'Failed to load users: ' + (error.message || 'Unknown Error'),
-      actions: [{ label: 'Retry', handler: () => fetchApprovedUsers() }]
+      message: 'Failed to load users'
     })
   } finally {
     loading.value = false
-    isFetching.value = false
   }
 }
 
 const disapproveUser = async (user) => {
   try {
-    const { error } = await supabase
-      .from('profiles')
-      .update({ is_approved: false })
-      .eq('id', user.id)
-
-    if (error) throw error
-
+    await client.put(`profiles/${user.id}/approve`, { is_approved: false })
     $q.notify({ type: 'positive', message: 'User disapproved and moved to pending' })
     fetchApprovedUsers()
   } catch (error) {
-    $q.notify({ type: 'negative', message: 'Action failed: ' + error.message })
+    $q.notify({ type: 'negative', message: 'Action failed' })
   }
 }
 
@@ -147,17 +120,11 @@ const confirmDelete = (user) => {
     ok: { color: 'red', flat: true }
   }).onOk(async () => {
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', user.id)
-
-      if (error) throw error
-      
+      await client.delete(`profiles/${user.id}`)
       $q.notify({ type: 'positive', message: 'User deleted' })
       fetchApprovedUsers()
     } catch (error) {
-      $q.notify({ type: 'negative', message: 'Delete failed: ' + error.message })
+      $q.notify({ type: 'negative', message: 'Delete failed' })
     }
   })
 }

@@ -74,7 +74,7 @@
 <script setup>
 import { reactive, computed } from 'vue'
 import { useQuasar } from 'quasar'
-import { supabase } from 'src/supabase'
+import { auth } from 'src/api'
 import { useAppStore } from 'src/store/app'
 
 const $q = useQuasar()
@@ -96,7 +96,7 @@ const translations = {
     preferencesTitle: 'App Preferences',
     language: 'Language',
     languageCaption: 'Choose your preferred language',
-    resetLinkSent: 'Password reset link sent to '
+    resetLinkSent: 'Password reset instructions sent to '
   },
   Sinhala: {
     title: 'සැකසුම්',
@@ -115,25 +115,21 @@ const translations = {
 const t = computed(() => translations[appStore.language])
 
 const resetPassword = async () => {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return
+  const user = await auth.getUser()
+  if (!user || !user.email) return
 
   $q.loading.show()
-  
-  const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-    redirectTo: window.location.origin + '/login'
-  })
-
-  $q.loading.hide()
-
-  if (error) {
-    $q.notify({ type: 'negative', message: error.message })
-  } else {
+  try {
+    await auth.forgotPassword(user.email)
     $q.notify({ 
       type: 'positive', 
       message: t.value.resetLinkSent + user.email,
       timeout: 5000
     })
+  } catch (error) {
+    $q.notify({ type: 'negative', message: 'Failed to send reset email' })
+  } finally {
+    $q.loading.hide()
   }
 }
 </script>

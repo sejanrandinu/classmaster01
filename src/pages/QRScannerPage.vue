@@ -114,7 +114,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useQuasar } from 'quasar'
-import { supabase } from 'src/supabase'
+import { client } from 'src/api'
 import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode'
 
 const $q = useQuasar()
@@ -134,7 +134,6 @@ const currentMonth = new Date().toLocaleString('default', { month: 'long', year:
 const todayDate = new Date().toISOString().split('T')[0]
 
 onMounted(() => {
-    // We don't start automatically to avoid camera permissions issues on load
 })
 
 onBeforeUnmount(() => {
@@ -145,26 +144,21 @@ const startScanner = () => {
     scanning.value = true
     setTimeout(() => {
         scanner.value = new Html5QrcodeScanner("reader", { 
-            fps: 30, // Higher FPS for mobile smoothness
+            fps: 30,
             qrbox: (viewfinderWidth, viewfinderHeight) => {
                 const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
                 const boxSize = Math.floor(minEdge * 0.8);
-                return {
-                    width: boxSize,
-                    height: boxSize
-                };
+                return { width: boxSize, height: boxSize };
             },
             aspectRatio: 1.0,
             rememberLastUsedCamera: true,
-            showTorchButtonIfSupported: true, // Very useful for phone cameras
+            showTorchButtonIfSupported: true,
             showZoomSliderIfSupported: true,
             defaultZoomValueIfSupported: 2,
-            supportedScanTypes: [0], // 0 = QR CODE ONLY
-            experimentalFeatures: {
-                useBarCodeDetectorIfSupported: true
-            },
+            supportedScanTypes: [0],
+            experimentalFeatures: { useBarCodeDetectorIfSupported: true },
             videoConstraints: {
-                facingMode: { ideal: "environment" }, // Prioritize back camera
+                facingMode: { ideal: "environment" },
                 focusMode: "continuous"
             }
         })
@@ -189,24 +183,16 @@ const playBeep = () => {
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)()
         const oscillator = audioCtx.createOscillator()
         const gainNode = audioCtx.createGain()
-
         oscillator.connect(gainNode)
         gainNode.connect(audioCtx.destination)
-
         oscillator.type = 'sine'
-        oscillator.frequency.setValueAtTime(880, audioCtx.currentTime) // Higher pitch beep
-
+        oscillator.frequency.setValueAtTime(880, audioCtx.currentTime)
         gainNode.gain.setValueAtTime(0, audioCtx.currentTime)
         gainNode.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + 0.02)
         gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.15)
-
         oscillator.start(audioCtx.currentTime)
         oscillator.stop(audioCtx.currentTime + 0.15)
-        
-        // Haptic feedback for mobile
-        if (navigator.vibrate) {
-            navigator.vibrate(100)
-        }
+        if (navigator.vibrate) navigator.vibrate(100)
     } catch (e) {
         console.error('Feedback error:', e)
     }
@@ -214,147 +200,111 @@ const playBeep = () => {
 
 const onScanSuccess = async (decodedText) => {
     if (!decodedText) return
-    console.log(`Scan Result: ${decodedText}`)
-    
-    // Play sound and vibrate immediately
     playBeep()
-    
-    // Stop scanner first
     await stopScanner()
-    
-    // Small delay to allow library to settle
     setTimeout(async () => {
         await handleScannedStudent(decodedText)
     }, 300)
 }
 
-const onScanFailure = () => {
-    // silent failure for scanning process
-}
+const onScanFailure = () => {}
 
 const onFileChange = async (file) => {
     if (!file) return;
-
     $q.loading.show({ message: 'Processing image...' });
-
     try {
-        // We create a temporary reader to process the file
         if (!html5QrCode.value) {
             html5QrCode.value = new Html5Qrcode("reader");
         }
-
         const decodedText = await html5QrCode.value.scanFile(file, true);
         $q.loading.hide();
-        
         if (decodedText) {
             playBeep();
             handleScannedStudent(decodedText);
         }
     } catch (err) {
         $q.loading.hide();
-        console.error("File Scan error:", err);
         $q.notify({
             type: 'negative',
-            message: 'QR code not found in the image. Please try another file.',
+            message: 'QR code not found in the image.',
             position: 'top'
         });
     } finally {
-        qrFile.value = null; // Reset for next upload
+        qrFile.value = null;
     }
 }
 
 const handleScannedStudent = async (studentId) => {
     $q.loading.show({ message: 'Fetching student details...' })
-    
-    // 1. Fetch Student Info
-    const { data: student, error } = await supabase
-        .from('students')
-        .select('*')
-        .eq('student_id', studentId)
-        .maybeSingle()
-
-    if (error || !student) {
-        $q.loading.hide()
-        $q.notify({ type: 'negative', message: 'Student not found: ' + studentId })
+    try {
+        const student = await client.get(`students/by-id/${studentId}`)
+        if (!student) {
+            $q.notify({ type: 'negative', message: 'Student not found: ' + studentId })
+            startScanner()
+            return
+        }
+        scannedStudent.value = student
+        fetchAttendance(student.id)
+        fetchFees(student.id)
+    } catch {
+        $q.notify({ type: 'negative', message: 'Error fetching student details' })
         startScanner()
-        return
+    } finally {
+        $q.loading.hide()
     }
-
-    scannedStudent.value = student
-    $q.loading.hide()
-
-    // 2. Fetch Today's Attendance
-    fetchAttendance(student.id)
-
-    // 3. Fetch This Month's Fees
-    fetchFees(student.id)
 }
 
 const fetchAttendance = async (studentDbId) => {
     attendanceLoading.value = true
-    const { data } = await supabase
-        .from('attendance')
-        .select('*')
-        .eq('student_id', studentDbId)
-        .eq('date', todayDate)
-        .maybeSingle()
-    
-    todayAttendance.value = data
-    attendanceLoading.value = false
+    try {
+        const data = await client.get(`attendance?student_id=${studentDbId}&date=${todayDate}`)
+        todayAttendance.value = data && data.length > 0 ? data[0] : null
+    } catch {
+        // Ignore
+    } finally {
+        attendanceLoading.value = false
+    }
 }
 
 const fetchFees = async (studentDbId) => {
     feesLoading.value = true
-    const { data } = await supabase
-        .from('payments')
-        .select('*')
-        .eq('student_id', studentDbId)
-        .eq('month', currentMonth)
-        .limit(1)
-    
-    isFeesPaid.value = data && data.length > 0
-    feesLoading.value = false
+    try {
+        const data = await client.get(`payments?student_id=${studentDbId}&month=${currentMonth}`)
+        isFeesPaid.value = data && data.length > 0
+    } catch {
+        // Ignore
+    } finally {
+        feesLoading.value = false
+    }
 }
 
 const markAttendanceAuto = async () => {
     if (!scannedStudent.value) return
-    
     markingAttendance.value = true
-    
-    // We need to know which class to mark for. Since students are grade-based, 
-    // we find the active class for their grade.
-    const { data: classes } = await supabase
-        .from('classes')
-        .select('id')
-        .eq('grade', scannedStudent.value.grade)
-        .eq('status', 'Active')
-        .limit(1)
+    try {
+        const classes = await client.get(`classes?grade=${scannedStudent.value.grade}&status=Active`)
+        if (!classes || classes.length === 0) {
+            $q.notify({ type: 'warning', message: `No active class found for ${scannedStudent.value.grade}` })
+            return
+        }
 
-    if (!classes || classes.length === 0) {
-        $q.notify({ type: 'warning', message: `No active class found for ${scannedStudent.value.grade}` })
-        markingAttendance.value = false
-        return
-    }
+        await client.post('attendance/upsert', {
+            records: [{
+                student_id: scannedStudent.value.id,
+                class_id: classes[0].id,
+                date: todayDate,
+                status: 'Present'
+            }]
+        })
 
-    const { error } = await supabase
-        .from('attendance')
-        .upsert({
-            student_id: scannedStudent.value.id,
-            class_id: classes[0].id,
-            date: todayDate,
-            status: 'Present'
-        }, { onConflict: 'student_id,class_id,date' })
-
-    if (error) {
-        $q.notify({ type: 'negative', message: 'Failed to mark attendance' })
-    } else {
         $q.notify({ type: 'positive', message: 'Attendance marked: Present', icon: 'check' })
         fetchAttendance(scannedStudent.value.id)
-        
-        // Send WhatsApp Message
         sendAttendanceWA(scannedStudent.value)
+    } catch {
+        $q.notify({ type: 'negative', message: 'Failed to mark attendance' })
+    } finally {
+        markingAttendance.value = false
     }
-    markingAttendance.value = false
 }
 
 const sendAttendanceWA = (student) => {

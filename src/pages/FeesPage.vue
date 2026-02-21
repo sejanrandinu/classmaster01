@@ -209,7 +209,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useQuasar } from 'quasar'
-import { supabase } from 'src/supabase'
+import { client } from 'src/api'
 
 const $q = useQuasar()
 const loading = ref(false)
@@ -235,7 +235,6 @@ const paymentForm = ref({
 const monthOptions = computed(() => {
     const months = []
     const date = new Date()
-    // Show 3 past months and 6 future months for flexibility
     for (let i = -3; i < 7; i++) {
         const d = new Date(date.getFullYear(), date.getMonth() + i, 1)
         months.push(d.toLocaleString('default', { month: 'long', year: 'numeric' }))
@@ -280,39 +279,22 @@ const sendWhatsAppReceipt = (student, amount, month, receiptNo) => {
 onMounted(() => {
     loadBaseData()
     fetchRecentPayments()
-    // Default current month
     paymentForm.value.month = new Date().toLocaleString('default', { month: 'long', year: 'numeric' })
 })
 
-const loadBaseData = async (retryCount = 3) => {
-    const timeout = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Base data lookup timed out')), 60000)
-    )
-
+const loadBaseData = async () => {
     try {
-        // Load all students (names and grades)
-        const studentsPromise = supabase.from('students').select('id, name, student_id, grade').eq('status', 'Active')
-        // Load all classes
-        const classesPromise = supabase.from('classes').select('id, class_name, subject, grade, fee, tutor').eq('status', 'Active')
-
-        const [stdRes, clsRes] = await Promise.race([
-            Promise.all([studentsPromise, classesPromise]),
-            timeout
+        const [stdRes, clsRes] = await Promise.all([
+            client.get('students'),
+            client.get('classes')
         ])
 
-        if (stdRes.error) throw stdRes.error
-        if (clsRes.error) throw clsRes.error
-
-        studentsList.value = stdRes.data || []
-        allClasses.value = clsRes.data || []
+        if (stdRes) studentsList.value = stdRes.filter(s => s.status === 'Active')
+        if (clsRes) allClasses.value = clsRes.filter(c => c.status === 'Active')
         
     } catch (error) {
         console.error('Error loading base data:', error)
-        if (retryCount > 0) {
-            await new Promise(r => setTimeout(r, 2000))
-            return loadBaseData(retryCount - 1)
-        }
-        $q.notify({ type: 'negative', message: 'මූලික දත්ත ලබා ගැනීමට අපොහොසත් විය (Network Error)' })
+        $q.notify({ type: 'negative', message: 'Failed to load base data' })
     }
 }
 
@@ -352,43 +334,23 @@ const onClassSelect = async (val) => {
     const cls = allClasses.value.find(c => c.id === val)
     if (cls) {
         paymentForm.value.amount = cls.fee
-        
-        // Fetch tutor name from classes and then their bank details
         if (cls.tutor) {
-            const { data } = await supabase
-                .from('tutors')
-                .select('*')
-                .eq('name', cls.tutor)
-                .maybeSingle()
-            
-            selectedTutor.value = data
+            try {
+                const tutors = await client.get('tutors')
+                selectedTutor.value = tutors.find(t => t.name === cls.tutor) || null
+            } catch {
+                selectedTutor.value = null
+            }
         } else {
             selectedTutor.value = null
         }
     }
 }
 
-const fetchRecentPayments = async (retryCount = 3) => {
+const fetchRecentPayments = async () => {
     loading.value = true
-    const timeout = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Payments lookup timed out')), 60000)
-    )
-
     try {
-        const query = supabase
-            .from('payments')
-            .select(`
-                id, amount, month, payment_date,
-                students(name, student_id),
-                classes(class_name)
-            `)
-            .order('payment_date', { ascending: false })
-            .limit(20)
-
-        const { data, error } = await Promise.race([query, timeout])
-
-        if (error) throw error
-        
+        const data = await client.get('payments?limit=20')
         recentPayments.value = (data || []).map(p => ({
             id: p.id,
             amount: p.amount,
@@ -400,10 +362,6 @@ const fetchRecentPayments = async (retryCount = 3) => {
         }))
     } catch (error) {
         console.error('Error fetching payments:', error)
-        if (retryCount > 0) {
-            await new Promise(r => setTimeout(r, 2000))
-            return fetchRecentPayments(retryCount - 1)
-        }
     } finally {
         loading.value = false
     }
@@ -412,49 +370,39 @@ const fetchRecentPayments = async (retryCount = 3) => {
 const deletePayment = (payment) => {
     $q.dialog({
         title: 'Confirm Deletion',
-        message: `Are you sure you want to delete the payment of Rs. ${payment.amount} for ${payment.student_name}? This will remove the record permanently from the database.`,
+        message: `Delete payment of Rs. ${payment.amount} for ${payment.student_name}?`,
         cancel: true,
         persistent: true,
         ok: { color: 'red-7', flat: true, label: 'Delete Forever' }
     }).onOk(async () => {
         loading.value = true
-        const { error } = await supabase
-            .from('payments')
-            .delete()
-            .eq('id', payment.id)
-        
-        if (error) {
-            $q.notify({ type: 'negative', message: 'Delete failed: ' + error.message })
-        } else {
-            $q.notify({ type: 'positive', message: 'Payment record deleted successfully' })
+        try {
+            await client.delete(`payments/${payment.id}`)
+            $q.notify({ type: 'positive', message: 'Payment record deleted' })
             fetchRecentPayments()
+        } catch (e) {
+            console.error('Delete error:', e)
+            $q.notify({ type: 'negative', message: 'Delete failed' })
+        } finally {
+            loading.value = false
         }
-        loading.value = false
     })
 }
 
 const processPayment = async () => {
     loading.value = true
-    
-    // Generate simple receipt no
     const receiptNo = 'R-' + Date.now().toString().slice(-8)
     
-    const { error } = await supabase
-        .from('payments')
-        .insert([{
+    try {
+        await client.post('payments', {
             student_id: paymentForm.value.student_id,
             class_id: paymentForm.value.class_id,
             amount: paymentForm.value.amount,
             month: paymentForm.value.month,
             payment_method: paymentForm.value.payment_method,
             receipt_no: receiptNo
-        }])
+        })
 
-    loading.value = false
-
-    if (error) {
-        $q.notify({ type: 'negative', message: `Payment failed: ${error.message}` })
-    } else {
         $q.notify({ 
             type: 'positive', 
             message: 'Payment collected successfully!',
@@ -462,14 +410,15 @@ const processPayment = async () => {
             icon: 'verified'
         })
 
-        // Auto-send WhatsApp receipt
         sendWhatsAppReceipt(selectedStudent.value, paymentForm.value.amount, paymentForm.value.month, receiptNo);
-        
-        // Reset form part
         paymentForm.value.amount = 0
         paymentForm.value.class_id = null
-        
         fetchRecentPayments()
+    } catch (e) {
+        console.error('Payment error:', e)
+        $q.notify({ type: 'negative', message: 'Payment failed' })
+    } finally {
+        loading.value = false
     }
 }
 </script>

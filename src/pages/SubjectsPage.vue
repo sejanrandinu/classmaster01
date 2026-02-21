@@ -94,7 +94,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
-import { supabase } from 'src/supabase'
+import { client } from 'src/api'
 
 const $q = useQuasar()
 const filter = ref('')
@@ -123,17 +123,14 @@ onMounted(() => {
 
 const fetchSubjects = async () => {
     loading.value = true
-    const { data, error } = await supabase
-        .from('subjects')
-        .select('*')
-        .order('name', { ascending: true })
-    
-    if (error) {
-        console.error('Error fetching subjects:', error)
-    } else {
-        rows.value = data
+    try {
+        const data = await client.get('subjects')
+        if (data) rows.value = data
+    } catch (e) {
+        console.error('Error fetching subjects:', e)
+    } finally {
+        loading.value = false
     }
-    loading.value = false
 }
 
 const openAddDialog = () => {
@@ -156,27 +153,19 @@ const saveSubject = async () => {
         description: form.value.description
     }
 
-    let error = null
-    if (isEdit.value && form.value.id) {
-        const { error: updateError } = await supabase
-            .from('subjects')
-            .update(subjectData)
-            .eq('id', form.value.id)
-        error = updateError
-    } else {
-        const { error: insertError } = await supabase
-            .from('subjects')
-            .insert([subjectData])
-        error = insertError
-    }
-
-    loading.value = false
-    if (error) {
-        $q.notify({ type: 'negative', message: `Error saving subject: ${error.message}` })
-    } else {
+    try {
+        if (isEdit.value && form.value.id) {
+            await client.put(`subjects/${form.value.id}`, subjectData)
+        } else {
+            await client.post('subjects', subjectData)
+        }
         $q.notify({ type: 'positive', message: isEdit.value ? 'Subject updated' : 'Subject added' })
         showDialog.value = false
         fetchSubjects()
+    } catch {
+        $q.notify({ type: 'negative', message: `Error saving subject` })
+    } finally {
+        loading.value = false
     }
 }
 
@@ -188,17 +177,14 @@ const deleteSubject = (id) => {
         persistent: true
     }).onOk(async () => {
         loading.value = true
-        const { error } = await supabase
-            .from('subjects')
-            .delete()
-            .eq('id', id)
-        
-        loading.value = false
-        if (error) {
-            $q.notify({ type: 'negative', message: 'Error deleting subject' })
-        } else {
+        try {
+            await client.delete(`subjects/${id}`)
             $q.notify({ type: 'positive', message: 'Subject deleted successfully' })
             fetchSubjects()
+        } catch {
+            $q.notify({ type: 'negative', message: 'Error deleting subject' })
+        } finally {
+            loading.value = false
         }
     })
 }

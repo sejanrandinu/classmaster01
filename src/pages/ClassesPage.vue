@@ -305,7 +305,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useQuasar } from 'quasar'
-import { supabase } from 'src/supabase'
+import { client } from 'src/api'
 
 const $q = useQuasar()
 const rows = ref([])
@@ -320,7 +320,7 @@ const showDetails = ref(false)
 const selectedClass = ref(null)
 
 const subjectOptions = ref([])
-const allTutors = ref([]) // Store raw tutor data { name, subject }
+const allTutors = ref([]) 
 const dayOptions = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 const gradeOptions = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'Grade 13']
 
@@ -338,7 +338,6 @@ const form = ref({
     status: 'Active'
 })
 
-// Filter tutors based on selected subject
 const filteredTutorOptions = computed(() => {
     if (!form.value.subject) return []
     return allTutors.value
@@ -347,7 +346,7 @@ const filteredTutorOptions = computed(() => {
 })
 
 const onSubjectChange = () => {
-    form.value.tutor = '' // Clear tutor when subject changes logic
+    form.value.tutor = '' 
 }
 
 onMounted(() => {
@@ -356,21 +355,26 @@ onMounted(() => {
 })
 
 const loadOptions = async () => {
-    const { data: subs } = await supabase.from('subjects').select('name').order('name')
-    const { data: tutors } = await supabase.from('tutors').select('name, subject').order('name')
-    if (subs) subjectOptions.value = subs.map(s => s.name)
-    if (tutors) allTutors.value = tutors
+    try {
+        const [subs, tutors] = await Promise.all([
+            client.get('subjects'),
+            client.get('tutors')
+        ])
+        if (subs) subjectOptions.value = subs.map(s => s.name)
+        if (tutors) allTutors.value = tutors
+    } catch {
+        // Silently fail
+    }
 }
 
 const fetchClasses = async () => {
     loading.value = true
     try {
-        const { data, error } = await supabase.from('classes').select('*').order('created_at', { ascending: false })
-        if (error) throw error
+        const data = await client.get('classes')
         rows.value = data || []
     } catch (e) {
         console.error('Error fetching classes:', e)
-        $q.notify({ type: 'negative', message: 'Failed to load classes: ' + (e.message || 'Unknown error') })
+        $q.notify({ type: 'negative', message: 'Failed to load classes' })
     } finally {
         loading.value = false
     }
@@ -391,37 +395,43 @@ const openEditDialog = (item) => {
 const saveClass = async () => {
     loading.value = true
     const { id, ...classData } = form.value
-    if (isEdit.value) {
-        await supabase.from('classes').update(classData).eq('id', id)
-    } else {
-        await supabase.from('classes').insert([classData])
-    }
-    loading.value = false
-    showDialog.value = false
-    fetchClasses()
-    $q.notify({ type: 'positive', message: 'Class schedule synced successfully' })
-    
-    if (!isEdit.value) {
-      lastScheduledClass.value = { ...classData, id }
-      prepareBroadcast(classData)
+    try {
+        if (isEdit.value) {
+            await client.put(`classes/${id}`, classData)
+        } else {
+            await client.post('classes', classData)
+        }
+        $q.notify({ type: 'positive', message: 'Class schedule synced successfully' })
+        showDialog.value = false
+        fetchClasses()
+        
+        if (!isEdit.value) {
+          lastScheduledClass.value = { ...classData, id }
+          prepareBroadcast(classData)
+        }
+    } catch {
+        $q.notify({ type: 'negative', message: 'Error saving class' })
+    } finally {
+        loading.value = false
     }
 }
 
 const prepareBroadcast = async (classData) => {
-    // Find students in this grade who have this subject
-    const { data, error } = await supabase
-        .from('students')
-        .select('*')
-        .eq('grade', classData.grade)
-        .eq('status', 'Active')
-    
-    if (!error && data) {
-        // Filter by subjects in JSONB
-        targetStudents.value = data.filter(s => s.subjects && s.subjects.includes(classData.subject))
-        selectedBroadcastIds.value = targetStudents.value.map(s => s.id)
-        if (targetStudents.value.length > 0) {
-            showBroadcastDialog.value = true
+    try {
+        const data = await client.get('students')
+        if (data) {
+            targetStudents.value = data.filter(s => 
+                s.grade === classData.grade && 
+                s.status === 'Active' && 
+                s.subjects && s.subjects.includes(classData.subject)
+            )
+            selectedBroadcastIds.value = targetStudents.value.map(s => s.id)
+            if (targetStudents.value.length > 0) {
+                showBroadcastDialog.value = true
+            }
         }
+    } catch {
+        // Ignore
     }
 }
 
@@ -455,14 +465,18 @@ const showClassDetails = (item) => {
 const deleteClass = (id) => {
     $q.dialog({
         title: 'Security Confirmation',
-        message: 'This will permanently remove the class and all associated data. Proceed?',
+        message: 'This will permanently remove the class. Proceed?',
         cancel: true,
         persistent: true,
         ok: { color: 'red-7', unelevated: true, label: 'Confirm Removal' }
     }).onOk(async () => {
-        await supabase.from('classes').delete().eq('id', id)
-        fetchClasses()
-        $q.notify({ type: 'positive', message: 'Class record purged' })
+        try {
+            await client.delete(`classes/${id}`)
+            $q.notify({ type: 'positive', message: 'Class record purged' })
+            fetchClasses()
+        } catch {
+            $q.notify({ type: 'negative', message: 'Error deleting class' })
+        }
     })
 }
 

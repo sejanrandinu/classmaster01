@@ -117,7 +117,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { supabase } from 'src/supabase'
+import { client } from 'src/api'
 import { useQuasar } from 'quasar'
 
 const $q = useQuasar()
@@ -153,48 +153,33 @@ onMounted(() => {
 })
 
 const loadClasses = async () => {
-    const { data } = await supabase
-        .from('classes')
-        .select('id, class_name, grade')
-        .order('class_name')
-    
-    if (data) {
-        classOptions.value = data.map(c => ({
-            label: `${c.class_name} (${c.grade})`,
-            value: c.id
-        }))
+    try {
+        const data = await client.get('classes')
+        if (data) {
+            classOptions.value = data.map(c => ({
+                label: `${c.class_name} (${c.grade})`,
+                value: c.id
+            }))
+        }
+    } catch {
+        // Ignore
     }
 }
 
 const fetchHistory = async () => {
     loading.value = true
-    
-    let query = supabase
-        .from('attendance')
-        .select(`
-            id,
-            date,
-            status,
-            students (name, student_id),
-            classes (class_name)
-        `)
-        .gte('date', startDate.value)
-        .lte('date', endDate.value)
-        .order('date', { ascending: false })
-
-    if (selectedClass.value) {
-        query = query.eq('class_id', selectedClass.value)
-    }
-
-    const { data, error } = await query
-
-    if (error) {
-        console.error('History error:', error)
-        $q.notify({ type: 'negative', message: 'Failed to load history' })
-    } else {
+    try {
+        let url = `attendance?start=${startDate.value}&end=${endDate.value}`
+        if (selectedClass.value) url += `&class_id=${selectedClass.value}`
+        
+        const data = await client.get(url)
         rows.value = data || []
+    } catch (e) {
+        console.error('History error:', e)
+        $q.notify({ type: 'negative', message: 'Failed to load history' })
+    } finally {
+        loading.value = false
     }
-    loading.value = false
 }
 
 const deleteRecord = (record) => {
@@ -206,18 +191,15 @@ const deleteRecord = (record) => {
     ok: { color: 'red-7', flat: true, label: 'Delete Forever' }
   }).onOk(async () => {
     loading.value = true
-    const { error } = await supabase
-      .from('attendance')
-      .delete()
-      .eq('id', record.id)
-    
-    if (error) {
-      $q.notify({ type: 'negative', message: 'Delete failed: ' + error.message })
-    } else {
-      $q.notify({ type: 'positive', message: 'Attendance record deleted' })
-      fetchHistory()
+    try {
+        await client.delete(`attendance/${record.id}`)
+        $q.notify({ type: 'positive', message: 'Attendance record deleted' })
+        fetchHistory()
+    } catch {
+        $q.notify({ type: 'negative', message: 'Delete failed' })
+    } finally {
+        loading.value = false
     }
-    loading.value = false
   })
 }
 

@@ -174,7 +174,7 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import { useQuasar } from 'quasar'
-import { supabase } from 'src/supabase'
+import { client } from 'src/api'
 
 const $q = useQuasar()
 const loading = ref(false)
@@ -213,18 +213,22 @@ watch(() => msgForm.value.recipient_type, () => {
 })
 
 const loadBaseData = async () => {
-    // Load Students with Contact Numbers
-    const { data: stds } = await supabase.from('students').select('id, name, student_id, contact').eq('status', 'Active')
-    if (stds) rawStudents.value = stds
-
-    // Load Classes
-    const { data: cls } = await supabase.from('classes').select('id, class_name, grade').eq('status', 'Active')
-    if (cls) {
-        classOptions.value = cls.map(c => ({
-            label: `${c.class_name} (${c.grade})`,
-            value: c.id,
-            grade: c.grade
-        }))
+    try {
+        const [stds, cls] = await Promise.all([
+            client.get('students'),
+            client.get('classes')
+        ])
+        
+        if (stds) rawStudents.value = stds.filter(s => s.status === 'Active')
+        if (cls) {
+            classOptions.value = cls.filter(c => c.status === 'Active').map(c => ({
+                label: `${c.class_name} (${c.grade})`,
+                value: c.id,
+                grade: c.grade
+            }))
+        }
+    } catch {
+        // Ignore
     }
 }
 
@@ -243,17 +247,17 @@ const filterStudents = (val, update) => {
 
 const fetchMessageLog = async () => {
     loadingLogs.value = true
-    const { data } = await supabase
-        .from('messages')
-        .select('*')
-        .order('sent_at', { ascending: false })
-        .limit(20)
-    
-    if (data) messageLog.value = data.map(m => ({
-        ...m,
-        method: 'WhatsApp'
-    }))
-    loadingLogs.value = false
+    try {
+        const data = await client.get('messages?limit=20')
+        if (data) messageLog.value = data.map(m => ({
+            ...m,
+            method: 'WhatsApp'
+        }))
+    } catch {
+        // Ignore
+    } finally {
+        loadingLogs.value = false
+    }
 }
 
 const deleteLog = (log) => {
@@ -265,18 +269,15 @@ const deleteLog = (log) => {
         ok: { color: 'red-7', flat: true, label: 'Remove Forever' }
     }).onOk(async () => {
         loadingLogs.value = true
-        const { error } = await supabase
-            .from('messages')
-            .delete()
-            .eq('id', log.id)
-        
-        if (error) {
-            $q.notify({ type: 'negative', message: 'Failed to delete log: ' + error.message })
-        } else {
+        try {
+            await client.delete(`messages/${log.id}`)
             $q.notify({ type: 'positive', message: 'History record deleted' })
             fetchMessageLog()
+        } catch {
+            $q.notify({ type: 'negative', message: 'Failed to delete log' })
+        } finally {
+            loadingLogs.value = false
         }
-        loadingLogs.value = false
     })
 }
 
@@ -286,52 +287,44 @@ const sendMessage = async () => {
     let targetNumbers = []
     let recipientName = selectedRecipient.value.label
 
-    if (msgForm.value.recipient_type === 'Student') {
-        targetNumbers = [selectedRecipient.value.contact]
-    } else {
-        // Find all students in this class's grade
-        const grade = selectedRecipient.value.grade
-        const studentsInClass = rawStudents.value.filter(s => s.grade === grade && s.contact)
-        targetNumbers = studentsInClass.map(s => s.contact)
-        recipientName = `${selectedRecipient.value.label} (${targetNumbers.length} students)`
-    }
-
-    const payload = {
-        recipient_type: msgForm.value.recipient_type,
-        recipient_id: selectedRecipient.value.value,
-        recipient_name: recipientName,
-        content: msgForm.value.content,
-        status: 'Sent',
-        metadata: { method: 'WhatsApp' }
-    }
-
-    if (msgForm.value.recipient_type === 'Student') {
-        let phone = targetNumbers[0]
-        if (phone) {
-            // Format for SL if starts with 0
-            if (phone.startsWith('0')) phone = '94' + phone.substring(1)
-            // Clean non-digits
-            phone = phone.replace(/\D/g, '')
-            
-            const url = `https://wa.me/${phone}?text=${encodeURIComponent(msgForm.value.content)}`
-            window.open(url, '_blank')
+    try {
+        if (msgForm.value.recipient_type === 'Student') {
+            targetNumbers = [selectedRecipient.value.contact]
+        } else {
+            const grade = selectedRecipient.value.grade
+            const studentsInClass = rawStudents.value.filter(s => s.grade === grade && s.contact)
+            targetNumbers = studentsInClass.map(s => s.contact)
+            recipientName = `${selectedRecipient.value.label} (${targetNumbers.length} students)`
         }
-    } else {
-         $q.notify({ 
-            type: 'warning', 
-            message: 'Bulk WhatsApp sending is not supported via direct links. Please send to individuals.' 
-        })
-        loading.value = false
-        return
-    }
 
-    const { error } = await supabase.from('messages').insert([payload])
+        const payload = {
+            recipient_type: msgForm.value.recipient_type,
+            recipient_id: selectedRecipient.value.value,
+            recipient_name: recipientName,
+            content: msgForm.value.content,
+            status: 'Sent',
+            metadata: { method: 'WhatsApp' }
+        }
 
-    loading.value = false
+        if (msgForm.value.recipient_type === 'Student') {
+            let phone = targetNumbers[0]
+            if (phone) {
+                if (phone.startsWith('0')) phone = '94' + phone.substring(1)
+                phone = phone.replace(/\D/g, '')
+                const url = `https://wa.me/${phone}?text=${encodeURIComponent(msgForm.value.content)}`
+                window.open(url, '_blank')
+            }
+        } else {
+            $q.notify({ 
+                type: 'warning', 
+                message: 'Bulk WhatsApp sending is not supported via direct links. Please send to individuals.' 
+            })
+            loading.value = false
+            return
+        }
 
-    if (error) {
-        $q.notify({ type: 'negative', message: 'History logging failed' })
-    } else {
+        await client.post('messages', payload)
+
         $q.notify({ 
             type: 'positive', 
             message: 'Message dispatched successfully',
@@ -344,6 +337,10 @@ const sendMessage = async () => {
         msgForm.value.content = ''
         selectedRecipient.value = null
         fetchMessageLog()
+    } catch {
+        $q.notify({ type: 'negative', message: 'Message dispatch failed' })
+    } finally {
+        loading.value = false
     }
 }
 </script>

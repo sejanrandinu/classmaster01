@@ -244,7 +244,7 @@ const deleteTutor = (id) => {
             await client.delete(`tutors/${id}`)
             $q.notify({ type: 'positive', message: 'Tutor deleted successfully' })
             fetchTutors()
-        } catch (error) {
+        } catch {
             $q.notify({ type: 'negative', message: 'Error deleting tutor' })
         } finally {
             loading.value = false

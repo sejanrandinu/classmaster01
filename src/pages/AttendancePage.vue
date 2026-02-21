@@ -164,7 +164,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useQuasar } from 'quasar'
-import { supabase } from 'src/supabase'
+import { client } from 'src/api'
 
 const $q = useQuasar()
 const loading = ref(false)
@@ -191,18 +191,17 @@ onMounted(() => {
 })
 
 const loadClasses = async () => {
-    const { data } = await supabase
-        .from('classes')
-        .select('*')
-        .eq('status', 'Active')
-        .order('class_name')
-    
-    if (data) {
-        allClasses.value = data
-        classOptions.value = data.map(c => ({
-            label: `${c.class_name} (${c.grade})`,
-            value: c.id
-        }))
+    try {
+        const data = await client.get('classes')
+        if (data) {
+            allClasses.value = data.filter(c => c.status === 'Active')
+            classOptions.value = allClasses.value.map(c => ({
+                label: `${c.class_name} (${c.grade})`,
+                value: c.id
+            }))
+        }
+    } catch {
+        // Silently fail
     }
 }
 
@@ -210,38 +209,28 @@ const fetchAttendanceData = async () => {
     if (!selectedClass.value || !selectedDate.value) return
 
     loading.value = true
-    
-    // 1. Fetch students in the grade of the selected class
-    const { data: studentData, error: studentError } = await supabase
-        .from('students')
-        .select('*')
-        .eq('grade', selectedClassGrade.value)
-        .eq('status', 'Active')
-        .order('name')
+    try {
+        // Fetch students and existing attendance
+        const [studentData, existingAttendance] = await Promise.all([
+            client.get('students'),
+            client.get(`attendance?class_id=${selectedClass.value}&date=${selectedDate.value}`)
+        ])
 
-    if (studentError) {
-        $q.notify({ type: 'negative', message: 'Failed to load students' })
-        loading.value = false
-        return
-    }
-
-    // 2. Fetch existing attendance for this class and date
-    const { data: existingAttendance } = await supabase
-        .from('attendance')
-        .select('*')
-        .eq('class_id', selectedClass.value)
-        .eq('date', selectedDate.value)
-
-    // 3. Merge data
-    students.value = studentData.map(s => {
-        const marked = existingAttendance?.find(a => a.student_id === s.id)
-        return {
-            ...s,
-            attendanceStatus: marked ? marked.status : 'Present' // Default to Present
+        if (studentData) {
+            const gradeStudents = studentData.filter(s => s.grade === selectedClassGrade.value && s.status === 'Active')
+            students.value = gradeStudents.map(s => {
+                const marked = existingAttendance?.find(a => a.student_id === s.id)
+                return {
+                    ...s,
+                    attendanceStatus: marked ? marked.status : 'Present'
+                }
+            })
         }
-    })
-
-    loading.value = false
+    } catch {
+        $q.notify({ type: 'negative', message: 'Failed to load attendance data' })
+    } finally {
+        loading.value = false
+    }
 }
 
 const saveAttendance = async () => {
@@ -251,7 +240,6 @@ const saveAttendance = async () => {
     }
 
     loading.value = true
-    
     const attendanceRecords = students.value.map(s => ({
         student_id: s.id,
         class_id: selectedClass.value,
@@ -259,75 +247,41 @@ const saveAttendance = async () => {
         status: s.attendanceStatus
     }))
 
-    // Use upsert to handle updates/inserts (requires unique constraint on student_id, class_id, date)
-    const { error } = await supabase
-        .from('attendance')
-        .upsert(attendanceRecords, { onConflict: 'student_id,class_id,date' })
-
-    loading.value = false
-
-    if (error) {
-        console.error('Save error:', error)
-        $q.notify({ type: 'negative', message: `Save failed: ${error.message}` })
-    } else {
+    try {
+        await client.post('attendance/upsert', { records: attendanceRecords })
         $q.notify({ type: 'positive', message: 'Attendance records saved successfully' })
+    } catch {
+        $q.notify({ type: 'negative', message: 'Save failed' })
+    } finally {
+        loading.value = false
     }
 }
 
 const notifyAllPresent = () => {
     const presentStudents = students.value.filter(s => s.attendanceStatus === 'Present' && s.contact)
-    
-    if (presentStudents.length === 0) {
-        $q.notify({ type: 'warning', message: 'No present students with WhatsApp numbers found.' })
-        return
-    }
+    if (presentStudents.length === 0) return
 
     $q.dialog({
         title: 'Notify All Present',
-        message: `This will attempt to open WhatsApp for ${presentStudents.length} students. Your browser may block multiple tabs. Do you want to proceed?`,
+        message: `Open WhatsApp for ${presentStudents.length} students?`,
         cancel: true,
-        persistent: true,
-        ok: { label: 'Start Sending', color: 'green' }
+        ok: { label: 'Start', color: 'green' }
     }).onOk(() => {
-        // We open them one by one. 
-        // Note: Browsers will definitely block after 1 or 2 without direct user interaction per click.
-        // But we provide the action as requested.
         presentStudents.forEach((student, index) => {
-            setTimeout(() => {
-                sendWA(student)
-            }, index * 1000) // 1 second gap between attempts
+            setTimeout(() => sendWA(student), index * 1000)
         })
     })
 }
 
 const sendWA = (student) => {
-    if (!student.contact) {
-        $q.notify({ type: 'warning', message: 'No WhatsApp number for this student' })
-        return
-    }
-
+    if (!student.contact) return
     let phone = student.contact
     if (phone.startsWith('0')) phone = '94' + phone.substring(1)
     phone = phone.replace(/\D/g, '')
 
     const message = `Halo ${student.name}, අද පන්තියට පැමිණි බව අපි සටහන් කර ගත්තා. ස්තූතියි!`
     const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
-    
-    // Attempt to open
-    const win = window.open(url, '_blank')
-    
-    // Check if pop-up was blocked
-    if (!win || win.closed || typeof win.closed === 'undefined') {
-        $q.notify({
-            message: 'WhatsApp blocked! Click below to send.',
-            type: 'warning',
-            position: 'top',
-            timeout: 10000,
-            actions: [
-                { label: 'Send Now', color: 'white', handler: () => window.open(url, '_blank') }
-            ]
-        })
-    }
+    window.open(url, '_blank')
 }
 </script>
 
