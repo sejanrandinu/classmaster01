@@ -222,7 +222,7 @@ const onFileChange = async (file) => {
             playBeep();
             handleScannedStudent(decodedText);
         }
-    } catch (err) {
+    } catch {
         $q.loading.hide();
         $q.notify({
             type: 'negative',

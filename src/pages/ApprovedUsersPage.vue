@@ -106,7 +106,7 @@ const disapproveUser = async (user) => {
     await client.put(`profiles/${user.id}/approve`, { is_approved: false })
     $q.notify({ type: 'positive', message: 'User disapproved and moved to pending' })
     fetchApprovedUsers()
-  } catch (error) {
+  } catch {
     $q.notify({ type: 'negative', message: 'Action failed' })
   }
 }
@@ -123,7 +123,7 @@ const confirmDelete = (user) => {
       await client.delete(`profiles/${user.id}`)
       $q.notify({ type: 'positive', message: 'User deleted' })
       fetchApprovedUsers()
-    } catch (error) {
+    } catch {
       $q.notify({ type: 'negative', message: 'Delete failed' })
     }
   })

@@ -154,7 +154,7 @@ const toggleStatus = async (user, status) => {
     }
 
     fetchUsers()
-  } catch (error) {
+  } catch {
     $q.notify({ type: 'negative', message: `Action failed` })
   }
 }
@@ -170,7 +170,7 @@ const confirmDelete = (user) => {
       await client.delete(`profiles/${user.id}`)
       $q.notify({ type: 'positive', message: 'User deleted' })
       fetchUsers()
-    } catch (error) {
+    } catch {
       $q.notify({ type: 'negative', message: 'Delete failed' })
     }
   })

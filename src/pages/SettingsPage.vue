@@ -126,7 +126,7 @@ const resetPassword = async () => {
       message: t.value.resetLinkSent + user.email,
       timeout: 5000
     })
-  } catch (error) {
+  } catch {
     $q.notify({ type: 'negative', message: 'Failed to send reset email' })
   } finally {
     $q.loading.hide()

@@ -204,7 +204,7 @@ const saveRole = async () => {
         $q.notify({ type: 'positive', message: 'Role created successfully' })
         showRoleDialog.value = false
         fetchRoles()
-    } catch (e) {
+    } catch {
         $q.notify({ type: 'negative', message: `Error creating role` })
     } finally {
         loading.value = false
