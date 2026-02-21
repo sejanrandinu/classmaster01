@@ -277,31 +277,23 @@ const fetchInitialData = async () => {
 
 const fetchStats = async () => {
     try {
-        // Fetch stats summary from dynamic worker endpoint or individual queries
-        // For now, let's fetch them individually as we haven't added a dedicated 'stats' endpoint yet
-        const students = await client.get('students')
-        const tutors = await client.get('tutors')
-        const schedule = await client.get('schedule/today')
-        
-        stats.value[0].target = students?.length || 0
-        stats.value[0].progress = Math.min(1, (students?.length || 0) / 1000)
+        const data = await client.get('stats')
+        if (data) {
+            stats.value[0].target = data.students_count || 0
+            stats.value[0].progress = Math.min(1, (data.students_count || 0) / 1000)
 
-        stats.value[2].target = tutors?.length || 0
-        stats.value[2].progress = Math.min(1, (tutors?.length || 0) / 50)
+            stats.value[2].target = data.tutors_count || 0
+            stats.value[2].progress = Math.min(1, (data.tutors_count || 0) / 50)
+            
+            stats.value[3].target = data.total_classes || 0
+            stats.value[3].progress = 0.5 // Static for now
 
-        if (schedule) {
-            const nowTime = new Date().getHours() * 60 + new Date().getMinutes()
-            const remaining = schedule.filter(c => {
-                const [h, m] = c.start_time.split(':').map(Number)
-                return (h * 60 + m) > nowTime
-            })
-            stats.value[3].target = remaining.length
-            stats.value[3].progress = schedule.length > 0 ? remaining.length / schedule.length : 0
+            totalFees.value = data.monthly_revenue || 0
+            totalSalaries.value = data.monthly_expenses || 0
         }
-        
         animateStats()
-    } catch {
-        console.error('Stats fetch error')
+    } catch (e) {
+        console.error('Stats fetch error:', e)
     }
 }
 

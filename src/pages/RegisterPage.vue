@@ -159,10 +159,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
-import { auth, client } from 'src/api'
+import { auth } from 'src/api'
 
 const router = useRouter()
 const $q = useQuasar()

@@ -21,9 +21,11 @@ CREATE TABLE IF NOT EXISTS students (
     user_id TEXT NOT NULL,
     student_id TEXT,
     name TEXT NOT NULL,
+    school TEXT,
     grade TEXT,
     contact TEXT,
     status TEXT DEFAULT 'Active',
+    subjects_json TEXT, -- Store as JSON array string
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(user_id) REFERENCES profiles(id) ON DELETE CASCADE
 );

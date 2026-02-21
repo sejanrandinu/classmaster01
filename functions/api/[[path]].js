@@ -149,24 +149,124 @@ export async function onRequest(context) {
             return json({ message: "Profile updated" });
         }
 
+        // --- ACTIVITY LOGGER HELPER ---
+        async function logActivity(type, description, amount = 0) {
+            try {
+                await db.prepare("INSERT INTO messages (user_id, content, recipient_type, status) VALUES (?, ?, ?, ?)")
+                    .bind(userId, description, type, 'Log')
+                    .run();
+                // Note: Using 'messages' table as a temporary activity log since 'activities' table wasn't in schema.sql
+            } catch (e) {
+                console.error('Log activity error:', e);
+            }
+        }
+
         // --- OTHER ROUTES ---
+        
+        // STUDENTS
         if (path === 'students' && method === 'GET') {
-            const { results } = await db.prepare("SELECT * FROM students WHERE user_id = ?").bind(userId).all();
+            const { results } = await db.prepare("SELECT * FROM students WHERE user_id = ? ORDER BY created_at DESC").bind(userId).all();
             return json(results || []);
         }
 
+        if (path === 'students' && method === 'POST') {
+            const data = await request.json();
+            const subjects_json = data.subjects ? JSON.stringify(data.subjects) : '[]';
+            const { results } = await db.prepare("INSERT INTO students (user_id, student_id, name, school, grade, contact, status, subjects_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+                .bind(userId, data.student_id, data.name, data.school, data.grade, data.contact, data.status || 'Active', subjects_json)
+                .run();
+            await logActivity('student', `Added new student: ${data.name}`);
+            return json({ message: "Student added", id: results?.[0]?.id });
+        }
+
+        if (path.startsWith('students/') && method === 'PUT') {
+            const id = path.split('/')[1];
+            const data = await request.json();
+            const subjects_json = data.subjects ? JSON.stringify(data.subjects) : '[]';
+            await db.prepare("UPDATE students SET name = ?, school = ?, grade = ?, contact = ?, status = ?, subjects_json = ? WHERE id = ? AND user_id = ?")
+                .bind(data.name, data.school, data.grade, data.contact, data.status, subjects_json, id, userId)
+                .run();
+            await logActivity('student', `Updated student: ${data.name}`);
+            return json({ message: "Student updated" });
+        }
+
+        if (path.startsWith('students/') && method === 'DELETE') {
+            const id = path.split('/')[1];
+            await db.prepare("DELETE FROM students WHERE id = ? AND user_id = ?").bind(id, userId).run();
+            await logActivity('student', `Deleted a student record`);
+            return json({ message: "Student deleted" });
+        }
+
+        // TUTORS
         if (path === 'tutors' && method === 'GET') {
             const { results } = await db.prepare("SELECT * FROM tutors WHERE user_id = ?").bind(userId).all();
             return json(results || []);
         }
 
+        if (path === 'tutors' && method === 'POST') {
+            const data = await request.json();
+            await db.prepare("INSERT INTO tutors (user_id, name, subject, email, phone) VALUES (?, ?, ?, ?, ?)")
+                .bind(userId, data.name, data.subject, data.email, data.phone)
+                .run();
+            await logActivity('tutor', `Added tutor: ${data.name}`);
+            return json({ message: "Tutor added" });
+        }
+
+        // CLASSES
         if (path === 'classes' && method === 'GET') {
             const { results } = await db.prepare("SELECT * FROM classes WHERE user_id = ?").bind(userId).all();
             return json(results || []);
         }
 
+        if (path === 'classes' && method === 'POST') {
+            const data = await request.json();
+            await db.prepare("INSERT INTO classes (user_id, name, grade, day, start_time, end_time, fee) VALUES (?, ?, ?, ?, ?, ?, ?)")
+                .bind(userId, data.name, data.grade, data.day, data.start_time, data.end_time, data.fee)
+                .run();
+            await logActivity('class', `Scheduled class: ${data.name}`);
+            return json({ message: "Class added" });
+        }
+
+        // STATS (Dashboard)
+        if (path === 'stats' && method === 'GET') {
+            const students = await db.prepare("SELECT COUNT(*) as count FROM students WHERE user_id = ?").bind(userId).first('count') || 0;
+            const tutors = await db.prepare("SELECT COUNT(*) as count FROM tutors WHERE user_id = ?").bind(userId).first('count') || 0;
+            const classes = await db.prepare("SELECT COUNT(*) as count FROM classes WHERE user_id = ?").bind(userId).first('count') || 0;
+            
+            return json({
+                students_count: students,
+                tutors_count: tutors,
+                total_classes: classes,
+                monthly_revenue: 0, // Placeholder for now
+                monthly_expenses: 0
+            });
+        }
+
+        // SCHEDULE
+        if (path === 'schedule/today' && method === 'GET') {
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const today = days[new Date().getDay()];
+            const { results } = await db.prepare("SELECT * FROM classes WHERE user_id = ? AND day = ?").bind(userId, today).all();
+            return json(results || []);
+        }
+
+        // SUBJECTS
+        if (path === 'subjects' && method === 'GET') {
+            const { results } = await db.prepare("SELECT * FROM subjects WHERE user_id = ?").bind(userId).all();
+            return json(results || []);
+        }
+
+        // ACTIVITIES (Using messages table as log)
+        if (path === 'activities' && method === 'GET') {
+            const { results } = await db.prepare("SELECT content as description, recipient_type as type, created_at FROM messages WHERE user_id = ? AND status = 'Log' ORDER BY created_at DESC LIMIT 10")
+                .bind(userId)
+                .all();
+            return json(results || []);
+        }
+
+        // PROFILES (ADMIN)
         if (path === 'profiles' && method === 'GET') {
-             const { results } = await db.prepare("SELECT * FROM profiles ORDER BY created_at DESC").all();
+             const { results } = await db.prepare("SELECT id, email, role, is_approved, created_at FROM profiles ORDER BY created_at DESC").all();
              return json(results || []);
         }
 
