@@ -207,11 +207,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useQuasar } from 'quasar'
+import { useRoute } from 'vue-router'
 import { client } from 'src/api'
 
 const $q = useQuasar()
+const route = useRoute()
 const loading = ref(false)
 
 // Data refs
@@ -276,10 +278,24 @@ const sendWhatsAppReceipt = (student, amount, month, receiptNo) => {
     window.open(`https://wa.me/94702838364?text=${message}`, '_blank');
 }
 
-onMounted(() => {
-    loadBaseData()
+onMounted(async () => {
+    await loadBaseData()
     fetchRecentPayments()
     paymentForm.value.month = new Date().toLocaleString('default', { month: 'long', year: 'numeric' })
+
+    // Check if coming from QR Scanner
+    if (route.query.student_id) {
+        const sid = route.query.student_id
+        const student = studentsList.value.find(s => s.student_id === sid || s.id == sid)
+        if (student) {
+            selectedStudent.value = {
+                label: `${student.name} (${student.student_id})`,
+                value: student.id,
+                grade: student.grade
+            }
+            onStudentSelect(selectedStudent.value)
+        }
+    }
 })
 
 const loadBaseData = async () => {

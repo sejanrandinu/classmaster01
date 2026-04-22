@@ -391,8 +391,21 @@ export async function onRequest(context) {
             const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
             // Colombo Time Offset (+5:30)
             const now = new Date(Date.now() + 5.5 * 3600000);
-            const today = days[now.getUTCDay()];
-            const { results } = await db.prepare("SELECT id, name, name as class_name, tutor_name, tutor_name as tutor, subject_name, subject_name as subject, grade, day, start_time, end_time, fee FROM classes WHERE user_id = ? AND day = ? AND status = 'Active'").bind(userId, today).all();
+            const todayDay = days[now.getUTCDay()];
+            const todayDate = now.toISOString().split('T')[0];
+
+            // Show classes where (day matches AND no specific date is set) OR (specific date matches today)
+            const { results } = await db.prepare(`
+                SELECT * FROM classes 
+                WHERE user_id = ? AND status = 'Active' 
+                AND (
+                    (day = ? AND (class_date IS NULL OR class_date = ''))
+                    OR 
+                    (class_date = ?)
+                )
+                ORDER BY start_time ASC
+            `).bind(userId, todayDay, todayDate).all();
+            
             return json(results || []);
         }
 

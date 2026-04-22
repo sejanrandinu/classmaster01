@@ -97,6 +97,16 @@
                             <div v-if="!isFeesPaid && !feesLoading" class="text-caption text-grey-7 q-mt-xs">
                                 No payment record found for this month.
                             </div>
+                            <q-btn 
+                                v-if="!isFeesPaid && !feesLoading"
+                                color="green-7" 
+                                icon="payments" 
+                                label="Collect Fee Now" 
+                                unelevated 
+                                no-caps 
+                                class="full-width q-mt-sm"
+                                @click="goToFees"
+                            />
                         </q-card>
                     </div>
                 </div>
@@ -114,10 +124,12 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useQuasar } from 'quasar'
+import { useRouter } from 'vue-router'
 import { client } from 'src/api'
 import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode'
 
 const $q = useQuasar()
+const router = useRouter()
 const scanner = ref(null)
 const scanning = ref(false)
 const scannedStudent = ref(null)
@@ -334,6 +346,14 @@ const sendAttendanceWA = (student) => {
             ]
         })
     }
+}
+
+const goToFees = () => {
+    if (!scannedStudent.value) return
+    router.push({
+        path: '/dashboard/fees',
+        query: { student_id: scannedStudent.value.id }
+    })
 }
 
 const resetScanner = () => {
