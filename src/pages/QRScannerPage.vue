@@ -100,11 +100,23 @@
                             <q-btn 
                                 v-if="!isFeesPaid && !feesLoading"
                                 color="green-7" 
-                                icon="payments" 
-                                label="Collect Fee Now" 
+                                icon="bolt" 
+                                label="Pay Now (One-Click)" 
                                 unelevated 
                                 no-caps 
                                 class="full-width q-mt-sm"
+                                :loading="markingFees"
+                                @click="quickPay"
+                            />
+                            <q-btn 
+                                v-if="!isFeesPaid && !feesLoading"
+                                flat
+                                color="grey-7" 
+                                icon="open_in_new" 
+                                label="Manual Entry" 
+                                no-caps 
+                                size="sm"
+                                class="full-width q-mt-xs"
                                 @click="goToFees"
                             />
                         </q-card>
@@ -141,6 +153,7 @@ const html5QrCode = ref(null)
 const attendanceLoading = ref(false)
 const markingAttendance = ref(false)
 const feesLoading = ref(false)
+const markingFees = ref(false)
 
 const currentMonth = new Date().toLocaleString('default', { month: 'long', year: 'numeric' })
 const todayDate = new Date().toISOString().split('T')[0]
@@ -345,6 +358,41 @@ const sendAttendanceWA = (student) => {
                 { label: 'Send Message', color: 'white', handler: () => window.open(url, '_blank') }
             ]
         })
+    }
+}
+
+const quickPay = async () => {
+    if (!scannedStudent.value) return
+    markingFees.value = true
+    try {
+        // Find classes for this student's grade
+        const classes = await client.get(`classes?grade=${scannedStudent.value.grade}&status=Active`)
+        if (!classes || classes.length === 0) {
+            $q.notify({ type: 'warning', message: 'No active class found to pay for.' })
+            return
+        }
+
+        const receiptNo = `QR-${Date.now().toString().slice(-6)}`
+        await client.post('payments', {
+            student_id: scannedStudent.value.id,
+            class_id: classes[0].id,
+            amount: classes[0].fee,
+            month: currentMonth,
+            payment_method: 'Cash',
+            receipt_no: receiptNo
+        })
+
+        $q.notify({ 
+            type: 'positive', 
+            message: 'Payment Recorded!', 
+            caption: `Rs. ${classes[0].fee} for ${currentMonth}`,
+            icon: 'check_circle' 
+        })
+        isFeesPaid.value = true
+    } catch (e) {
+        $q.notify({ type: 'negative', message: 'Payment failed: ' + (e.response?.data?.error || e.message) })
+    } finally {
+        markingFees.value = false
     }
 }
 
