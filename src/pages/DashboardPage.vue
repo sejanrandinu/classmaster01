@@ -373,7 +373,7 @@ const handleQuickAction = (action) => {
         case 'fees': router.push('/dashboard/fees'); break;
         case 'attendance': router.push('/dashboard/attendance'); break;
         case 'classes': router.push('/dashboard/classes'); break;
-        case 'message': router.push('/dashboard/messaging'); break;
+        case 'message': router.push('/dashboard/messages'); break;
     }
 }
 

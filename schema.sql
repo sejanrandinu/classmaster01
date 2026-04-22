@@ -38,6 +38,11 @@ CREATE TABLE IF NOT EXISTS tutors (
     subject TEXT,
     email TEXT,
     phone TEXT,
+    grades_json TEXT, -- Added
+    bank_name TEXT, -- Added
+    bank_account_name TEXT, -- Added
+    bank_account_number TEXT, -- Added
+    bank_branch TEXT, -- Added
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(user_id) REFERENCES profiles(id) ON DELETE CASCADE
 );
@@ -60,11 +65,15 @@ CREATE TABLE IF NOT EXISTS classes (
     name TEXT NOT NULL,
     tutor_id INTEGER,
     subject_id INTEGER,
+    tutor_name TEXT, -- Added for easier fetching
+    subject_name TEXT, -- Added for easier fetching
     grade TEXT,
     day TEXT,
+    class_date DATE, -- Added
     start_time TEXT,
     end_time TEXT,
     fee DECIMAL(10, 2),
+    status TEXT DEFAULT 'Active', -- Added
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(user_id) REFERENCES profiles(id) ON DELETE CASCADE
 );
@@ -78,7 +87,8 @@ CREATE TABLE IF NOT EXISTS attendance (
     date DATE DEFAULT CURRENT_DATE,
     status TEXT DEFAULT 'Present',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(user_id) REFERENCES profiles(id) ON DELETE CASCADE
+    FOREIGN KEY(user_id) REFERENCES profiles(id) ON DELETE CASCADE,
+    UNIQUE(student_id, class_id, date) -- Ensure unique attendance per day
 );
 
 -- 7. Payments (Fees)
@@ -89,21 +99,23 @@ CREATE TABLE IF NOT EXISTS payments (
     class_id INTEGER,
     amount DECIMAL(10, 2) NOT NULL,
     month TEXT,
-    date DATE DEFAULT CURRENT_DATE,
+    payment_date DATE DEFAULT CURRENT_DATE, -- Renamed for consistency with frontend
     transaction_id TEXT,
+    receipt_no TEXT, -- Added
     receipt_url TEXT,
+    payment_method TEXT, -- Added
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(user_id) REFERENCES profiles(id) ON DELETE CASCADE
 );
 
--- 8. Messaging Log
+-- 8. Messaging Log (Also used for activities)
 CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id TEXT NOT NULL,
     content TEXT,
-    recipient_type TEXT,
+    recipient_type TEXT, -- Also used as activity type
     recipient_id TEXT,
-    status TEXT,
+    status TEXT, -- 'Sent', 'Failed', 'Log'
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(user_id) REFERENCES profiles(id) ON DELETE CASCADE
 );
@@ -138,3 +150,5 @@ CREATE INDEX IF NOT EXISTS idx_students_user_id ON students(user_id);
 CREATE INDEX IF NOT EXISTS idx_classes_user_id ON classes(user_id);
 CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments(user_id);
 CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date);
+CREATE INDEX IF NOT EXISTS idx_attendance_composite ON attendance(student_id, class_id, date);
+

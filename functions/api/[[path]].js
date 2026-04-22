@@ -165,29 +165,54 @@ export async function onRequest(context) {
         
         // STUDENTS
         if (path === 'students' && method === 'GET') {
-            const { results } = await db.prepare("SELECT * FROM students WHERE user_id = ? ORDER BY created_at DESC").bind(userId).all();
+            const grade = url.searchParams.get('grade');
+            const status = url.searchParams.get('status');
+            let query = "SELECT * FROM students WHERE user_id = ?";
+            const params = [userId];
+            
+            if (grade) {
+                query += " AND grade = ?";
+                params.push(grade);
+            }
+            if (status) {
+                query += " AND status = ?";
+                params.push(status);
+            }
+            
+            query += " ORDER BY created_at DESC";
+            const { results } = await db.prepare(query).bind(...params).all();
             return json(results || []);
+        }
+
+        if (path.startsWith('students/by-id/') && method === 'GET') {
+            const studentIdStr = path.split('/')[2];
+            const student = await db.prepare("SELECT * FROM students WHERE user_id = ? AND student_id = ?")
+                .bind(userId, studentIdStr)
+                .first();
+            return json(student || null);
         }
 
         if (path === 'students' && method === 'POST') {
             const data = await request.json();
             const subjects_json = data.subjects ? JSON.stringify(data.subjects) : '[]';
-            const { results } = await db.prepare("INSERT INTO students (user_id, student_id, name, school, grade, contact, status, subjects_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+            await db.prepare("INSERT INTO students (user_id, student_id, name, school, grade, contact, status, subjects_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
                 .bind(userId, data.student_id, data.name, data.school, data.grade, data.contact, data.status || 'Active', subjects_json)
                 .run();
             await logActivity('student', `Added new student: ${data.name}`);
-            return json({ message: "Student added", id: results?.[0]?.id });
+            return json({ message: "Student added" });
         }
 
         if (path.startsWith('students/') && method === 'PUT') {
             const id = path.split('/')[1];
-            const data = await request.json();
-            const subjects_json = data.subjects ? JSON.stringify(data.subjects) : '[]';
-            await db.prepare("UPDATE students SET name = ?, school = ?, grade = ?, contact = ?, status = ?, subjects_json = ? WHERE id = ? AND user_id = ?")
-                .bind(data.name, data.school, data.grade, data.contact, data.status, subjects_json, id, userId)
-                .run();
-            await logActivity('student', `Updated student: ${data.name}`);
-            return json({ message: "Student updated" });
+            if (id && id !== 'by-id') {
+                const data = await request.json();
+                const subjects_json = data.subjects ? JSON.stringify(data.subjects) : '[]';
+                await db.prepare("UPDATE students SET name = ?, school = ?, grade = ?, contact = ?, status = ?, subjects_json = ? WHERE id = ? AND user_id = ?")
+                    .bind(data.name, data.school, data.grade, data.contact, data.status, subjects_json, id, userId)
+                    .run();
+                await logActivity('student', `Updated student: ${data.name}`);
+                return json({ message: "Student updated" });
+            }
         }
 
         if (path.startsWith('students/') && method === 'DELETE') {
@@ -205,26 +230,188 @@ export async function onRequest(context) {
 
         if (path === 'tutors' && method === 'POST') {
             const data = await request.json();
-            await db.prepare("INSERT INTO tutors (user_id, name, subject, email, phone) VALUES (?, ?, ?, ?, ?)")
-                .bind(userId, data.name, data.subject, data.email, data.phone)
+            const grades_json = data.grades ? JSON.stringify(data.grades) : '[]';
+            await db.prepare("INSERT INTO tutors (user_id, name, subject, email, phone, grades_json, bank_name, bank_account_name, bank_account_number, bank_branch) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                .bind(userId, data.name, data.subject, data.email, data.phone, grades_json, data.bank_name, data.bank_account_name, data.bank_account_number, data.bank_branch)
                 .run();
             await logActivity('tutor', `Added tutor: ${data.name}`);
             return json({ message: "Tutor added" });
         }
 
+        if (path.startsWith('tutors/') && method === 'PUT') {
+            const id = path.split('/')[1];
+            const data = await request.json();
+            const grades_json = data.grades ? JSON.stringify(data.grades) : '[]';
+            await db.prepare("UPDATE tutors SET name = ?, subject = ?, email = ?, phone = ?, grades_json = ?, bank_name = ?, bank_account_name = ?, bank_account_number = ?, bank_branch = ? WHERE id = ? AND user_id = ?")
+                .bind(data.name, data.subject, data.email, data.phone, grades_json, data.bank_name, data.bank_account_name, data.bank_account_number, data.bank_branch, id, userId)
+                .run();
+            await logActivity('tutor', `Updated tutor: ${data.name}`);
+            return json({ message: "Tutor updated" });
+        }
+
+        if (path.startsWith('tutors/') && method === 'DELETE') {
+            const id = path.split('/')[1];
+            await db.prepare("DELETE FROM tutors WHERE id = ? AND user_id = ?").bind(id, userId).run();
+            await logActivity('tutor', `Deleted a tutor record`);
+            return json({ message: "Tutor deleted" });
+        }
+
         // CLASSES
         if (path === 'classes' && method === 'GET') {
-            const { results } = await db.prepare("SELECT * FROM classes WHERE user_id = ?").bind(userId).all();
+            const grade = url.searchParams.get('grade');
+            const status = url.searchParams.get('status');
+            let query = "SELECT * FROM classes WHERE user_id = ?";
+            const params = [userId];
+            
+            if (grade) {
+                query += " AND grade = ?";
+                params.push(grade);
+            }
+            if (status) {
+                query += " AND status = ?";
+                params.push(status);
+            }
+            
+            query += " ORDER BY created_at DESC";
+            const { results } = await db.prepare(query).bind(...params).all();
             return json(results || []);
         }
 
+
         if (path === 'classes' && method === 'POST') {
             const data = await request.json();
-            await db.prepare("INSERT INTO classes (user_id, name, grade, day, start_time, end_time, fee) VALUES (?, ?, ?, ?, ?, ?, ?)")
-                .bind(userId, data.name, data.grade, data.day, data.start_time, data.end_time, data.fee)
+            await db.prepare("INSERT INTO classes (user_id, name, subject_name, tutor_name, grade, day, class_date, start_time, end_time, fee, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                .bind(userId, data.class_name, data.subject, data.tutor, data.grade, data.day, data.class_date, data.start_time, data.end_time, data.fee, data.status)
                 .run();
-            await logActivity('class', `Scheduled class: ${data.name}`);
+            await logActivity('class', `Scheduled class: ${data.class_name}`);
             return json({ message: "Class added" });
+        }
+
+        if (path.startsWith('classes/') && method === 'PUT') {
+            const id = path.split('/')[1];
+            const data = await request.json();
+             await db.prepare("UPDATE classes SET name = ?, subject_name = ?, tutor_name = ?, grade = ?, day = ?, class_date = ?, start_time = ?, end_time = ?, fee = ?, status = ? WHERE id = ? AND user_id = ?")
+                .bind(data.class_name, data.subject, data.tutor, data.grade, data.day, data.class_date, data.start_time, data.end_time, data.fee, data.status, id, userId)
+                .run();
+            await logActivity('class', `Updated class: ${data.class_name}`);
+            return json({ message: "Class updated" });
+        }
+
+        if (path.startsWith('classes/') && method === 'DELETE') {
+            const id = path.split('/')[1];
+            await db.prepare("DELETE FROM classes WHERE id = ? AND user_id = ?").bind(id, userId).run();
+            await logActivity('class', `Deleted a class record`);
+            return json({ message: "Class deleted" });
+        }
+
+        // PAYMENTS
+        if (path === 'payments' && method === 'GET') {
+            // Join with students and classes for frontend display
+            const { results } = await db.prepare(`
+                SELECT p.*, s.name as student_name, s.student_id as student_id_str, c.name as class_name 
+                FROM payments p
+                LEFT JOIN students s ON p.student_id = s.id
+                LEFT JOIN classes c ON p.class_id = c.id
+                WHERE p.user_id = ? 
+                ORDER BY p.payment_date DESC, p.created_at DESC
+                LIMIT 50
+            `).bind(userId).all();
+            return json(results || []);
+        }
+
+        if (path === 'payments' && method === 'POST') {
+            const data = await request.json();
+            await db.prepare("INSERT INTO payments (user_id, student_id, class_id, amount, month, payment_date, receipt_no, payment_method) VALUES (?, ?, ?, ?, ?, CURRENT_DATE, ?, ?)")
+                .bind(userId, data.student_id, data.class_id, data.amount, data.month, data.receipt_no, data.payment_method)
+                .run();
+            await logActivity('payment', `Collected fee: Rs. ${data.amount}`);
+            return json({ message: "Payment recorded" });
+        }
+
+        if (path.startsWith('payments/') && method === 'DELETE') {
+            const id = path.split('/')[1];
+            await db.prepare("DELETE FROM payments WHERE id = ? AND user_id = ?").bind(id, userId).run();
+            await logActivity('payment', `Deleted a payment record`);
+            return json({ message: "Payment deleted" });
+        }
+
+        // ATTENDANCE
+        if (path === 'attendance' && method === 'GET') {
+            const class_id = url.searchParams.get('class_id');
+            const date = url.searchParams.get('date');
+            const { results } = await db.prepare("SELECT * FROM attendance WHERE user_id = ? AND class_id = ? AND date = ?")
+                .bind(userId, class_id, date)
+                .all();
+            return json(results || []);
+        }
+
+        if (path === 'attendance/upsert' && method === 'POST') {
+            const { records } = await request.json();
+            for (const rec of records) {
+                await db.prepare(`
+                    INSERT INTO attendance (user_id, student_id, class_id, date, status) 
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(student_id, class_id, date) DO UPDATE SET status = excluded.status
+                `).bind(userId, rec.student_id, rec.class_id, rec.date, rec.status).run();
+            }
+            return json({ message: "Attendance saved" });
+        }
+
+        // STAFF
+        if (path === 'staff' && method === 'GET') {
+            const { results: staffResults } = await db.prepare("SELECT * FROM staff WHERE user_id = ?").bind(userId).all();
+            
+            // For each staff, fetch their recent payments (optional optimization: do a JOIN or separate query)
+            const staffWithPayments = [];
+            for (const staff of staffResults) {
+                const { results: payResults } = await db.prepare("SELECT * FROM salary_payments WHERE staff_id = ? AND user_id = ? ORDER BY payment_date DESC LIMIT 5")
+                    .bind(staff.id, userId).all();
+                staffWithPayments.push({ ...staff, salary_payments: payResults || [] });
+            }
+            
+            return json(staffWithPayments);
+        }
+
+        if (path === 'staff' && method === 'POST') {
+            const data = await request.json();
+            await db.prepare("INSERT INTO staff (user_id, name, role, whatsapp_number, salary, status) VALUES (?, ?, ?, ?, ?, ?)")
+                .bind(userId, data.name, data.role, data.whatsapp_number, data.salary, data.status || 'Active')
+                .run();
+            return json({ message: "Staff added" });
+        }
+
+        if (path.startsWith('staff/') && method === 'PUT') {
+            const id = path.split('/')[1];
+            if (id && !path.includes('/payments')) {
+                const data = await request.json();
+                await db.prepare("UPDATE staff SET name = ?, role = ?, whatsapp_number = ?, salary = ?, status = ? WHERE id = ? AND user_id = ?")
+                    .bind(data.name, data.role, data.whatsapp_number, data.salary, data.status, id, userId)
+                    .run();
+                return json({ message: "Staff updated" });
+            }
+        }
+
+        if (path.startsWith('staff/') && method === 'DELETE') {
+            const id = path.split('/')[1];
+            await db.prepare("DELETE FROM staff WHERE id = ? AND user_id = ?").bind(id, userId).run();
+            return json({ message: "Staff removed" });
+        }
+
+        if (path.startsWith('staff/') && path.endsWith('/payments') && method === 'GET') {
+            const id = path.split('/')[1];
+            const { results } = await db.prepare("SELECT * FROM salary_payments WHERE staff_id = ? AND user_id = ? ORDER BY payment_date DESC")
+                .bind(id, userId).all();
+            return json(results || []);
+        }
+
+        // SALARY PAYMENTS
+        if (path === 'salary_payments' && method === 'POST') {
+            const data = await request.json();
+            await db.prepare("INSERT INTO salary_payments (user_id, staff_id, amount, payment_date, notes) VALUES (?, ?, ?, ?, ?)")
+                .bind(userId, data.staff_id, data.amount, data.payment_date, data.notes)
+                .run();
+            await logActivity('salary', `Paid salary to staff ID: ${data.staff_id}`);
+            return json({ message: "Salary payment recorded" });
         }
 
         // STATS (Dashboard)
@@ -232,12 +419,13 @@ export async function onRequest(context) {
             const students = await db.prepare("SELECT COUNT(*) as count FROM students WHERE user_id = ?").bind(userId).first('count') || 0;
             const tutors = await db.prepare("SELECT COUNT(*) as count FROM tutors WHERE user_id = ?").bind(userId).first('count') || 0;
             const classes = await db.prepare("SELECT COUNT(*) as count FROM classes WHERE user_id = ?").bind(userId).first('count') || 0;
+            const revenue = await db.prepare("SELECT SUM(amount) as sum FROM payments WHERE user_id = ? AND strftime('%m', payment_date) = strftime('%m', 'now')").bind(userId).first('sum') || 0;
             
             return json({
                 students_count: students,
                 tutors_count: tutors,
                 total_classes: classes,
-                monthly_revenue: 0, // Placeholder for now
+                monthly_revenue: revenue,
                 monthly_expenses: 0
             });
         }
@@ -312,3 +500,4 @@ export async function onRequest(context) {
         return json({ error: "Internal Server Error", message: e.message }, 500);
     }
 }
+
