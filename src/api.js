@@ -93,5 +93,13 @@ export const auth = {
             console.error('API: Failed to get user:', e.message);
             return null;
         }
+    },
+
+    async forgotPassword(email) {
+        return await client.post('auth/reset-password', { email });
+    },
+
+    async changePassword(newPassword) {
+        return await client.put('me/password', { password: newPassword });
     }
 };

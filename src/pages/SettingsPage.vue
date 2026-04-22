@@ -90,7 +90,7 @@ const translations = {
     title: 'Settings',
     securityTitle: 'Security & Access',
     resetPassword: 'Reset Password',
-    resetPasswordCaption: 'Send a password reset email to your inbox',
+    resetPasswordCaption: 'Set a new password for your account',
     notifications: 'System Notifications',
     notificationsCaption: 'Receive alerts about class attendance and fees',
     preferencesTitle: 'App Preferences',
@@ -102,7 +102,7 @@ const translations = {
     title: 'සැකසුම්',
     securityTitle: 'ආරක්ෂාව සහ පිවිසුම',
     resetPassword: 'මුරපදය නැවත සකසන්න',
-    resetPasswordCaption: 'මුරපදය අලුත් කිරීමට ඊමේල් පණිවිඩයක් එවන්න',
+    resetPasswordCaption: 'ඔබගේ ගිණුම සඳහා නව මුරපදයක් ඇතුළත් කරන්න',
     notifications: 'පද්ධති නිවේදන',
     notificationsCaption: 'පැමිණීම සහ ගාස්තු පිළිබඳ දැනුම්දීම් ලබා ගන්න',
     preferencesTitle: 'පද්ධති මනාපයන්',
@@ -115,21 +115,38 @@ const translations = {
 const t = computed(() => translations[appStore.language])
 
 const resetPassword = async () => {
-  const user = await auth.getUser()
-  if (!user || !user.email) return
+  $q.dialog({
+    title: t.value.resetPassword,
+    message: 'Enter your new password:',
+    prompt: {
+      model: '',
+      type: 'password',
+      attrs: {
+        autocomplete: 'new-password'
+      }
+    },
+    cancel: true,
+    persistent: true
+  }).onOk(async (newPassword) => {
+    if (!newPassword || newPassword.length < 6) {
+      $q.notify({ type: 'negative', message: 'Password must be at least 6 characters' })
+      return
+    }
 
-  $q.loading.show()
-  try {
-    await auth.forgotPassword(user.email)
-    $q.notify({ 
-      type: 'positive', 
-      message: t.value.resetLinkSent + user.email,
-      timeout: 5000
-    })
-  } catch {
-    $q.notify({ type: 'negative', message: 'Failed to send reset email' })
-  } finally {
-    $q.loading.hide()
-  }
+    $q.loading.show()
+    try {
+      await auth.changePassword(newPassword)
+      $q.notify({ 
+        type: 'positive', 
+        message: 'Password updated successfully!',
+        timeout: 5000
+      })
+    } catch (e) {
+      console.error('Password reset error:', e)
+      $q.notify({ type: 'negative', message: 'Failed to update password' })
+    } finally {
+      $q.loading.hide()
+    }
+  })
 }
 </script>

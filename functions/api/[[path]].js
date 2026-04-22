@@ -110,14 +110,22 @@ export async function onRequest(context) {
         };
 
         // ME
-        if (path === 'me' && method === 'GET') {
-            const user = await db.prepare("SELECT id, email, whatsapp_number, role, is_approved, bank_name, account_number, account_holder_name FROM profiles WHERE id = ?").bind(userId).first();
-            return json(user);
-        }
-        if (path === 'me' && method === 'POST') {
-            const d = await request.json();
-            await db.prepare("UPDATE profiles SET whatsapp_number = ?, bank_name = ?, account_number = ?, account_holder_name = ? WHERE id = ?").bind(d.whatsapp_number, d.bank_name, d.account_number, d.account_holder_name, userId).run();
-            return json({ message: "Updated" });
+        if (path === 'me') {
+            if (method === 'GET') {
+                const user = await db.prepare("SELECT id, email, whatsapp_number, role, is_approved, bank_name, account_number, account_holder_name FROM profiles WHERE id = ?").bind(userId).first();
+                return json(user);
+            }
+            if (method === 'POST') {
+                const d = await request.json();
+                await db.prepare("UPDATE profiles SET whatsapp_number = ?, bank_name = ?, account_number = ?, account_holder_name = ? WHERE id = ?").bind(d.whatsapp_number, d.bank_name, d.account_number, d.account_holder_name, userId).run();
+                return json({ message: "Updated" });
+            }
+            if (method === 'PUT' && subPath === 'password') {
+                const { password } = await request.json();
+                const password_hash = await hashString(password + JWT_SECRET);
+                await db.prepare("UPDATE profiles SET password_hash = ? WHERE id = ?").bind(password_hash, userId).run();
+                return json({ message: "Password updated" });
+            }
         }
 
         // STUDENTS
@@ -455,16 +463,22 @@ export async function onRequest(context) {
             return json(results || []);
         }
 
-        // ADMIN PROFILES
+        // ADMIN PROFILES (Super Admin Only)
         if (path === 'profiles') {
+            if (payload.role !== 'super-admin') return json({ error: "Forbidden" }, 403);
+
             if (method === 'GET') {
-                const { results } = await db.prepare("SELECT id, email, role, is_approved, created_at FROM profiles ORDER BY created_at DESC").all();
+                const { results } = await db.prepare("SELECT id, email, whatsapp_number, role, is_approved, created_at FROM profiles ORDER BY created_at DESC").all();
                 return json(results || []);
             }
             if (method === 'PUT' && subPath && pathParts[2] === 'approve') {
                 const { is_approved } = await request.json();
                 await db.prepare("UPDATE profiles SET is_approved = ?, role = ? WHERE id = ?").bind(is_approved ? 1 : 0, is_approved ? 'admin' : 'pending', subPath).run();
                 return json({ message: "Approved" });
+            }
+            if (method === 'DELETE' && subPath) {
+                await db.prepare("DELETE FROM profiles WHERE id = ?").bind(subPath).run();
+                return json({ message: "Deleted" });
             }
         }
 
