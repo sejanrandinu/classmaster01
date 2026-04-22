@@ -46,7 +46,7 @@ export async function onRequest(context) {
     const { request, env } = context;
     const url = new URL(request.url);
     const fullPath = url.pathname.replace(/^\/api\/?/, '');
-    const pathParts = fullPath.split('/');
+    const pathParts = fullPath.split('/').filter(p => p !== '');
     const path = pathParts[0];
     const subPath = pathParts[1];
     const method = request.method;
@@ -98,7 +98,11 @@ export async function onRequest(context) {
         const userId = payload.id;
 
         const logActivity = async (type, desc) => {
-            await db.prepare("INSERT INTO messages (user_id, content, recipient_type, status) VALUES (?, ?, ?, ?)").bind(userId, desc, type, 'Log').run();
+            try {
+                await db.prepare("INSERT INTO messages (user_id, content, recipient_type, status) VALUES (?, ?, ?, ?)").bind(userId, desc, type, 'Log').run();
+            } catch (e) {
+                console.error('Log error:', e);
+            }
         };
 
         // ME
@@ -126,20 +130,25 @@ export async function onRequest(context) {
                 const p = [userId];
                 if (grade) { q += " AND grade = ?"; p.push(grade); }
                 if (status) { q += " AND status = ?"; p.push(status); }
-                const { results } = await db.prepare(q + " ORDER BY created_at DESC").bind(...p).all();
-                return json(results || []);
+                const { results } = await db.prepare(q + " ORDER BY name ASC").bind(...p).all();
+                const mapped = (results || []).map(s => {
+                    let subjects = [];
+                    try { subjects = JSON.parse(s.subjects_json || '[]'); } catch (e) { subjects = []; }
+                    return { ...s, subjects };
+                });
+                return json(mapped);
             }
             if (method === 'POST') {
                 const d = await request.json();
                 await db.prepare("INSERT INTO students (user_id, student_id, name, school, grade, contact, status, subjects_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
                     .bind(userId, d.student_id, d.name, d.school, d.grade, d.contact, d.status || 'Active', JSON.stringify(d.subjects || [])).run();
-                await logActivity('student', `Added ${d.name}`);
+                await logActivity('student', `Added student ${d.name}`);
                 return json({ message: "Added" });
             }
             if (method === 'PUT' && subPath) {
                 const d = await request.json();
-                await db.prepare("UPDATE students SET name = ?, school = ?, grade = ?, contact = ?, status = ?, subjects_json = ? WHERE id = ? AND user_id = ?")
-                    .bind(d.name, d.school, d.grade, d.contact, d.status, JSON.stringify(d.subjects || []), subPath, userId).run();
+                await db.prepare("UPDATE students SET student_id = ?, name = ?, school = ?, grade = ?, contact = ?, status = ?, subjects_json = ? WHERE id = ? AND user_id = ?")
+                    .bind(d.student_id, d.name, d.school, d.grade, d.contact, d.status, JSON.stringify(d.subjects || []), subPath, userId).run();
                 return json({ message: "Updated" });
             }
             if (method === 'DELETE' && subPath) {
@@ -152,12 +161,12 @@ export async function onRequest(context) {
         if (path === 'tutors') {
             if (method === 'GET') {
                 const { results } = await db.prepare("SELECT * FROM tutors WHERE user_id = ? ORDER BY name ASC").bind(userId).all();
-                const parsed = (results || []).map(t => {
+                const mapped = (results || []).map(t => {
                     let grades = [];
                     try { grades = JSON.parse(t.grades_json || '[]'); } catch (e) { grades = []; }
                     return { ...t, grades };
                 });
-                return json(parsed);
+                return json(mapped);
             }
             if (method === 'POST') {
                 const d = await request.json();
@@ -182,7 +191,7 @@ export async function onRequest(context) {
             if (method === 'GET') {
                 const grade = url.searchParams.get('grade');
                 const status = url.searchParams.get('status');
-                let q = "SELECT id, user_id, name, name as class_name, tutor_name, tutor_name as tutor, subject_name, subject_name as subject, grade, day, class_date, start_time, end_time, fee, status, created_at FROM classes WHERE user_id = ?";
+                let q = "SELECT id, name, name as class_name, tutor_name, tutor_name as tutor, subject_name, subject_name as subject, grade, day, class_date, start_time, end_time, fee, status FROM classes WHERE user_id = ?";
                 const p = [userId];
                 if (grade) { q += " AND grade = ?"; p.push(grade); }
                 if (status) { q += " AND status = ?"; p.push(status); }
@@ -191,42 +200,15 @@ export async function onRequest(context) {
             }
             if (method === 'POST') {
                 const d = await request.json();
-                const stmt = db.prepare(`
-                    INSERT INTO classes (
-                        user_id, name, tutor_name, subject_name, grade, 
-                        day, class_date, start_time, end_time, fee, status
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                `);
-                await stmt.bind(
-                    userId, 
-                    d.class_name || 'Untitled Class', 
-                    d.tutor || null, 
-                    d.subject || null, 
-                    d.grade || null, 
-                    d.day || null, 
-                    d.class_date || null, 
-                    d.start_time || null, 
-                    d.end_time || null, 
-                    d.fee || 0, 
-                    d.status || 'Active'
-                ).run();
-                await logActivity('class', `Scheduled ${d.class_name}`);
+                await db.prepare("INSERT INTO classes (user_id, name, tutor_name, subject_name, grade, day, class_date, start_time, end_time, fee, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                    .bind(userId, d.class_name, d.tutor, d.subject, d.grade, d.day, d.class_date || null, d.start_time, d.end_time, d.fee, d.status || 'Active').run();
+                await logActivity('class', `Scheduled class ${d.class_name}`);
                 return json({ message: "Added" });
             }
             if (method === 'PUT' && subPath) {
                 const d = await request.json();
-                const stmt = db.prepare(`
-                    UPDATE classes SET 
-                        name = ?, tutor_name = ?, subject_name = ?, grade = ?, 
-                        day = ?, class_date = ?, start_time = ?, end_time = ?, 
-                        fee = ?, status = ? 
-                    WHERE id = ? AND user_id = ?
-                `);
-                await stmt.bind(
-                    d.class_name, d.tutor, d.subject, d.grade, 
-                    d.day, d.class_date || null, d.start_time, d.end_time, 
-                    d.fee, d.status, subPath, userId
-                ).run();
+                await db.prepare("UPDATE classes SET name = ?, tutor_name = ?, subject_name = ?, grade = ?, day = ?, class_date = ?, start_time = ?, end_time = ?, fee = ?, status = ? WHERE id = ? AND user_id = ?")
+                    .bind(d.class_name, d.tutor, d.subject, d.grade, d.day, d.class_date || null, d.start_time, d.end_time, d.fee, d.status, subPath, userId).run();
                 return json({ message: "Updated" });
             }
             if (method === 'DELETE' && subPath) {
@@ -239,17 +221,28 @@ export async function onRequest(context) {
         if (path === 'payments') {
             if (method === 'GET') {
                 const sid = url.searchParams.get('student_id');
-                let q = "SELECT p.*, s.name as student_name, c.name as class_name FROM payments p LEFT JOIN students s ON p.student_id = s.id LEFT JOIN classes c ON p.class_id = c.id WHERE p.user_id = ?";
+                // Use flat fields in SELECT to match frontend expectations
+                let q = `
+                    SELECT 
+                        p.*, 
+                        s.name as student_name, 
+                        s.student_id as student_id_str, 
+                        c.name as class_name 
+                    FROM payments p 
+                    LEFT JOIN students s ON p.student_id = s.id 
+                    LEFT JOIN classes c ON p.class_id = c.id 
+                    WHERE p.user_id = ?
+                `;
                 const p = [userId];
                 if (sid) { q += " AND p.student_id = ?"; p.push(sid); }
-                const { results } = await db.prepare(q + " ORDER BY p.payment_date DESC").bind(...p).all();
+                const { results } = await db.prepare(q + " ORDER BY p.payment_date DESC LIMIT 50").bind(...p).all();
                 return json(results || []);
             }
             if (method === 'POST') {
                 const d = await request.json();
                 await db.prepare("INSERT INTO payments (user_id, student_id, class_id, amount, month, payment_date, payment_method, receipt_no) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-                    .bind(userId, d.student_id, d.class_id, d.amount, d.month, d.payment_date, d.payment_method, d.receipt_no).run();
-                await logActivity('payment', `Collected ${d.amount}`);
+                    .bind(userId, d.student_id, d.class_id, d.amount, d.month, d.payment_date || new Date().toISOString().split('T')[0], d.payment_method, d.receipt_no).run();
+                await logActivity('payment', `Collected fee Rs. ${d.amount}`);
                 return json({ message: "Recorded" });
             }
             if (method === 'DELETE' && subPath) {
@@ -262,12 +255,30 @@ export async function onRequest(context) {
         if (path === 'attendance') {
             if (method === 'GET') {
                 const sid = url.searchParams.get('student_id');
+                const cid = url.searchParams.get('class_id');
                 const date = url.searchParams.get('date');
-                let q = "SELECT * FROM attendance WHERE user_id = ?";
+                const start = url.searchParams.get('start');
+                const end = url.searchParams.get('end');
+
+                let q = `
+                    SELECT 
+                        a.*, 
+                        s.name as student_name, 
+                        s.student_id as student_id_str, 
+                        c.name as class_name 
+                    FROM attendance a 
+                    LEFT JOIN students s ON a.student_id = s.id 
+                    LEFT JOIN classes c ON a.class_id = c.id 
+                    WHERE a.user_id = ?
+                `;
                 const p = [userId];
-                if (sid) { q += " AND student_id = ?"; p.push(sid); }
-                if (date) { q += " AND date = ?"; p.push(date); }
-                const { results } = await db.prepare(q).bind(...p).all();
+                if (sid) { q += " AND a.student_id = ?"; p.push(sid); }
+                if (cid) { q += " AND a.class_id = ?"; p.push(cid); }
+                if (date) { q += " AND a.date = ?"; p.push(date); }
+                if (start) { q += " AND a.date >= ?"; p.push(start); }
+                if (end) { q += " AND a.date <= ?"; p.push(end); }
+                
+                const { results } = await db.prepare(q + " ORDER BY a.date DESC, a.created_at DESC").bind(...p).all();
                 return json(results || []);
             }
             if (subPath === 'upsert' && method === 'POST') {
@@ -323,7 +334,11 @@ export async function onRequest(context) {
         if (path === 'roles') {
             if (method === 'GET') {
                 const { results } = await db.prepare("SELECT * FROM roles WHERE user_id = ?").bind(userId).all();
-                return json(results.map(r => ({ ...r, permissions: JSON.parse(r.permissions_json || '[]') })));
+                return json((results || []).map(r => {
+                    let perms = [];
+                    try { perms = JSON.parse(r.permissions_json || '[]'); } catch(e) { perms = []; }
+                    return { ...r, permissions: perms };
+                }));
             }
             if (method === 'POST') {
                 const d = await request.json();
@@ -343,21 +358,27 @@ export async function onRequest(context) {
             const classes = await db.prepare("SELECT COUNT(*) as count FROM classes WHERE user_id = ?").bind(userId).first('count') || 0;
             const revenue = await db.prepare("SELECT SUM(amount) as sum FROM payments WHERE user_id = ? AND strftime('%Y-%m', payment_date) = strftime('%Y-%m', 'now')").bind(userId).first('sum') || 0;
             const expenses = await db.prepare("SELECT SUM(amount) as sum FROM salary_payments WHERE user_id = ? AND strftime('%Y-%m', payment_date) = strftime('%Y-%m', 'now')").bind(userId).first('sum') || 0;
-            return json({ students_count: students, tutors_count: tutors, total_classes: classes, monthly_revenue: revenue, monthly_expenses: expenses });
+            return json({ 
+                students_count: Number(students), 
+                tutors_count: Number(tutors), 
+                total_classes: Number(classes), 
+                monthly_revenue: Number(revenue), 
+                monthly_expenses: Number(expenses) 
+            });
         }
 
         // SCHEDULE
         if (path === 'schedule' && subPath === 'today') {
             const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
             const today = days[new Date().getDay()];
-            const { results } = await db.prepare("SELECT *, name as class_name, tutor_name as tutor, subject_name as subject FROM classes WHERE user_id = ? AND day = ?").bind(userId, today).all();
+            const { results } = await db.prepare("SELECT id, name, name as class_name, tutor_name, tutor_name as tutor, subject_name, subject_name as subject, grade, day, start_time, end_time, fee FROM classes WHERE user_id = ? AND day = ? AND status = 'Active'").bind(userId, today).all();
             return json(results || []);
         }
 
         // SUBJECTS
         if (path === 'subjects') {
             if (method === 'GET') {
-                const { results } = await db.prepare("SELECT * FROM subjects WHERE user_id = ? ORDER BY created_at DESC").bind(userId).all();
+                const { results } = await db.prepare("SELECT * FROM subjects WHERE user_id = ? ORDER BY name ASC").bind(userId).all();
                 return json(results || []);
             }
             if (method === 'POST') {
@@ -372,6 +393,24 @@ export async function onRequest(context) {
             }
             if (method === 'DELETE' && subPath) {
                 await db.prepare("DELETE FROM subjects WHERE id = ? AND user_id = ?").bind(subPath, userId).run();
+                return json({ message: "Deleted" });
+            }
+        }
+
+        // MESSAGES
+        if (path === 'messages') {
+            if (method === 'GET') {
+                const { results } = await db.prepare("SELECT *, created_at as sent_at FROM messages WHERE user_id = ? AND status != 'Log' ORDER BY created_at DESC LIMIT 50").bind(userId).all();
+                return json(results || []);
+            }
+            if (method === 'POST') {
+                const d = await request.json();
+                await db.prepare("INSERT INTO messages (user_id, content, recipient_type, recipient_id, recipient_name, status) VALUES (?, ?, ?, ?, ?, ?)")
+                    .bind(userId, d.content, d.recipient_type, d.recipient_id, d.recipient_name, d.status).run();
+                return json({ message: "Sent" });
+            }
+            if (method === 'DELETE' && subPath) {
+                await db.prepare("DELETE FROM messages WHERE id = ? AND user_id = ?").bind(subPath, userId).run();
                 return json({ message: "Deleted" });
             }
         }
@@ -395,10 +434,10 @@ export async function onRequest(context) {
             }
         }
 
-        return json({ error: "Not Found", path, subPath }, 404);
+        return json({ error: "Route not found", path, subPath }, 404);
 
     } catch (e) {
-        console.error('Worker error:', e);
-        return json({ error: "Server Error", message: e.message }, 500);
+        console.error('API Error:', e);
+        return json({ error: "Server Error", details: e.message }, 500);
     }
 }

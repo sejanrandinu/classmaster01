@@ -356,9 +356,9 @@ const fetchRecentPayments = async () => {
             amount: p.amount,
             month: p.month,
             payment_date: p.payment_date,
-            student_name: p.students?.name || 'Unknown',
-            student_id_str: p.students?.student_id || 'N/A',
-            class_name: p.classes?.class_name || 'General'
+            student_name: p.student_name || 'Unknown',
+            student_id_str: p.student_id_str || 'N/A',
+            class_name: p.class_name || 'General'
         }))
     } catch (error) {
         console.error('Error fetching payments:', error)

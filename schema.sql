@@ -115,6 +115,7 @@ CREATE TABLE IF NOT EXISTS messages (
     content TEXT,
     recipient_type TEXT, -- Also used as activity type
     recipient_id TEXT,
+    recipient_name TEXT, -- Added for history
     status TEXT, -- 'Sent', 'Failed', 'Log'
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(user_id) REFERENCES profiles(id) ON DELETE CASCADE

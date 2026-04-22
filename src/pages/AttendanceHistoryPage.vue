@@ -140,9 +140,9 @@ const pagination = ref({
 
 const columns = [
   { name: 'date', align: 'left', label: 'Date', field: 'date', sortable: true },
-  { name: 'student_name', align: 'left', label: 'Student Name', field: row => row.students?.name, sortable: true },
-  { name: 'student_id', align: 'left', label: 'Student ID', field: row => row.students?.student_id, sortable: true },
-  { name: 'class_name', align: 'left', label: 'Class', field: row => row.classes?.class_name, sortable: true },
+  { name: 'student_name', align: 'left', label: 'Student Name', field: 'student_name', sortable: true },
+  { name: 'student_id', align: 'left', label: 'Student ID', field: 'student_id_str', sortable: true },
+  { name: 'class_name', align: 'left', label: 'Class', field: 'class_name', sortable: true },
   { name: 'status', align: 'center', label: 'Status', field: 'status', sortable: true },
   { name: 'actions', align: 'center', label: 'Actions', field: 'actions' }
 ]
@@ -185,7 +185,7 @@ const fetchHistory = async () => {
 const deleteRecord = (record) => {
   $q.dialog({
     title: 'Confirm Deletion',
-    message: `Delete attendance record for ${record.students?.name} on ${formatDate(record.date)}?`,
+    message: `Delete attendance record for ${record.student_name} on ${formatDate(record.date)}?`,
     cancel: true,
     persistent: true,
     ok: { color: 'red-7', flat: true, label: 'Delete Forever' }
@@ -215,9 +215,9 @@ const exportCSV = () => {
     const header = ['Date', 'Student ID', 'Student Name', 'Class', 'Status']
     const content = rows.value.map(r => [
         r.date,
-        r.students?.student_id,
-        r.students?.name,
-        r.classes?.class_name,
+        r.student_id_str,
+        r.student_name,
+        r.class_name,
         r.status
     ].join(','))
     
