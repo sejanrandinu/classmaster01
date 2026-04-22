@@ -416,7 +416,8 @@ const processPayment = async () => {
         fetchRecentPayments()
     } catch (e) {
         console.error('Payment error:', e)
-        $q.notify({ type: 'negative', message: 'Payment failed' })
+        const msg = e.response?.data?.details || e.message || 'Payment failed'
+        $q.notify({ type: 'negative', message: msg })
     } finally {
         loading.value = false
     }

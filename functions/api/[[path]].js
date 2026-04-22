@@ -243,11 +243,16 @@ export async function onRequest(context) {
                 return json(results || []);
             }
             if (method === 'POST') {
-                const d = await request.json();
-                await db.prepare("INSERT INTO payments (user_id, student_id, class_id, amount, month, payment_date, payment_method, receipt_no) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-                    .bind(userId, d.student_id, d.class_id, d.amount, d.month, d.payment_date || new Date().toISOString().split('T')[0], d.payment_method, d.receipt_no).run();
-                await logActivity('payment', `Collected fee Rs. ${d.amount}`);
-                return json({ message: "Recorded" });
+                try {
+                    const d = await request.json();
+                    await db.prepare("INSERT INTO payments (user_id, student_id, class_id, amount, month, payment_date, payment_method, receipt_no) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+                        .bind(userId, d.student_id, d.class_id, Number(d.amount), d.month, d.payment_date || new Date().toISOString().split('T')[0], d.payment_method, d.receipt_no).run();
+                    await logActivity('payment', `Collected fee Rs. ${d.amount}`);
+                    return json({ message: "Recorded" });
+                } catch (e) {
+                    console.error('Payment Error:', e.message);
+                    return json({ error: "Database Error", details: e.message }, 500);
+                }
             }
             if (method === 'DELETE' && subPath) {
                 await db.prepare("DELETE FROM payments WHERE id = ? AND user_id = ?").bind(subPath, userId).run();
@@ -292,6 +297,10 @@ export async function onRequest(context) {
                         .bind(userId, r.student_id, r.class_id, r.date, r.status).run();
                 }
                 return json({ message: "Saved" });
+            }
+            if (method === 'DELETE' && subPath) {
+                await db.prepare("DELETE FROM attendance WHERE id = ? AND user_id = ?").bind(subPath, userId).run();
+                return json({ message: "Deleted" });
             }
         }
 
@@ -362,8 +371,11 @@ export async function onRequest(context) {
             const classes = await db.prepare("SELECT COUNT(*) as count FROM classes WHERE user_id = ?").bind(userId).first('count') || 0;
             
             // Adjusted for Colombo Time (+5:30)
-            const revenue = await db.prepare("SELECT SUM(amount) as sum FROM payments WHERE user_id = ? AND strftime('%Y-%m', payment_date, '+5 hours', '30 minutes') = strftime('%Y-%m', 'now', '+5 hours', '30 minutes')").bind(userId).first('sum') || 0;
-            const expenses = await db.prepare("SELECT SUM(amount) as sum FROM salary_payments WHERE user_id = ? AND strftime('%Y-%m', payment_date, '+5 hours', '30 minutes') = strftime('%Y-%m', 'now', '+5 hours', '30 minutes')").bind(userId).first('sum') || 0;
+            const colomboNow = new Date(Date.now() + 5.5 * 3600000);
+            const monthPrefix = colomboNow.toISOString().substring(0, 7); // YYYY-MM
+
+            const revenue = await db.prepare("SELECT SUM(amount) as sum FROM payments WHERE user_id = ? AND payment_date LIKE ?").bind(userId, `${monthPrefix}%`).first('sum') || 0;
+            const expenses = await db.prepare("SELECT SUM(amount) as sum FROM salary_payments WHERE user_id = ? AND payment_date LIKE ?").bind(userId, `${monthPrefix}%`).first('sum') || 0;
             
             return json({ 
                 students_count: Number(students), 
@@ -426,7 +438,7 @@ export async function onRequest(context) {
 
         // ACTIVITIES
         if (path === 'activities' && method === 'GET') {
-            const { results } = await db.prepare("SELECT content as description, recipient_type as type, created_at FROM messages WHERE user_id = ? AND status = 'Log' ORDER BY created_at DESC LIMIT 10").bind(userId).all();
+            const { results } = await db.prepare("SELECT content as description, recipient_type as type, created_at || 'Z' as created_at FROM messages WHERE user_id = ? AND status = 'Log' ORDER BY created_at DESC LIMIT 10").bind(userId).all();
             return json(results || []);
         }
 
