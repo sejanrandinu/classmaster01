@@ -251,7 +251,7 @@ export async function onRequest(context) {
                     return json({ message: "Recorded" });
                 } catch (e) {
                     console.error('Payment Error:', e.message);
-                    return json({ error: "Database Error", details: e.message }, 500);
+                    return json({ error: `Database Error: ${e.message}` }, 500);
                 }
             }
             if (method === 'DELETE' && subPath) {
