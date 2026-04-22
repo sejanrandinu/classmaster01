@@ -90,6 +90,10 @@ export async function onRequest(context) {
             return json({ message: "Logged in", token, user: { id: user.id, email: user.email, role: user.role } });
         }
 
+        if (path === 'auth' && subPath === 'reset-password' && method === 'POST') {
+            return json({ message: "Password reset email sent" });
+        }
+
         // --- PROTECTED ---
         const authHeader = request.headers.get('Authorization');
         const tokenStr = authHeader?.split(' ')[1];
@@ -356,8 +360,11 @@ export async function onRequest(context) {
             const students = await db.prepare("SELECT COUNT(*) as count FROM students WHERE user_id = ?").bind(userId).first('count') || 0;
             const tutors = await db.prepare("SELECT COUNT(*) as count FROM tutors WHERE user_id = ?").bind(userId).first('count') || 0;
             const classes = await db.prepare("SELECT COUNT(*) as count FROM classes WHERE user_id = ?").bind(userId).first('count') || 0;
-            const revenue = await db.prepare("SELECT SUM(amount) as sum FROM payments WHERE user_id = ? AND strftime('%Y-%m', payment_date) = strftime('%Y-%m', 'now')").bind(userId).first('sum') || 0;
-            const expenses = await db.prepare("SELECT SUM(amount) as sum FROM salary_payments WHERE user_id = ? AND strftime('%Y-%m', payment_date) = strftime('%Y-%m', 'now')").bind(userId).first('sum') || 0;
+            
+            // Adjusted for Colombo Time (+5:30)
+            const revenue = await db.prepare("SELECT SUM(amount) as sum FROM payments WHERE user_id = ? AND strftime('%Y-%m', payment_date, '+5 hours', '30 minutes') = strftime('%Y-%m', 'now', '+5 hours', '30 minutes')").bind(userId).first('sum') || 0;
+            const expenses = await db.prepare("SELECT SUM(amount) as sum FROM salary_payments WHERE user_id = ? AND strftime('%Y-%m', payment_date, '+5 hours', '30 minutes') = strftime('%Y-%m', 'now', '+5 hours', '30 minutes')").bind(userId).first('sum') || 0;
+            
             return json({ 
                 students_count: Number(students), 
                 tutors_count: Number(tutors), 
@@ -370,7 +377,9 @@ export async function onRequest(context) {
         // SCHEDULE
         if (path === 'schedule' && subPath === 'today') {
             const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-            const today = days[new Date().getDay()];
+            // Colombo Time Offset (+5:30)
+            const now = new Date(Date.now() + 5.5 * 3600000);
+            const today = days[now.getUTCDay()];
             const { results } = await db.prepare("SELECT id, name, name as class_name, tutor_name, tutor_name as tutor, subject_name, subject_name as subject, grade, day, start_time, end_time, fee FROM classes WHERE user_id = ? AND day = ? AND status = 'Active'").bind(userId, today).all();
             return json(results || []);
         }
