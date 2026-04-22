@@ -151,8 +151,13 @@ export async function onRequest(context) {
         // TUTORS
         if (path === 'tutors') {
             if (method === 'GET') {
-                const { results } = await db.prepare("SELECT * FROM tutors WHERE user_id = ?").bind(userId).all();
-                return json(results.map(t => ({ ...t, grades: JSON.parse(t.grades_json || '[]') })));
+                const { results } = await db.prepare("SELECT * FROM tutors WHERE user_id = ? ORDER BY name ASC").bind(userId).all();
+                const parsed = (results || []).map(t => {
+                    let grades = [];
+                    try { grades = JSON.parse(t.grades_json || '[]'); } catch (e) { grades = []; }
+                    return { ...t, grades };
+                });
+                return json(parsed);
             }
             if (method === 'POST') {
                 const d = await request.json();
@@ -177,7 +182,7 @@ export async function onRequest(context) {
             if (method === 'GET') {
                 const grade = url.searchParams.get('grade');
                 const status = url.searchParams.get('status');
-                let q = "SELECT *, name as class_name, tutor_name as tutor, subject_name as subject FROM classes WHERE user_id = ?";
+                let q = "SELECT id, user_id, name, name as class_name, tutor_name, tutor_name as tutor, subject_name, subject_name as subject, grade, day, class_date, start_time, end_time, fee, status, created_at FROM classes WHERE user_id = ?";
                 const p = [userId];
                 if (grade) { q += " AND grade = ?"; p.push(grade); }
                 if (status) { q += " AND status = ?"; p.push(status); }
