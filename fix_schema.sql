@@ -1,0 +1,19 @@
+-- FIXING SCHEMA FOR CLASSES
+ALTER TABLE classes ADD COLUMN tutor_name TEXT;
+ALTER TABLE classes ADD COLUMN subject_name TEXT;
+ALTER TABLE classes ADD COLUMN class_date DATE;
+ALTER TABLE classes ADD COLUMN status TEXT DEFAULT 'Active';
+
+-- FIXING SCHEMA FOR TUTORS
+ALTER TABLE tutors ADD COLUMN grades_json TEXT;
+ALTER TABLE tutors ADD COLUMN bank_name TEXT;
+ALTER TABLE tutors ADD COLUMN bank_account_name TEXT;
+ALTER TABLE tutors ADD COLUMN bank_account_number TEXT;
+ALTER TABLE tutors ADD COLUMN bank_branch TEXT;
+
+-- FIXING SCHEMA FOR PAYMENTS
+ALTER TABLE payments ADD COLUMN receipt_no TEXT;
+ALTER TABLE payments ADD COLUMN payment_method TEXT;
+
+-- FIXING SCHEMA FOR MESSAGES
+ALTER TABLE messages ADD COLUMN recipient_name TEXT;
