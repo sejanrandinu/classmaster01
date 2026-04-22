@@ -145,6 +145,18 @@ CREATE TABLE IF NOT EXISTS salary_payments (
     FOREIGN KEY(staff_id) REFERENCES staff(id) ON DELETE CASCADE
 );
 
+-- 10. Custom Roles
+CREATE TABLE IF NOT EXISTS roles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    color TEXT,
+    permissions_json TEXT, -- Store as JSON array string
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES profiles(id) ON DELETE CASCADE
+);
+
 -- Create some indexes for performance
 CREATE INDEX IF NOT EXISTS idx_students_user_id ON students(user_id);
 CREATE INDEX IF NOT EXISTS idx_classes_user_id ON classes(user_id);
