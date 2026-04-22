@@ -282,11 +282,15 @@ const fetchStats = async () => {
             stats.value[0].target = data.students_count || 0
             stats.value[0].progress = Math.min(1, (data.students_count || 0) / 1000)
 
+            // Fix: Set Net Revenue target so it animates
+            stats.value[1].target = (data.monthly_revenue || 0) - (data.monthly_expenses || 0)
+            stats.value[1].progress = Math.min(1, stats.value[1].target / 500000)
+
             stats.value[2].target = data.tutors_count || 0
             stats.value[2].progress = Math.min(1, (data.tutors_count || 0) / 50)
             
             stats.value[3].target = data.total_classes || 0
-            stats.value[3].progress = 0.5 // Static for now
+            stats.value[3].progress = 0.5 
 
             totalFees.value = data.monthly_revenue || 0
             totalSalaries.value = data.monthly_expenses || 0
