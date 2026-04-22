@@ -271,6 +271,9 @@ const handleScannedStudent = async (studentId) => {
         scannedStudent.value = student
         fetchAttendance(student.id)
         fetchFees(student.id)
+        
+        // Auto-mark attendance
+        markAttendanceAuto()
     } catch {
         $q.notify({ type: 'negative', message: 'Error fetching student details' })
         startScanner()
