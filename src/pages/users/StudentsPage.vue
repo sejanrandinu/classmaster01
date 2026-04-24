@@ -266,13 +266,51 @@ const fetchGlobalSettings = async () => {
 
 const pickedFile = ref(null)
 
-const onFilePicked = (file) => {
+const onFilePicked = async (file) => {
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = (e) => {
-        form.value.image_url = e.target.result
+    
+    const compressImage = (file) => {
+        return new Promise((resolve) => {
+            const reader = new FileReader()
+            reader.readAsDataURL(file)
+            reader.onload = (event) => {
+                const img = new Image()
+                img.src = event.target.result
+                img.onload = () => {
+                    const canvas = document.createElement('canvas')
+                    const MAX_WIDTH = 800
+                    const MAX_HEIGHT = 800
+                    let width = img.width
+                    let height = img.height
+                    if (width > height) {
+                        if (width > MAX_WIDTH) {
+                            height *= MAX_WIDTH / width
+                            width = MAX_WIDTH
+                        }
+                    } else {
+                        if (height > MAX_HEIGHT) {
+                            width *= MAX_HEIGHT / height
+                            height = MAX_HEIGHT
+                        }
+                    }
+                    canvas.width = width
+                    canvas.height = height
+                    const ctx = canvas.getContext('2d')
+                    ctx.drawImage(img, 0, 0, width, height)
+                    resolve(canvas.toDataURL('image/jpeg', 0.8))
+                }
+            }
+        })
     }
-    reader.readAsDataURL(file)
+
+    try {
+        $q.loading.show({ message: 'Processing photo...' })
+        form.value.image_url = await compressImage(file)
+    } catch (e) {
+        console.error('Compression error:', e)
+    } finally {
+        $q.loading.hide()
+    }
 }
 
 // Form Data
