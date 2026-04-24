@@ -7,13 +7,13 @@
 
       <div class="col-12 col-md-8">
         <!-- Security Section -->
-        <q-card flat bordered class="rounded-borders q-mb-lg">
+        <q-card flat bordered class="rounded-borders q-mb-lg shadow-sm">
           <q-card-section>
-            <div class="text-h6 text-weight-bold q-mb-md">{{ t.securityTitle }}</div>
+            <div class="text-h6 text-weight-bold q-mb-md text-primary">{{ t.securityTitle }}</div>
             <q-list separator>
               <q-item clickable v-ripple @click="resetPassword">
                 <q-item-section avatar>
-                  <q-icon name="lock" color="primary" />
+                  <q-icon name="lock_person" color="primary" />
                 </q-item-section>
                 <q-item-section>
                   <q-item-label class="text-weight-medium">{{ t.resetPassword }}</q-item-label>
@@ -26,7 +26,7 @@
 
               <q-item>
                 <q-item-section avatar>
-                  <q-icon name="notifications" color="orange" />
+                  <q-icon name="notifications_active" color="orange" />
                 </q-item-section>
                 <q-item-section>
                   <q-item-label class="text-weight-medium">{{ t.notifications }}</q-item-label>
@@ -41,13 +41,13 @@
         </q-card>
 
         <!-- Preferences Section -->
-        <q-card flat bordered class="rounded-borders q-mb-lg">
+        <q-card flat bordered class="rounded-borders q-mb-lg shadow-sm">
           <q-card-section>
-            <div class="text-h6 text-weight-bold q-mb-md">{{ t.preferencesTitle }}</div>
+            <div class="text-h6 text-weight-bold q-mb-md text-primary">{{ t.preferencesTitle }}</div>
             <q-list separator>
               <q-item>
                 <q-item-section avatar>
-                  <q-icon name="translate" color="blue" />
+                  <q-icon name="language" color="blue" />
                 </q-item-section>
                 <q-item-section>
                   <q-item-label class="text-weight-medium">{{ t.language }}</q-item-label>
@@ -57,7 +57,7 @@
                   <q-select 
                     v-model="appStore.language" 
                     :options="['English', 'Sinhala']" 
-                    borderless 
+                    outlined
                     dense 
                     class="q-px-sm"
                   />
@@ -67,53 +67,95 @@
           </q-card-section>
         </q-card>
 
-        <!-- ID Card Design Section -->
-        <q-card flat bordered class="rounded-borders">
-          <q-card-section>
-            <div class="text-h6 text-weight-bold q-mb-md">ID Card Global Design</div>
-            <p class="text-grey-7 q-mb-lg">Configure the default look for all student ID cards.</p>
-            
-            <div class="q-gutter-md">
-                <div class="row q-col-gutter-md">
-                    <div class="col-12">
+        <!-- ID Card Design Section (Premium Redesign) -->
+        <q-card flat bordered class="rounded-borders shadow-sm">
+          <q-card-section class="bg-indigo-10 text-white q-pa-lg">
+            <div class="text-h5 text-weight-bold">{{ t.cardDesignTitle }}</div>
+            <div class="text-subtitle2 text-indigo-1">{{ t.cardDesignSubtitle }}</div>
+          </q-card-section>
+          
+          <q-card-section class="q-pa-lg">
+            <div class="row q-col-gutter-xl">
+                <!-- Left: Configuration -->
+                <div class="col-12 col-md-6">
+                    <div class="text-subtitle2 q-mb-md text-grey-8">{{ t.backgroundSettings }}</div>
+                    
+                    <!-- Premium Upload Area -->
+                    <div class="upload-zone q-mb-lg" @click="$refs.fileInput.pickFiles()">
                         <q-file 
-                            outlined 
+                            ref="fileInput"
                             v-model="pickedFile" 
-                            label="Upload Global Background Photo" 
+                            style="display: none"
                             accept="image/*"
                             @update:model-value="onFilePicked"
-                            class="q-mb-md"
-                        >
-                            <template v-slot:prepend><q-icon name="cloud_upload" color="primary" /></template>
-                        </q-file>
+                        />
+                        <div v-if="!profile.card_background_url" class="column items-center justify-center q-pa-xl text-grey-6 border-dashed">
+                            <q-icon name="cloud_upload" size="48px" />
+                            <div class="text-weight-bold q-mt-sm">{{ t.clickToUpload }}</div>
+                            <div class="text-caption">Max size 2MB</div>
+                        </div>
+                        <div v-else class="relative-position rounded-borders overflow-hidden shadow-2 border-primary">
+                            <q-img :src="profile.card_background_url" :ratio="16/9" />
+                            <div class="absolute-top-right q-ma-xs">
+                                <q-btn round color="red" icon="delete" size="sm" @click.stop="profile.card_background_url = ''" />
+                            </div>
+                        </div>
                     </div>
-                    <div class="col-12 col-md-8">
-                        <q-input outlined v-model="profile.card_background_url" label="Global Background Image URL (Direct link or Base64)" placeholder="https://..." dense />
+
+                    <div class="row q-col-gutter-md">
+                        <div class="col-12">
+                            <q-input outlined v-model="profile.card_theme_color" :label="t.themeColor" dense>
+                                <template v-slot:append>
+                                    <q-icon name="colorize" class="cursor-pointer">
+                                        <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+                                            <q-color v-model="profile.card_theme_color" />
+                                        </q-popup-proxy>
+                                    </q-icon>
+                                </template>
+                            </q-input>
+                        </div>
+                        <div class="col-12">
+                            <q-select outlined v-model="profile.card_layout_type" :options="['standard', 'modern', 'compact']" :label="t.layoutType" dense />
+                        </div>
+                        <div class="col-12">
+                            <q-toggle v-model="profile.card_show_visuals" :true-value="1" :false-value="0" :label="t.showVisuals" color="primary" />
+                        </div>
                     </div>
-                    <div class="col-12 col-md-4">
-                        <q-input outlined v-model="profile.card_theme_color" label="Theme Color" dense>
-                            <template v-slot:append>
-                                <q-icon name="colorize" class="cursor-pointer">
-                                    <q-popup-proxy cover transition-show="scale" transition-hide="scale">
-                                        <q-color v-model="profile.card_theme_color" />
-                                    </q-popup-proxy>
-                                </q-icon>
-                            </template>
-                        </q-input>
+
+                    <div class="row justify-end q-mt-lg">
+                        <q-btn :label="t.applyToAll" color="indigo-10" unelevated :loading="saving" @click="saveIDSettings" class="full-width" size="lg" no-caps />
                     </div>
                 </div>
 
-                <div class="row q-col-gutter-md items-center">
-                    <div class="col-12 col-md-6">
-                        <q-select outlined v-model="profile.card_layout_type" :options="['standard', 'modern', 'compact']" label="Global Layout" />
+                <!-- Right: Preview -->
+                <div class="col-12 col-md-6 flex flex-center bg-grey-2 rounded-borders q-pa-md">
+                    <div class="column items-center">
+                        <div class="text-overline text-grey-7 q-mb-md">PREVIEW</div>
+                        <div class="id-card-preview shadow-10" :style="profile.card_background_url ? `background-image: url(${profile.card_background_url}); background-size: cover; background-position: center;` : ''">
+                            <div class="preview-overlay" :style="`background: linear-gradient(135deg, ${profile.card_theme_color}${profile.card_background_url ? 'aa' : ''} 0%, ${profile.card_theme_color}${profile.card_background_url ? '99' : ''} 100%)`"></div>
+                            <div class="preview-content q-pa-md relative-position full-height text-white">
+                                <div class="row justify-between items-center">
+                                    <div class="text-overline text-weight-bold" style="font-size: 8px;">CLASSMASTER</div>
+                                    <div class="text-caption text-indigo-1" style="font-size: 7px;">STUDENT ID</div>
+                                </div>
+                                <div class="row q-mt-md items-center q-col-gutter-sm">
+                                    <div class="col-auto">
+                                        <div class="bg-white rounded-borders q-pa-xs" style="width: 50px; height: 50px;">
+                                            <q-icon name="qr_code_2" size="42px" color="indigo-10" />
+                                        </div>
+                                    </div>
+                                    <div class="col">
+                                        <div class="text-weight-bold" style="font-size: 10px;">SAMAN PERERA</div>
+                                        <div class="text-caption text-indigo-2" style="font-size: 8px;">Grade 11 - Royal College</div>
+                                    </div>
+                                </div>
+                                <div v-if="profile.card_show_visuals" class="preview-visuals">
+                                    <div class="v-blob-1"></div>
+                                    <div class="v-blob-2"></div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="col-12 col-md-6">
-                        <q-toggle v-model="profile.card_show_visuals" :true-value="1" :false-value="0" label="Enable Decorative Visuals" color="primary" />
-                    </div>
-                </div>
-
-                <div class="row justify-end q-mt-md">
-                    <q-btn label="Apply to All Cards" color="primary" unelevated :loading="saving" @click="saveIDSettings" />
                 </div>
             </div>
           </q-card-section>
@@ -157,7 +199,15 @@ const translations = {
     preferencesTitle: 'App Preferences',
     language: 'Language',
     languageCaption: 'Choose your preferred language',
-    resetLinkSent: 'Password reset instructions sent to '
+    resetLinkSent: 'Password reset instructions sent to ',
+    cardDesignTitle: 'Global ID Card Design',
+    cardDesignSubtitle: 'Configure the default branding for all student ID cards',
+    backgroundSettings: 'Visual Assets',
+    clickToUpload: 'Click to Upload Background',
+    themeColor: 'Theme Primary Color',
+    layoutType: 'Global Layout Pattern',
+    showVisuals: 'Enable Decorative Accents',
+    applyToAll: 'Save & Apply to All Cards'
   },
   Sinhala: {
     title: 'සැකසුම්',
@@ -169,7 +219,15 @@ const translations = {
     preferencesTitle: 'පද්ධති මනාපයන්',
     language: 'භාෂාව',
     languageCaption: 'ඔබ කැමති භාෂාව තෝරන්න',
-    resetLinkSent: 'මුරපදය නැවත සැකසීමේ පණිවිඩය යවන ලදී: '
+    resetLinkSent: 'මුරපදය නැවත සැකසීමේ පණිවිඩය යවන ලදී: ',
+    cardDesignTitle: 'පොදු හැඳුනුම්පත් නිර්මාණය',
+    cardDesignSubtitle: 'සියලුම සිසුන් සඳහා පොදු හැඳුනුම්පත් රටාව මෙතැනින් සකසන්න',
+    backgroundSettings: 'පසුබිම් සැකසුම්',
+    clickToUpload: 'පසුබිම් පින්තූරය ඇතුළත් කිරීමට මෙතන Click කරන්න',
+    themeColor: 'ප්‍රධාන තේමා වර්ණය',
+    layoutType: 'පොදු පිරිසැලසුම (Layout)',
+    showVisuals: 'අලංකාර රටා පෙන්වන්න',
+    applyToAll: 'සුරකින්න සහ සියලුම කාඩ්පත් වලට යොදන්න'
   }
 }
 
@@ -196,7 +254,6 @@ onMounted(async () => {
 const onFilePicked = async (file) => {
     if (!file) return
     
-    // Simple Image Compression using Canvas
     const compressImage = (file) => {
         return new Promise((resolve) => {
             const reader = new FileReader()
@@ -226,7 +283,7 @@ const onFilePicked = async (file) => {
                     canvas.height = height
                     const ctx = canvas.getContext('2d')
                     ctx.drawImage(img, 0, 0, width, height)
-                    resolve(canvas.toDataURL('image/jpeg', 0.7)) // Compress to 70% quality
+                    resolve(canvas.toDataURL('image/jpeg', 0.7))
                 }
             }
         })
@@ -292,3 +349,63 @@ const resetPassword = async () => {
   })
 }
 </script>
+
+<style scoped>
+.upload-zone {
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.border-dashed {
+    border: 2px dashed #ddd;
+    border-radius: 12px;
+}
+
+.upload-zone:hover .border-dashed {
+    border-color: var(--q-primary);
+    background: rgba(var(--q-primary), 0.05);
+}
+
+.id-card-preview {
+    width: 250px;
+    height: 140px;
+    border-radius: 12px;
+    position: relative;
+    overflow: hidden;
+    background: #0d124d;
+}
+
+.preview-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 1;
+}
+
+.preview-content {
+    z-index: 2;
+}
+
+.preview-visuals {
+    position: absolute;
+    bottom: 0; right: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    opacity: 0.15;
+}
+
+.v-blob-1 {
+    width: 150px; height: 150px;
+    background: radial-gradient(circle, white 0%, transparent 70%);
+    position: absolute; bottom: -50px; right: -50px;
+}
+
+.v-blob-2 {
+    width: 100px; height: 100px;
+    background: radial-gradient(circle, white 0%, transparent 70%);
+    position: absolute; top: -30px; left: -30px;
+}
+
+.border-primary {
+    border: 2px solid var(--q-primary);
+}
+</style>
