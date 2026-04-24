@@ -152,15 +152,15 @@ export async function onRequest(context) {
             }
             if (method === 'POST') {
                 const d = await request.json();
-                await db.prepare("INSERT INTO students (user_id, student_id, name, school, grade, contact, status, subjects_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-                    .bind(userId, d.student_id, d.name, d.school, d.grade, d.contact, d.status || 'Active', JSON.stringify(d.subjects || [])).run();
+                await db.prepare("INSERT INTO students (user_id, student_id, name, school, grade, contact, status, subjects_json, image_url, color_theme) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                    .bind(userId, d.student_id, d.name, d.school, d.grade, d.contact, d.status || 'Active', JSON.stringify(d.subjects || []), d.image_url || null, d.color_theme || null).run();
                 await logActivity('student', `Added student ${d.name}`);
                 return json({ message: "Added" });
             }
             if (method === 'PUT' && subPath) {
                 const d = await request.json();
-                await db.prepare("UPDATE students SET student_id = ?, name = ?, school = ?, grade = ?, contact = ?, status = ?, subjects_json = ? WHERE id = ? AND user_id = ?")
-                    .bind(d.student_id, d.name, d.school, d.grade, d.contact, d.status, JSON.stringify(d.subjects || []), subPath, userId).run();
+                await db.prepare("UPDATE students SET student_id = ?, name = ?, school = ?, grade = ?, contact = ?, status = ?, subjects_json = ?, image_url = ?, color_theme = ? WHERE id = ? AND user_id = ?")
+                    .bind(d.student_id, d.name, d.school, d.grade, d.contact, d.status, JSON.stringify(d.subjects || []), d.image_url || null, d.color_theme || null, subPath, userId).run();
                 return json({ message: "Updated" });
             }
             if (method === 'DELETE' && subPath) {
@@ -208,7 +208,7 @@ export async function onRequest(context) {
                 const now = new Date(Date.now() + 5.5 * 3600000);
                 const todayDate = now.toISOString().split('T')[0];
 
-                let q = "SELECT id, name, name as class_name, tutor_name, tutor_name as tutor, subject_name, subject_name as subject, grade, day, class_date, start_time, end_time, fee, status FROM classes WHERE user_id = ?";
+                let q = "SELECT id, name, name as class_name, tutor_name, tutor_name as tutor, subject_name, subject_name as subject, grade, day, class_date, start_time, end_time, fee, status, image_url, color_theme FROM classes WHERE user_id = ?";
                 const p = [userId];
                 if (grade) { q += " AND grade = ?"; p.push(grade); }
                 if (status) { q += " AND status = ?"; p.push(status); }
@@ -226,15 +226,15 @@ export async function onRequest(context) {
             }
             if (method === 'POST') {
                 const d = await request.json();
-                await db.prepare("INSERT INTO classes (user_id, name, tutor_name, subject_name, grade, day, class_date, start_time, end_time, fee, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-                    .bind(userId, d.class_name, d.tutor, d.subject, d.grade, d.day, d.class_date || null, d.start_time, d.end_time, d.fee, d.status || 'Active').run();
+                await db.prepare("INSERT INTO classes (user_id, name, tutor_name, subject_name, grade, day, class_date, start_time, end_time, fee, status, image_url, color_theme) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                    .bind(userId, d.class_name, d.tutor, d.subject, d.grade, d.day, d.class_date || null, d.start_time, d.end_time, d.fee, d.status || 'Active', d.image_url || null, d.color_theme || null).run();
                 await logActivity('class', `Scheduled class ${d.class_name}`);
                 return json({ message: "Added" });
             }
             if (method === 'PUT' && subPath) {
                 const d = await request.json();
-                await db.prepare("UPDATE classes SET name = ?, tutor_name = ?, subject_name = ?, grade = ?, day = ?, class_date = ?, start_time = ?, end_time = ?, fee = ?, status = ? WHERE id = ? AND user_id = ?")
-                    .bind(d.class_name, d.tutor, d.subject, d.grade, d.day, d.class_date || null, d.start_time, d.end_time, d.fee, d.status, subPath, userId).run();
+                await db.prepare("UPDATE classes SET name = ?, tutor_name = ?, subject_name = ?, grade = ?, day = ?, class_date = ?, start_time = ?, end_time = ?, fee = ?, status = ?, image_url = ?, color_theme = ? WHERE id = ? AND user_id = ?")
+                    .bind(d.class_name, d.tutor, d.subject, d.grade, d.day, d.class_date || null, d.start_time, d.end_time, d.fee, d.status, d.image_url || null, d.color_theme || null, subPath, userId).run();
                 return json({ message: "Updated" });
             }
             if (method === 'DELETE' && subPath) {

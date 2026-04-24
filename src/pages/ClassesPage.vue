@@ -33,8 +33,12 @@
     <div v-else class="row q-col-gutter-xl">
         <div v-for="item in rows" :key="item.id" class="col-12 col-sm-6 col-lg-4">
             <q-card flat class="class-card glass-modern overflow-hidden">
-                <!-- Card Header with Subject Gradient -->
-                <div :class="`subject-header bg-gradient-${getGradientIndex(item.subject)}`" class="q-pa-md text-white relative-position">
+                <!-- Card Header with Image or Gradient -->
+                <div 
+                    :class="!item.image_url ? `bg-gradient-${item.color_theme || getGradientIndex(item.subject)}` : ''" 
+                    :style="item.image_url ? `background-image: linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.6)), url(${item.image_url}); background-size: cover; background-position: center;` : ''"
+                    class="q-pa-md text-white relative-position subject-header"
+                >
                     <div class="row items-center justify-between no-wrap">
                         <q-badge :label="item.grade" color="white" text-color="primary" class="text-weight-bold q-px-sm" />
                         <div class="row items-center">
@@ -58,8 +62,8 @@
                             </q-btn>
                         </div>
                     </div>
-                    <div class="text-h5 text-weight-bolder q-mt-md">{{ item.class_name }}</div>
-                    <div class="text-subtitle2 opacity-90">{{ item.subject }}</div>
+                    <div class="text-h5 text-weight-bolder q-mt-md text-shadow">{{ item.class_name }}</div>
+                    <div class="text-subtitle2 opacity-90 text-shadow">{{ item.subject }}</div>
                 </div>
 
                 <q-card-section class="q-pa-lg">
@@ -168,6 +172,27 @@
                         </div>
                         <div class="col-12 col-md-6">
                             <q-select filled v-model="form.day" :options="dayOptions" label="Recurring Day" hint="Ignored if date is set" />
+                        </div>
+                    </div>
+
+                    <!-- Customization Section -->
+                    <div class="q-pa-md bg-blue-1 rounded-borders q-mb-md">
+                        <div class="text-subtitle2 q-mb-sm text-primary">Card Customization</div>
+                        <q-input filled v-model="form.image_url" label="Background Image URL" placeholder="https://images.unsplash.com/..." dense class="q-mb-sm">
+                            <template v-slot:prepend><q-icon name="image" color="primary" /></template>
+                            <template v-slot:append>
+                                <q-btn flat dense icon="auto_fix_high" color="primary" @click="suggestImage">
+                                    <q-tooltip>Suggest image for subject</q-tooltip>
+                                </q-btn>
+                            </template>
+                        </q-input>
+                        <div class="row items-center q-gutter-sm">
+                            <div class="text-caption text-grey-7">Theme Gradient:</div>
+                            <div v-for="i in 5" :key="i" 
+                                :class="`bg-gradient-${i} ${form.color_theme == i ? 'ring-2' : ''}`" 
+                                class="color-swatch" 
+                                @click="form.color_theme = i"
+                            />
                         </div>
                     </div>
 
@@ -335,8 +360,30 @@ const form = ref({
     start_time: '08:00',
     end_time: '10:00',
     fee: 3500,
-    status: 'Active'
+    status: 'Active',
+    image_url: '',
+    color_theme: null
 })
+
+const suggestImage = () => {
+    if (!form.value.subject) {
+        $q.notify({ type: 'warning', message: 'Select a subject first' })
+        return
+    }
+    const subject = form.value.subject.toLowerCase()
+    const images = {
+        'mathematics': 'https://images.unsplash.com/photo-1509228468518-180dd48a5793?q=80&w=800',
+        'maths': 'https://images.unsplash.com/photo-1509228468518-180dd48a5793?q=80&w=800',
+        'science': 'https://images.unsplash.com/photo-1532094349884-543bb11783bb?q=80&w=800',
+        'biology': 'https://images.unsplash.com/photo-1530026405186-ed1f139313f8?q=80&w=800',
+        'physics': 'https://images.unsplash.com/photo-1636466497217-26a8cbeaf0aa?q=80&w=800',
+        'chemistry': 'https://images.unsplash.com/photo-1532187863486-abf9d3a30223?q=80&w=800',
+        'english': 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?q=80&w=800',
+        'ict': 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?q=80&w=800',
+        'history': 'https://images.unsplash.com/photo-1461360228754-6e81c478b882?q=80&w=800'
+    }
+    form.value.image_url = images[subject] || 'https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?q=80&w=800'
+}
 
 const filteredTutorOptions = computed(() => {
     if (!form.value.subject) return []
@@ -582,6 +629,22 @@ const formatDate = (dateStr) => {
 .opacity-80 { opacity: 0.8; }
 .opacity-90 { opacity: 0.9; }
 
+.text-shadow {
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.color-swatch {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform 0.2s;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    
+    &:hover { transform: scale(1.2); }
+}
+
 // Utility for ring animation in form
-.ring-2 { box-shadow: 0 0 0 2px var(--q-primary); }
+.ring-2 { box-shadow: 0 0 0 2px var(--q-primary) !important; }
 </style>

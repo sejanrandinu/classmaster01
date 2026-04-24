@@ -111,6 +111,22 @@
                     </div>
                     <q-select outlined v-model="form.status" :options="['Active', 'Inactive']" label="Status" :rules="[val => !!val || 'Status is required']" />
                     
+                    <div class="q-pa-md bg-indigo-1 rounded-borders q-mb-md">
+                        <div class="text-subtitle2 q-mb-xs text-indigo">Card Customization</div>
+                        <q-input outlined v-model="form.image_url" label="Student Photo URL" placeholder="https://..." dense class="q-mb-sm">
+                            <template v-slot:prepend><q-icon name="face" color="indigo" /></template>
+                        </q-input>
+                        <div class="row items-center q-gutter-sm">
+                            <div class="text-caption text-grey-7">Card Theme:</div>
+                            <div v-for="c in ['#0d124d', '#1b5e20', '#b71c1c', '#4a148c', '#e65100']" :key="c" 
+                                :style="`background: ${c}`" 
+                                :class="form.color_theme == c ? 'ring-2' : ''" 
+                                class="color-swatch-circle" 
+                                @click="form.color_theme = c"
+                            />
+                        </div>
+                    </div>
+                    
                     <div class="row justify-end q-mt-lg">
                         <q-btn label="Cancel" color="grey-7" flat v-close-popup class="q-mr-sm" />
                         <q-btn :label="isEdit ? 'Update' : 'Save'" type="submit" color="primary" unelevated />
@@ -125,11 +141,11 @@
         <q-card style="width: 500px; max-width: 95vw; overflow: hidden;" class="id-card-container bg-transparent no-shadow">
             <div class="id-card-scale-wrapper">
                 <div id="student-id-card" class="student-card shadow-24">
-                <div class="card-gradient"></div>
+                <div class="card-gradient" :style="qrStudent?.color_theme ? `background: linear-gradient(135deg, ${qrStudent.color_theme} 0%, ${qrStudent.color_theme}dd 100%)` : ''"></div>
                 <!-- Card Inner Content -->
                 <div class="card-content relative-position full-height q-pa-lg text-white">
                     <!-- Branding Row -->
-                    <div class="row justify-between items-center q-mb-md">
+                    <div class="row justify-between items-center q-mb-sm">
                         <div class="brand-name flex items-center">
                             <q-avatar size="24px" class="q-mr-sm">
                                 <img src="/favicon.svg">
@@ -140,22 +156,30 @@
                     </div>
 
                     <!-- Main Content Row -->
-                    <div class="row q-col-gutter-md items-center" style="margin-top: 15px;">
-
-                        <!-- Left/Middle: QR Code -->
+                    <div class="row q-col-gutter-md items-center" style="margin-top: 5px;">
+                        <!-- Student Photo -->
                         <div class="col-auto">
-                            <div class="qr-container-premium">
-                                <div class="qr-wrapper bg-white q-pa-sm">
+                            <div class="photo-wrapper-premium">
+                                <div class="photo-inner bg-white">
+                                    <q-img v-if="qrStudent?.image_url" :src="qrStudent.image_url" class="student-photo-img" />
+                                    <div v-else class="full-height flex flex-center bg-indigo-2 text-indigo-10 text-h4 text-weight-bold">
+                                        {{ qrStudent?.name?.charAt(0) }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right: QR Code -->
+                        <div class="col-auto">
+                            <div class="qr-container-premium mini-qr">
+                                <div class="qr-wrapper bg-white q-pa-xs">
                                     <qrcode-vue 
                                         :value="qrStudent?.student_id" 
-                                        :size="100" 
+                                        :size="70" 
                                         level="H" 
                                         render-as="canvas"
                                         id="qr-canvas-full"
                                     />
-                                </div>
-                                <div class="text-center q-mt-xs">
-                                    <div class="text-caption text-weight-bold text-indigo-2" style="font-size: 9px;">{{ qrStudent?.student_id }}</div>
                                 </div>
                             </div>
                         </div>
@@ -236,7 +260,8 @@ const form = ref({
   grade: '',
   contact: '',
   status: 'Active',
-  photo_url: '',
+  image_url: '',
+  color_theme: '#0d124d',
   subjects: []
 })
 
@@ -361,7 +386,9 @@ const saveStudent = async () => {
         grade: form.value.grade,
         contact: form.value.contact,
         status: form.value.status,
-        subjects: form.value.subjects
+        subjects: form.value.subjects,
+        image_url: form.value.image_url,
+        color_theme: form.value.color_theme
     }
 
     try {
@@ -405,6 +432,17 @@ const deleteStudent = (id) => {
 </script>
 
 <style scoped>
+.color-swatch-circle {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.ring-2 { box-shadow: 0 0 0 2px #3f51b5 !important; }
+
 .student-card {
   width: 500px;
   height: 280px;
