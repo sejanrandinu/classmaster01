@@ -133,6 +133,7 @@ import { useAppStore } from 'src/store/app'
 
 const $q = useQuasar()
 const appStore = useAppStore()
+
 const saving = ref(false)
 const profile = ref({
     card_background_url: '',
@@ -142,38 +143,12 @@ const profile = ref({
 })
 const pickedFile = ref(null)
 
-onMounted(async () => {
-    const data = await client.get('me')
-    if (data) Object.assign(profile.value, data)
-})
-
-const onFilePicked = (file) => {
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = (e) => {
-        profile.value.card_background_url = e.target.result
-    }
-    reader.readAsDataURL(file)
-}
-
-const saveIDSettings = async () => {
-    saving.value = true
-    try {
-        await client.post('me', profile.value)
-        $q.notify({ type: 'positive', message: 'Global ID card design updated!' })
-    } catch {
-        $q.notify({ type: 'negative', message: 'Failed to update settings' })
-    } finally {
-        saving.value = false
-    }
-}
-...
 const settings = reactive({
   notifications: true
 })
-...
+
+// Translation Dictionary
 const translations = {
-...
   English: {
     title: 'Settings',
     securityTitle: 'Security & Access',
@@ -201,6 +176,46 @@ const translations = {
 }
 
 const t = computed(() => translations[appStore.language])
+
+onMounted(async () => {
+    try {
+        const data = await client.get('me')
+        if (data) {
+            profile.value.whatsapp_number = data.whatsapp_number
+            profile.value.bank_name = data.bank_name
+            profile.value.account_number = data.account_number
+            profile.value.account_holder_name = data.account_holder_name
+            profile.value.card_background_url = data.card_background_url || ''
+            profile.value.card_theme_color = data.card_theme_color || '#0d124d'
+            profile.value.card_layout_type = data.card_layout_type || 'standard'
+            profile.value.card_show_visuals = data.card_show_visuals ?? 1
+        }
+    } catch (e) {
+        console.error('Failed to load profile:', e)
+    }
+})
+
+const onFilePicked = (file) => {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (e) => {
+        profile.value.card_background_url = e.target.result
+    }
+    reader.readAsDataURL(file)
+}
+
+const saveIDSettings = async () => {
+    saving.value = true
+    try {
+        await client.post('me', profile.value)
+        $q.notify({ type: 'positive', message: 'Global ID card design updated!' })
+    } catch (error) {
+        console.error('Save error:', error)
+        $q.notify({ type: 'negative', message: 'Failed to update settings' })
+    } finally {
+        saving.value = false
+    }
+}
 
 const resetPassword = async () => {
   $q.dialog({
