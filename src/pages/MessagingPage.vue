@@ -356,7 +356,7 @@ const fetchUnpaidStudents = async () => {
         if (unpaidStudents.value.length === 0) {
             $q.notify({ type: 'positive', message: 'Everyone has paid for this month!' })
         }
-    } catch (e) {
+    } catch {
         $q.notify({ type: 'negative', message: 'Failed to fetch reminders' })
     } finally {
         loadingReminders.value = false
