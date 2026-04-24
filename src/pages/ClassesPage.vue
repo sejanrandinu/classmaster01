@@ -109,8 +109,8 @@
     </div>
 
     <!-- Create/Edit Dialog (Modern Redesign) -->
-    <q-dialog v-model="showDialog" backdrop-filter="blur(10px)">
-        <q-card style="min-width: 500px; border-radius: 20px;" class="overflow-hidden shadow-24">
+    <q-dialog v-model="showDialog" backdrop-filter="blur(10px)" persistent>
+        <q-card style="width: 600px; max-width: 95vw; border-radius: 20px;" class="shadow-24">
             <q-card-section class="bg-primary text-white q-pa-lg">
                 <div class="row items-center justify-between">
                     <div>

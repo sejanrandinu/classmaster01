@@ -81,8 +81,8 @@
     </q-card>
 
     <!-- Add/Edit Dialog -->
-    <q-dialog v-model="showDialog">
-        <q-card style="min-width: 400px">
+    <q-dialog v-model="showDialog" persistent>
+        <q-card style="width: 550px; max-width: 95vw; border-radius: 15px;">
             <q-card-section class="row items-center q-pb-none">
                 <div class="text-h6">{{ isEdit ? 'Edit Student' : 'Add New Student' }}</div>
                 <q-space />
