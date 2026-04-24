@@ -217,7 +217,15 @@ const fetchAttendanceData = async () => {
         ])
 
         if (studentData) {
-            const gradeStudents = studentData.filter(s => s.grade === selectedClassGrade.value && s.status === 'Active')
+            const cls = allClasses.value.find(c => c.id === selectedClass.value)
+            const classSubject = cls ? cls.subject : ''
+            
+            const gradeStudents = studentData.filter(s => {
+                const sameGrade = s.grade === selectedClassGrade.value;
+                const takesSubject = s.subjects && s.subjects.includes(classSubject);
+                return sameGrade && takesSubject && s.status === 'Active';
+            })
+
             students.value = gradeStudents.map(s => {
                 const marked = existingAttendance?.find(a => a.student_id === s.id)
                 return {

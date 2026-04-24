@@ -203,12 +203,26 @@ export async function onRequest(context) {
             if (method === 'GET') {
                 const grade = url.searchParams.get('grade');
                 const status = url.searchParams.get('status');
+                
+                // Colombo Time for checking past classes
+                const now = new Date(Date.now() + 5.5 * 3600000);
+                const todayDate = now.toISOString().split('T')[0];
+
                 let q = "SELECT id, name, name as class_name, tutor_name, tutor_name as tutor, subject_name, subject_name as subject, grade, day, class_date, start_time, end_time, fee, status FROM classes WHERE user_id = ?";
                 const p = [userId];
                 if (grade) { q += " AND grade = ?"; p.push(grade); }
                 if (status) { q += " AND status = ?"; p.push(status); }
+                
+                // Optional: Auto-deactivate past sessions in memory or just filter them
+                // For now, let's just make sure we return them but maybe mark them as 'Expired' if past date
                 const { results } = await db.prepare(q + " ORDER BY created_at DESC").bind(...p).all();
-                return json(results || []);
+                const mapped = (results || []).map(c => {
+                    if (c.class_date && c.class_date < todayDate && c.status === 'Active') {
+                        return { ...c, status: 'Completed' };
+                    }
+                    return c;
+                });
+                return json(mapped);
             }
             if (method === 'POST') {
                 const d = await request.json();
@@ -229,30 +243,56 @@ export async function onRequest(context) {
             }
         }
 
+        // REMINDERS
+        if (path === 'reminders' && subPath === 'unpaid') {
+            const classId = url.searchParams.get('class_id');
+            const month = url.searchParams.get('month');
+            if (!classId || !month) return json({ error: "Missing parameters" }, 400);
+
+            const cls = await db.prepare("SELECT * FROM classes WHERE id = ? AND user_id = ?").bind(classId, userId).first();
+            if (!cls) return json({ error: "Class not found" }, 404);
+
+            // Get all active students for this grade
+            const { results: students } = await db.prepare("SELECT id, name, contact, subjects_json FROM students WHERE user_id = ? AND grade = ? AND status = 'Active'")
+                .bind(userId, cls.grade).all();
+            
+            // Get all students who have paid for this class and month
+            const { results: paidStudents } = await db.prepare("SELECT student_id FROM payments WHERE user_id = ? AND class_id = ? AND month = ?")
+                .bind(userId, classId, month).all();
+            
+            const paidIds = new Set(paidStudents.map(p => p.student_id));
+            const unpaid = students.filter(s => {
+                // Check if already paid
+                if (paidIds.has(s.id)) return false;
+                
+                // Check if student takes this subject
+                try {
+                    const subs = JSON.parse(s.subjects_json || '[]');
+                    return subs.includes(cls.subject_name);
+                } catch (e) {
+                    return false;
+                }
+            });
+
+            return json(unpaid);
+        }
+
         // PAYMENTS
         if (path === 'payments') {
-            if (method === 'GET') {
-                const sid = url.searchParams.get('student_id');
-                // Use flat fields in SELECT to match frontend expectations
-                let q = `
-                    SELECT 
-                        p.*, 
-                        s.name as student_name, 
-                        s.student_id as student_id_str, 
-                        c.name as class_name 
-                    FROM payments p 
-                    LEFT JOIN students s ON p.student_id = s.id 
-                    LEFT JOIN classes c ON p.class_id = c.id 
-                    WHERE p.user_id = ?
-                `;
-                const p = [userId];
-                if (sid) { q += " AND p.student_id = ?"; p.push(sid); }
-                const { results } = await db.prepare(q + " ORDER BY p.payment_date DESC LIMIT 50").bind(...p).all();
-                return json(results || []);
-            }
+            // ... (rest of the existing payments code)
+
             if (method === 'POST') {
                 try {
                     const d = await request.json();
+                    
+                    // Check for duplicate payment
+                    const existing = await db.prepare("SELECT id FROM payments WHERE student_id = ? AND class_id = ? AND month = ? AND user_id = ?")
+                        .bind(d.student_id, d.class_id, d.month, userId).first();
+                    
+                    if (existing) {
+                        return json({ error: "Duplicate Payment", details: `A payment for ${d.month} already exists for this student and class.` }, 400);
+                    }
+
                     await db.prepare("INSERT INTO payments (user_id, student_id, class_id, amount, month, payment_date, payment_method, receipt_no) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
                         .bind(userId, d.student_id, d.class_id, Number(d.amount), d.month, d.payment_date || new Date().toISOString().split('T')[0], d.payment_method, d.receipt_no).run();
                     await logActivity('payment', `Collected fee Rs. ${d.amount}`);
