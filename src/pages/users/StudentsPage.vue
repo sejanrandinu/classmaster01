@@ -116,13 +116,18 @@
                         <q-file 
                             outlined 
                             v-model="pickedFile" 
-                            label="Upload Photo" 
-                            dense 
+                            label="Choose Photo / Take Picture" 
                             accept="image/*"
                             @update:model-value="onFilePicked"
+                            class="bg-white"
                         >
-                            <template v-slot:prepend><q-icon name="cloud_upload" color="indigo" /></template>
+                            <template v-slot:prepend><q-icon name="add_a_photo" color="indigo" /></template>
                         </q-file>
+                        <div v-if="form.image_url" class="q-mt-sm row justify-center">
+                            <q-avatar size="100px" rounded>
+                                <img :src="form.image_url">
+                            </q-avatar>
+                        </div>
                     </div>
                     
                     <div class="row justify-end q-mt-lg">

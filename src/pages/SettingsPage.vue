@@ -75,25 +75,23 @@
             
             <div class="q-gutter-md">
                 <div class="row q-col-gutter-md">
+                    <div class="col-12">
+                        <q-file 
+                            outlined 
+                            v-model="pickedFile" 
+                            label="Upload Global Background Photo" 
+                            accept="image/*"
+                            @update:model-value="onFilePicked"
+                            class="q-mb-md"
+                        >
+                            <template v-slot:prepend><q-icon name="cloud_upload" color="primary" /></template>
+                        </q-file>
+                    </div>
                     <div class="col-12 col-md-8">
-                        <q-input outlined v-model="profile.card_background_url" label="Global Background Image URL" placeholder="https://...">
-                            <template v-slot:append>
-                                <q-file 
-                                    v-model="pickedFile" 
-                                    dense 
-                                    flat 
-                                    borderless 
-                                    label="Upload" 
-                                    accept="image/*"
-                                    @update:model-value="onFilePicked"
-                                >
-                                    <template v-slot:prepend><q-icon name="cloud_upload" /></template>
-                                </q-file>
-                            </template>
-                        </q-input>
+                        <q-input outlined v-model="profile.card_background_url" label="Global Background Image URL (Direct link or Base64)" placeholder="https://..." dense />
                     </div>
                     <div class="col-12 col-md-4">
-                        <q-input outlined v-model="profile.card_theme_color" label="Theme Color">
+                        <q-input outlined v-model="profile.card_theme_color" label="Theme Color" dense>
                             <template v-slot:append>
                                 <q-icon name="colorize" class="cursor-pointer">
                                     <q-popup-proxy cover transition-show="scale" transition-hide="scale">
