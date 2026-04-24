@@ -41,7 +41,7 @@
         </q-card>
 
         <!-- Preferences Section -->
-        <q-card flat bordered class="rounded-borders">
+        <q-card flat bordered class="rounded-borders q-mb-lg">
           <q-card-section>
             <div class="text-h6 text-weight-bold q-mb-md">{{ t.preferencesTitle }}</div>
             <q-list separator>
@@ -66,26 +66,114 @@
             </q-list>
           </q-card-section>
         </q-card>
+
+        <!-- ID Card Design Section -->
+        <q-card flat bordered class="rounded-borders">
+          <q-card-section>
+            <div class="text-h6 text-weight-bold q-mb-md">ID Card Global Design</div>
+            <p class="text-grey-7 q-mb-lg">Configure the default look for all student ID cards.</p>
+            
+            <div class="q-gutter-md">
+                <div class="row q-col-gutter-md">
+                    <div class="col-12 col-md-8">
+                        <q-input outlined v-model="profile.card_background_url" label="Global Background Image URL" placeholder="https://...">
+                            <template v-slot:append>
+                                <q-file 
+                                    v-model="pickedFile" 
+                                    dense 
+                                    flat 
+                                    borderless 
+                                    label="Upload" 
+                                    accept="image/*"
+                                    @update:model-value="onFilePicked"
+                                >
+                                    <template v-slot:prepend><q-icon name="cloud_upload" /></template>
+                                </q-file>
+                            </template>
+                        </q-input>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <q-input outlined v-model="profile.card_theme_color" label="Theme Color">
+                            <template v-slot:append>
+                                <q-icon name="colorize" class="cursor-pointer">
+                                    <q-popup-proxy cover transition-show="scale" transition-hide="scale">
+                                        <q-color v-model="profile.card_theme_color" />
+                                    </q-popup-proxy>
+                                </q-icon>
+                            </template>
+                        </q-input>
+                    </div>
+                </div>
+
+                <div class="row q-col-gutter-md items-center">
+                    <div class="col-12 col-md-6">
+                        <q-select outlined v-model="profile.card_layout_type" :options="['standard', 'modern', 'compact']" label="Global Layout" />
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <q-toggle v-model="profile.card_show_visuals" :true-value="1" :false-value="0" label="Enable Decorative Visuals" color="primary" />
+                    </div>
+                </div>
+
+                <div class="row justify-end q-mt-md">
+                    <q-btn label="Apply to All Cards" color="primary" unelevated :loading="saving" @click="saveIDSettings" />
+                </div>
+            </div>
+          </q-card-section>
+        </q-card>
       </div>
     </div>
   </q-page>
 </template>
 
 <script setup>
-import { reactive, computed } from 'vue'
+import { reactive, computed, ref, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
-import { auth } from 'src/api'
+import { auth, client } from 'src/api'
 import { useAppStore } from 'src/store/app'
 
 const $q = useQuasar()
 const appStore = useAppStore()
+const saving = ref(false)
+const profile = ref({
+    card_background_url: '',
+    card_theme_color: '#0d124d',
+    card_layout_type: 'standard',
+    card_show_visuals: 1
+})
+const pickedFile = ref(null)
 
+onMounted(async () => {
+    const data = await client.get('me')
+    if (data) Object.assign(profile.value, data)
+})
+
+const onFilePicked = (file) => {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (e) => {
+        profile.value.card_background_url = e.target.result
+    }
+    reader.readAsDataURL(file)
+}
+
+const saveIDSettings = async () => {
+    saving.value = true
+    try {
+        await client.post('me', profile.value)
+        $q.notify({ type: 'positive', message: 'Global ID card design updated!' })
+    } catch {
+        $q.notify({ type: 'negative', message: 'Failed to update settings' })
+    } finally {
+        saving.value = false
+    }
+}
+...
 const settings = reactive({
   notifications: true
 })
-
-// Translation Dictionary
+...
 const translations = {
+...
   English: {
     title: 'Settings',
     securityTitle: 'Security & Access',

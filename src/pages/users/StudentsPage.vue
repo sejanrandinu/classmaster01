@@ -112,42 +112,17 @@
                     <q-select outlined v-model="form.status" :options="['Active', 'Inactive']" label="Status" :rules="[val => !!val || 'Status is required']" />
                     
                     <div class="q-pa-md bg-indigo-1 rounded-borders q-mb-md">
-                        <div class="text-subtitle2 q-mb-xs text-indigo">Card Customization</div>
-                        
-                        <div class="row q-col-gutter-sm q-mb-sm">
-                            <div class="col-12 col-md-8">
-                                <q-input outlined v-model="form.image_url" label="Photo URL" placeholder="https://..." dense>
-                                    <template v-slot:prepend><q-icon name="face" color="indigo" /></template>
-                                </q-input>
-                            </div>
-                            <div class="col-12 col-md-4">
-                                <q-file 
-                                    outlined 
-                                    v-model="pickedFile" 
-                                    label="Upload" 
-                                    dense 
-                                    accept="image/*"
-                                    @update:model-value="onFilePicked"
-                                >
-                                    <template v-slot:prepend><q-icon name="cloud_upload" color="indigo" /></template>
-                                </q-file>
-                            </div>
-                        </div>
-
-                        <div class="row items-center q-gutter-md q-mb-md">
-                            <q-select outlined v-model="form.layout_type" :options="['standard', 'modern', 'compact']" label="Layout" dense class="col" />
-                            <q-toggle v-model="form.show_visuals" label="Visuals" color="indigo" dense />
-                        </div>
-
-                        <div class="row items-center q-gutter-sm">
-                            <div class="text-caption text-grey-7">Card Theme:</div>
-                            <div v-for="c in ['#0d124d', '#1b5e20', '#b71c1c', '#4a148c', '#e65100']" :key="c" 
-                                :style="`background: ${c}`" 
-                                :class="form.color_theme == c ? 'ring-2' : ''" 
-                                class="color-swatch-circle" 
-                                @click="form.color_theme = c"
-                            />
-                        </div>
+                        <div class="text-subtitle2 q-mb-xs text-indigo">Student Photo</div>
+                        <q-file 
+                            outlined 
+                            v-model="pickedFile" 
+                            label="Upload Photo" 
+                            dense 
+                            accept="image/*"
+                            @update:model-value="onFilePicked"
+                        >
+                            <template v-slot:prepend><q-icon name="cloud_upload" color="indigo" /></template>
+                        </q-file>
                     </div>
                     
                     <div class="row justify-end q-mt-lg">
@@ -163,8 +138,8 @@
     <q-dialog v-model="showQRDialog" transition-show="scale" transition-hide="scale">
         <q-card style="width: 500px; max-width: 95vw; overflow: hidden;" class="id-card-container bg-transparent no-shadow">
             <div class="id-card-scale-wrapper">
-                <div id="student-id-card" class="student-card shadow-24">
-                <div class="card-gradient" :style="qrStudent?.color_theme ? `background: linear-gradient(135deg, ${qrStudent.color_theme} 0%, ${qrStudent.color_theme}dd 100%)` : ''"></div>
+                <div id="student-id-card" class="student-card shadow-24" :style="globalSettings.card_background_url ? `background-image: url(${globalSettings.card_background_url}); background-size: cover; background-position: center;` : ''">
+                <div class="card-gradient" :style="globalSettings.card_theme_color ? `background: linear-gradient(135deg, ${globalSettings.card_theme_color}${globalSettings.card_background_url ? 'aa' : ''} 0%, ${globalSettings.card_theme_color}${globalSettings.card_background_url ? '99' : ''} 100%)` : ''"></div>
                 <!-- Card Inner Content -->
                 <div class="card-content relative-position full-height q-pa-lg text-white">
                     <!-- Branding Row -->
@@ -182,13 +157,13 @@
                     <div class="row q-col-gutter-md items-center" style="margin-top: 5px;">
                         <!-- Student Photo or QR Fallback -->
                         <div class="col-auto">
-                            <div class="photo-wrapper-premium" :class="qrStudent?.layout_type === 'compact' ? 'compact-size' : ''">
+                            <div class="photo-wrapper-premium" :class="globalSettings.card_layout_type === 'compact' ? 'compact-size' : ''">
                                 <div class="photo-inner bg-white">
                                     <q-img v-if="qrStudent?.image_url" :src="qrStudent.image_url" class="student-photo-img" />
                                     <div v-else class="full-height flex flex-center">
                                         <qrcode-vue 
                                             :value="qrStudent?.student_id" 
-                                            :size="qrStudent?.layout_type === 'compact' ? 80 : 100" 
+                                            :size="globalSettings.card_layout_type === 'compact' ? 80 : 100" 
                                             level="H" 
                                         />
                                     </div>
@@ -243,11 +218,11 @@
                     </div>
                     
                     <!-- Bottom Decorative Accents -->
-                    <div v-if="qrStudent?.show_visuals !== 0" class="card-accents absolute-bottom-right">
+                    <div v-if="globalSettings.card_show_visuals" class="card-accents absolute-bottom-right">
                       <div class="accent-blob-1"></div>
                       <div class="accent-blob-2"></div>
                     </div>
-                    <div v-if="qrStudent?.show_visuals !== 0" class="card-pattern absolute-full" style="opacity: 0.1; pointer-events: none;"></div>
+                    <div v-if="globalSettings.card_show_visuals" class="card-pattern absolute-full" style="opacity: 0.1; pointer-events: none;"></div>
                 </div>
                 </div>
             </div>
@@ -277,6 +252,17 @@ const loading = ref(false)
 // QR State
 const showQRDialog = ref(false)
 const qrStudent = ref(null)
+const globalSettings = ref({
+    card_background_url: '',
+    card_theme_color: '#0d124d',
+    card_layout_type: 'standard',
+    card_show_visuals: 1
+})
+
+const fetchGlobalSettings = async () => {
+    const data = await client.get('me')
+    if (data) globalSettings.value = data
+}
 
 const pickedFile = ref(null)
 
@@ -333,6 +319,7 @@ const rows = ref([])
 onMounted(() => {
     fetchStudents()
     fetchSubjects()
+    fetchGlobalSettings()
 })
 
 const fetchStudents = async () => {

@@ -112,12 +112,12 @@ export async function onRequest(context) {
         // ME
         if (path === 'me') {
             if (method === 'GET') {
-                const user = await db.prepare("SELECT id, email, whatsapp_number, role, is_approved, bank_name, account_number, account_holder_name FROM profiles WHERE id = ?").bind(userId).first();
+                const user = await db.prepare("SELECT id, email, whatsapp_number, role, is_approved, bank_name, account_number, account_holder_name, card_background_url, card_theme_color, card_layout_type, card_show_visuals FROM profiles WHERE id = ?").bind(userId).first();
                 return json(user);
             }
             if (method === 'POST') {
                 const d = await request.json();
-                await db.prepare("UPDATE profiles SET whatsapp_number = ?, bank_name = ?, account_number = ?, account_holder_name = ? WHERE id = ?").bind(d.whatsapp_number, d.bank_name, d.account_number, d.account_holder_name, userId).run();
+                await db.prepare("UPDATE profiles SET whatsapp_number = ?, bank_name = ?, account_number = ?, account_holder_name = ?, card_background_url = ?, card_theme_color = ?, card_layout_type = ?, card_show_visuals = ? WHERE id = ?").bind(d.whatsapp_number, d.bank_name, d.account_number, d.account_holder_name, d.card_background_url || null, d.card_theme_color || '#0d124d', d.card_layout_type || 'standard', d.card_show_visuals ?? 1, userId).run();
                 return json({ message: "Updated" });
             }
             if (method === 'PUT' && subPath === 'password') {
