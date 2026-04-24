@@ -178,14 +178,32 @@
                     <!-- Customization Section -->
                     <div class="q-pa-md bg-blue-1 rounded-borders q-mb-md">
                         <div class="text-subtitle2 q-mb-sm text-primary">Card Customization</div>
-                        <q-input filled v-model="form.image_url" label="Background Image URL" placeholder="https://images.unsplash.com/..." dense class="q-mb-sm">
-                            <template v-slot:prepend><q-icon name="image" color="primary" /></template>
-                            <template v-slot:append>
-                                <q-btn flat dense icon="auto_fix_high" color="primary" @click="suggestImage">
-                                    <q-tooltip>Suggest image for subject</q-tooltip>
-                                </q-btn>
-                            </template>
-                        </q-input>
+                        
+                        <div class="row q-col-gutter-sm q-mb-sm">
+                            <div class="col-12 col-md-8">
+                                <q-input filled v-model="form.image_url" label="Background Image URL" placeholder="https://..." dense>
+                                    <template v-slot:prepend><q-icon name="image" color="primary" /></template>
+                                    <template v-slot:append>
+                                        <q-btn flat dense icon="auto_fix_high" color="primary" @click="suggestImage">
+                                            <q-tooltip>Suggest image for subject</q-tooltip>
+                                        </q-btn>
+                                    </template>
+                                </q-input>
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <q-file 
+                                    filled 
+                                    v-model="pickedFile" 
+                                    label="Upload Photo" 
+                                    dense 
+                                    accept="image/*"
+                                    @update:model-value="onFilePicked"
+                                >
+                                    <template v-slot:prepend><q-icon name="cloud_upload" color="primary" /></template>
+                                </q-file>
+                            </div>
+                        </div>
+
                         <div class="row items-center q-gutter-sm">
                             <div class="text-caption text-grey-7">Theme Gradient:</div>
                             <div v-for="i in 5" :key="i" 
@@ -343,6 +361,17 @@ const selectedBroadcastIds = ref([])
 const lastScheduledClass = ref(null)
 const showDetails = ref(false)
 const selectedClass = ref(null)
+
+const pickedFile = ref(null)
+
+const onFilePicked = (file) => {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (e) => {
+        form.value.image_url = e.target.result
+    }
+    reader.readAsDataURL(file)
+}
 
 const subjectOptions = ref([])
 const allTutors = ref([]) 

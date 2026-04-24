@@ -113,9 +113,32 @@
                     
                     <div class="q-pa-md bg-indigo-1 rounded-borders q-mb-md">
                         <div class="text-subtitle2 q-mb-xs text-indigo">Card Customization</div>
-                        <q-input outlined v-model="form.image_url" label="Student Photo URL" placeholder="https://..." dense class="q-mb-sm">
-                            <template v-slot:prepend><q-icon name="face" color="indigo" /></template>
-                        </q-input>
+                        
+                        <div class="row q-col-gutter-sm q-mb-sm">
+                            <div class="col-12 col-md-8">
+                                <q-input outlined v-model="form.image_url" label="Photo URL" placeholder="https://..." dense>
+                                    <template v-slot:prepend><q-icon name="face" color="indigo" /></template>
+                                </q-input>
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <q-file 
+                                    outlined 
+                                    v-model="pickedFile" 
+                                    label="Upload" 
+                                    dense 
+                                    accept="image/*"
+                                    @update:model-value="onFilePicked"
+                                >
+                                    <template v-slot:prepend><q-icon name="cloud_upload" color="indigo" /></template>
+                                </q-file>
+                            </div>
+                        </div>
+
+                        <div class="row items-center q-gutter-md q-mb-md">
+                            <q-select outlined v-model="form.layout_type" :options="['standard', 'modern', 'compact']" label="Layout" dense class="col" />
+                            <q-toggle v-model="form.show_visuals" label="Visuals" color="indigo" dense />
+                        </div>
+
                         <div class="row items-center q-gutter-sm">
                             <div class="text-caption text-grey-7">Card Theme:</div>
                             <div v-for="c in ['#0d124d', '#1b5e20', '#b71c1c', '#4a148c', '#e65100']" :key="c" 
@@ -157,25 +180,29 @@
 
                     <!-- Main Content Row -->
                     <div class="row q-col-gutter-md items-center" style="margin-top: 5px;">
-                        <!-- Student Photo -->
+                        <!-- Student Photo or QR Fallback -->
                         <div class="col-auto">
-                            <div class="photo-wrapper-premium">
+                            <div class="photo-wrapper-premium" :class="qrStudent?.layout_type === 'compact' ? 'compact-size' : ''">
                                 <div class="photo-inner bg-white">
                                     <q-img v-if="qrStudent?.image_url" :src="qrStudent.image_url" class="student-photo-img" />
-                                    <div v-else class="full-height flex flex-center bg-indigo-2 text-indigo-10 text-h4 text-weight-bold">
-                                        {{ qrStudent?.name?.charAt(0) }}
+                                    <div v-else class="full-height flex flex-center">
+                                        <qrcode-vue 
+                                            :value="qrStudent?.student_id" 
+                                            :size="qrStudent?.layout_type === 'compact' ? 80 : 100" 
+                                            level="H" 
+                                        />
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Right: QR Code -->
-                        <div class="col-auto">
+                        <!-- Mini QR if photo exists -->
+                        <div v-if="qrStudent?.image_url" class="col-auto">
                             <div class="qr-container-premium mini-qr">
                                 <div class="qr-wrapper bg-white q-pa-xs">
                                     <qrcode-vue 
                                         :value="qrStudent?.student_id" 
-                                        :size="70" 
+                                        :size="60" 
                                         level="H" 
                                         render-as="canvas"
                                         id="qr-canvas-full"
@@ -216,11 +243,11 @@
                     </div>
                     
                     <!-- Bottom Decorative Accents -->
-                    <div class="card-accents absolute-bottom-right">
+                    <div v-if="qrStudent?.show_visuals !== 0" class="card-accents absolute-bottom-right">
                       <div class="accent-blob-1"></div>
                       <div class="accent-blob-2"></div>
                     </div>
-                    <div class="card-pattern absolute-full" style="opacity: 0.1; pointer-events: none;"></div>
+                    <div v-if="qrStudent?.show_visuals !== 0" class="card-pattern absolute-full" style="opacity: 0.1; pointer-events: none;"></div>
                 </div>
                 </div>
             </div>
@@ -251,6 +278,17 @@ const loading = ref(false)
 const showQRDialog = ref(false)
 const qrStudent = ref(null)
 
+const pickedFile = ref(null)
+
+const onFilePicked = (file) => {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (e) => {
+        form.value.image_url = e.target.result
+    }
+    reader.readAsDataURL(file)
+}
+
 // Form Data
 const form = ref({
   id: null,
@@ -262,6 +300,8 @@ const form = ref({
   status: 'Active',
   image_url: '',
   color_theme: '#0d124d',
+  layout_type: 'standard',
+  show_visuals: 1,
   subjects: []
 })
 
@@ -388,7 +428,9 @@ const saveStudent = async () => {
         status: form.value.status,
         subjects: form.value.subjects,
         image_url: form.value.image_url,
-        color_theme: form.value.color_theme
+        color_theme: form.value.color_theme,
+        layout_type: form.value.layout_type,
+        show_visuals: form.value.show_visuals ? 1 : 0
     }
 
     try {
