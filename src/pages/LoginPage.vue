@@ -57,7 +57,11 @@
                </q-input>
 
 
-               <div class="q-mt-xl">
+               <div class="q-mt-lg flex flex-center">
+                 <VueTurnstile site-key="0x4AAAAAADHUUksPvPEHMfdp" v-model="turnstileToken" />
+               </div>
+
+               <div class="q-mt-lg">
                  <q-btn 
                    type="submit"
                    label="Sign In" 
@@ -87,6 +91,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { auth } from 'src/api'
+import VueTurnstile from 'vue-turnstile'
 
 const router = useRouter()
 const $q = useQuasar()
@@ -95,6 +100,7 @@ const email = ref('')
 const password = ref('')
 const loading = ref(false)
 const errorMessage = ref('')
+const turnstileToken = ref('')
 
 onMounted(() => {
   try {
@@ -121,13 +127,18 @@ onMounted(() => {
 })
 
 const onSubmit = async () => {
+  if (!turnstileToken.value) {
+    errorMessage.value = 'Please complete the security check.'
+    return
+  }
+
   console.log('Sign in button clicked, preparing to submit...')
   loading.value = true
   errorMessage.value = ''
   
   try {
     console.log('Attempting custom API sign in for:', email.value)
-    await auth.login(email.value, password.value)
+    await auth.login(email.value, password.value, turnstileToken.value)
 
     console.log('Login successful, notifying user...')
     $q.notify({

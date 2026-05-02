@@ -59,8 +59,8 @@ export const client = {
 };
 
 export const auth = {
-    async login(email, password) {
-        const data = await client.post('auth/login', { email, password });
+    async login(email, password, turnstileToken) {
+        const data = await client.post('auth/login', { email, password, turnstileToken });
         if (data.token) {
             console.log('API: Login successful, saving token');
             localStorage.setItem('classmaster-token', data.token);
@@ -69,12 +69,16 @@ export const auth = {
         return data;
     },
 
-    async register(email, password, whatsapp) {
-        const data = await client.post('auth/register', { email, password, whatsapp });
+    async register(email, password, whatsapp, turnstileToken) {
+        const data = await client.post('auth/register', { email, password, whatsapp, turnstileToken });
         if (data.token) {
             localStorage.setItem('classmaster-token', data.token);
         }
         return data;
+    },
+
+    async verifyEmail(token) {
+        return await client.post('auth/verify-email', { token });
     },
 
     logout() {

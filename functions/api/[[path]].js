@@ -42,6 +42,45 @@ async function verifyJWT(token, secret) {
     }
 }
 
+// Helper: Verify Turnstile Token
+async function verifyTurnstile(token, secretKey) {
+    if (!token) return false;
+    try {
+        const formData = new FormData();
+        formData.append('secret', secretKey);
+        formData.append('response', token);
+        const url = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+        const result = await fetch(url, {
+            body: formData,
+            method: 'POST',
+        });
+        const outcome = await result.json();
+        return outcome.success;
+    } catch (e) {
+        console.error('Turnstile Error:', e);
+        return false;
+    }
+}
+
+// Helper: Send Email (using MailChannels - free for Cloudflare Workers)
+async function sendEmail(toEmail, subject, htmlContent) {
+    try {
+        const sendReq = new Request('https://api.mailchannels.net/tx/v1/send', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+                personalizations: [{ to: [{ email: toEmail }] }],
+                from: { email: 'noreply@classmaster.lk', name: 'ClassMaster' },
+                subject: subject,
+                content: [{ type: 'text/html', value: htmlContent }]
+            }),
+        });
+        await fetch(sendReq);
+    } catch (e) {
+        console.error('Send Email Error:', e);
+    }
+}
+
 export async function onRequest(context) {
     const { request, env } = context;
     const url = new URL(request.url);
@@ -69,25 +108,58 @@ export async function onRequest(context) {
 
         // --- AUTH ---
         if (path === 'auth' && subPath === 'register' && method === 'POST') {
-            const { email, password, whatsapp } = await request.json();
+            const { email, password, whatsapp, turnstileToken } = await request.json();
+            
+            // Turnstile Validation
+            const turnstileSecret = env.TURNSTILE_SECRET || '0x4AAAAAADHUUik0ac64rysfxgfCWL1Wmcg';
+            const isValid = await verifyTurnstile(turnstileToken, turnstileSecret);
+            if (!isValid) return json({ error: "Invalid Turnstile token. Please verify you are human." }, 400);
+
             const id = crypto.randomUUID();
             const password_hash = await hashString(password + JWT_SECRET);
             const isSuperAdmin = email.trim().toLowerCase() === 'sejanrandinu01@gmail.com';
             const role = isSuperAdmin ? 'super-admin' : 'pending';
             const approved = isSuperAdmin ? 1 : 0;
-            await db.prepare("INSERT INTO profiles (id, email, password_hash, whatsapp_number, role, is_approved) VALUES (?, ?, ?, ?, ?, ?)")
-                .bind(id, email, password_hash, whatsapp, role, approved).run();
-            const token = await signJWT({ id, email, role }, JWT_SECRET);
-            return json({ message: "Registered", token, user: { id, email, role } });
+            
+            const verificationToken = crypto.randomUUID();
+            // 7 Days free trial
+            const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+            await db.prepare("INSERT INTO profiles (id, email, password_hash, whatsapp_number, role, is_approved, is_email_verified, verification_token, trial_ends_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                .bind(id, email, password_hash, whatsapp, role, approved, 0, verificationToken, trialEndsAt).run();
+            
+            // Send verification email
+            const verifyLink = `${url.origin}/verify-email?token=${verificationToken}`;
+            const emailHtml = `<h2>Welcome to ClassMaster!</h2><p>Please click the link below to verify your email address and start your 7-day free trial:</p><a href="${verifyLink}">${verifyLink}</a>`;
+            await sendEmail(email, 'Verify your ClassMaster account', emailHtml);
+            console.log("Verification Link:", verifyLink);
+
+            const token = await signJWT({ id, email, role, is_email_verified: 0, trial_ends_at: trialEndsAt }, JWT_SECRET);
+            return json({ message: "Registered", token, user: { id, email, role, is_email_verified: 0, trial_ends_at: trialEndsAt } });
         }
 
         if (path === 'auth' && subPath === 'login' && method === 'POST') {
-            const { email, password } = await request.json();
+            const { email, password, turnstileToken } = await request.json();
+
+            // Turnstile Validation
+            const turnstileSecret = env.TURNSTILE_SECRET || '0x4AAAAAADHUUik0ac64rysfxgfCWL1Wmcg';
+            const isValid = await verifyTurnstile(turnstileToken, turnstileSecret);
+            if (!isValid) return json({ error: "Invalid Turnstile token. Please verify you are human." }, 400);
+
             const password_hash = await hashString(password + JWT_SECRET);
             const user = await db.prepare("SELECT * FROM profiles WHERE email = ? AND password_hash = ?").bind(email, password_hash).first();
             if (!user) return json({ error: "Invalid credentials" }, 401);
-            const token = await signJWT({ id: user.id, email: user.email, role: user.role }, JWT_SECRET);
-            return json({ message: "Logged in", token, user: { id: user.id, email: user.email, role: user.role } });
+            
+            const token = await signJWT({ id: user.id, email: user.email, role: user.role, is_email_verified: user.is_email_verified, trial_ends_at: user.trial_ends_at }, JWT_SECRET);
+            return json({ message: "Logged in", token, user: { id: user.id, email: user.email, role: user.role, is_email_verified: user.is_email_verified, trial_ends_at: user.trial_ends_at } });
+        }
+
+        if (path === 'auth' && subPath === 'verify-email' && method === 'POST') {
+            const { token } = await request.json();
+            const user = await db.prepare("SELECT * FROM profiles WHERE verification_token = ?").bind(token).first();
+            if (!user) return json({ error: "Invalid or expired token" }, 400);
+            await db.prepare("UPDATE profiles SET is_email_verified = 1, verification_token = NULL WHERE id = ?").bind(user.id).run();
+            return json({ message: "Email verified successfully" });
         }
 
         if (path === 'auth' && subPath === 'reset-password' && method === 'POST') {
@@ -112,7 +184,7 @@ export async function onRequest(context) {
         // ME
         if (path === 'me') {
             if (method === 'GET') {
-                const user = await db.prepare("SELECT id, email, whatsapp_number, role, is_approved, bank_name, account_number, account_holder_name, card_background_url, card_theme_color, card_layout_type, card_show_visuals FROM profiles WHERE id = ?").bind(userId).first();
+                const user = await db.prepare("SELECT id, email, whatsapp_number, role, is_approved, is_email_verified, trial_ends_at, bank_name, account_number, account_holder_name, card_background_url, card_theme_color, card_layout_type, card_show_visuals FROM profiles WHERE id = ?").bind(userId).first();
                 return json(user);
             }
             if (method === 'POST') {

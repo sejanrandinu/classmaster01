@@ -133,8 +133,10 @@
               </div>
             </div>
 
-
-            <!-- Cloudflare Turnstile REMOVED -->
+            <!-- Cloudflare Turnstile -->
+            <div class="q-mb-md flex flex-center">
+              <VueTurnstile site-key="0x4AAAAAADHUUksPvPEHMfdp" v-model="turnstileToken" />
+            </div>
 
             <q-btn 
               type="submit"
@@ -163,6 +165,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { auth } from 'src/api'
+import VueTurnstile from 'vue-turnstile'
 
 const router = useRouter()
 const $q = useQuasar()
@@ -172,6 +175,7 @@ const password = ref('')
 const confirmPassword = ref('')
 const whatsapp = ref('')
 const loading = ref(false)
+const turnstileToken = ref('')
 
 const adminDetails = ref({
   bank_name: 'Bank of Ceylon (BOC)',
@@ -180,10 +184,19 @@ const adminDetails = ref({
 })
 
 const onSubmit = async () => {
+  if (!turnstileToken.value) {
+    $q.notify({
+      type: 'warning',
+      message: 'Please complete the security check',
+      position: 'top'
+    })
+    return
+  }
+
   loading.value = true
   
   try {
-    await auth.register(email.value, password.value, whatsapp.value)
+    await auth.register(email.value, password.value, whatsapp.value, turnstileToken.value)
 
     $q.notify({
       type: 'positive',

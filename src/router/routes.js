@@ -10,6 +10,7 @@ const routes = [
       { path: 'terms-of-service', component: () => import('pages/TermsOfServicePage.vue') },
       { path: 'about-us', component: () => import('pages/AboutUsPage.vue') },
       { path: 'contact', component: () => import('pages/ContactPage.vue') },
+      { path: 'verify-email', component: () => import('pages/VerifyEmailPage.vue') },
 
     ]
   },
