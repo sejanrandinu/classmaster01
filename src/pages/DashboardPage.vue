@@ -265,10 +265,12 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useQuasar } from 'quasar'
 import { client } from 'src/api'
 import gsap from 'gsap'
 
 const router = useRouter()
+const $q = useQuasar()
 
 // Stats
 const stats = ref([
