@@ -147,6 +147,11 @@ export async function onRequest(context) {
                 </div>
             `;
             await sendEmail(email, 'Verify your ClassMaster account', emailHtml);
+            
+            // Fallback: Save to system notifications
+            await db.prepare("INSERT INTO system_notifications (id, type, recipient, content) VALUES (?, ?, ?, ?)")
+                .bind(crypto.randomUUID(), 'email_verification', email, verifyLink).run();
+            
             console.log("Verification Link:", verifyLink);
 
             const token = await signJWT({ id, email, role, is_email_verified: 0, trial_ends_at: trialEndsAt }, JWT_SECRET);
@@ -200,6 +205,11 @@ export async function onRequest(context) {
                 </div>
             `;
             await sendEmail(email, 'Verify your ClassMaster account', emailHtml);
+            
+            // Fallback: Save to system notifications
+            await db.prepare("INSERT INTO system_notifications (id, type, recipient, content) VALUES (?, ?, ?, ?)")
+                .bind(crypto.randomUUID(), 'email_verification_resend', email, verifyLink).run();
+            
             return json({ message: "Verification email sent" });
         }
 
@@ -213,6 +223,33 @@ export async function onRequest(context) {
         const payload = tokenStr ? await verifyJWT(tokenStr, JWT_SECRET) : null;
         if (!payload) return json({ error: "Unauthorized" }, 401);
         const userId = payload.id;
+        const userEmail = payload.email;
+
+        // Fetch current user status to check for trial/approval
+        const currentUser = await db.prepare("SELECT role, is_approved, trial_ends_at FROM profiles WHERE id = ?").bind(userId).first();
+        
+        // Trial & Approval Logic
+        const isSuperAdmin = userEmail.trim().toLowerCase() === 'sejanrandinu01@gmail.com';
+        if (!isSuperAdmin) {
+            const now = new Date();
+            const trialEnd = currentUser.trial_ends_at ? new Date(currentUser.trial_ends_at) : null;
+            
+            // If trial expired and not approved (paid)
+            if (trialEnd && trialEnd < now && !currentUser.is_approved) {
+                // Set role to pending if trial expired
+                if (currentUser.role !== 'pending') {
+                    await db.prepare("UPDATE profiles SET role = 'pending' WHERE id = ?").bind(userId).run();
+                }
+                return json({ 
+                    error: "Trial Expired", 
+                    details: "Your 7-day free trial has expired. Please contact admin to activate your account.",
+                    isTrialExpired: true 
+                }, 403);
+            }
+            
+            // If not approved at all (even during trial) - optional, based on user requirements
+            // The user said "account pending wenna one" when trial iwara unama.
+        }
 
         const logActivity = async (type, desc) => {
             try {
@@ -239,6 +276,13 @@ export async function onRequest(context) {
                 await db.prepare("UPDATE profiles SET password_hash = ? WHERE id = ?").bind(password_hash, userId).run();
                 return json({ message: "Password updated" });
             }
+        }
+
+        // SYSTEM LOGS (Super Admin only)
+        if (path === 'system' && subPath === 'verification-links' && method === 'GET') {
+            if (userEmail.trim().toLowerCase() !== 'sejanrandinu01@gmail.com') return json({ error: "Forbidden" }, 403);
+            const links = await db.prepare("SELECT * FROM system_notifications WHERE type LIKE 'email_verification%' ORDER BY created_at DESC LIMIT 10").all();
+            return json(links.results);
         }
 
         // STUDENTS
