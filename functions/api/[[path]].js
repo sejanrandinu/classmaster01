@@ -65,8 +65,32 @@ async function verifyTurnstile(token, secretKey) {
     }
 }
 
-// Helper: Send Email (using MailChannels - free for Cloudflare Workers)
-async function sendEmail(toEmail, subject, htmlContent) {
+// Helper: Send Email (Supports Resend API or Fallback to MailChannels)
+async function sendEmail(toEmail, subject, htmlContent, env) {
+    // 1. Try Resend if API Key exists
+    if (env.RESEND_API_KEY) {
+        try {
+            const resendRes = await fetch('https://api.resend.com/emails', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    from: 'ClassMaster <onboarding@resend.dev>', // Use verified domain once set up
+                    to: toEmail,
+                    subject: subject,
+                    html: htmlContent
+                })
+            });
+            if (resendRes.ok) return true;
+            console.error('Resend API error:', await resendRes.text());
+        } catch (e) {
+            console.error('Resend Fetch Error:', e);
+        }
+    }
+
+    // 2. Fallback: MailChannels (Free for Cloudflare Workers)
     try {
         const sendReq = new Request('https://api.mailchannels.net/tx/v1/send', {
             method: 'POST',
@@ -79,8 +103,10 @@ async function sendEmail(toEmail, subject, htmlContent) {
             }),
         });
         await fetch(sendReq);
+        return true;
     } catch (e) {
-        console.error('Send Email Error:', e);
+        console.error('MailChannels Error:', e);
+        return false;
     }
 }
 
@@ -124,38 +150,14 @@ export async function onRequest(context) {
             const role = isSuperAdmin ? 'super-admin' : 'pending';
             const approved = isSuperAdmin ? 1 : 0;
             
-            const verificationToken = crypto.randomUUID();
-            // 7 Days free trial
             const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-
+            
+            // Email verification removed by user request - set to 1 by default
             await db.prepare("INSERT INTO profiles (id, email, password_hash, whatsapp_number, role, is_approved, is_email_verified, verification_token, trial_ends_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-                .bind(id, email, password_hash, whatsapp, role, approved, 0, verificationToken, trialEndsAt).run();
+                .bind(id, email, password_hash, whatsapp, role, approved, 1, null, trialEndsAt).run();
             
-            // Send verification email
-            const verifyLink = `${url.origin}/verify-email?token=${verificationToken}`;
-            const emailHtml = `
-                <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
-                    <h2 style="color: #2563eb;">Welcome to ClassMaster!</h2>
-                    <p>Hello,</p>
-                    <p>Thank you for joining ClassMaster. Your account has been created with a <strong>7-day free trial</strong>.</p>
-                    <p>Please click the button below to verify your email address and start your trial:</p>
-                    <a href="${verifyLink}" style="display: inline-block; padding: 12px 24px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 6px; margin: 20px 0;">Verify Email</a>
-                    <p>If the button doesn't work, copy and paste this link into your browser:</p>
-                    <p>${verifyLink}</p>
-                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
-                    <p style="font-size: 12px; color: #666;">This is an automated message, please do not reply.</p>
-                </div>
-            `;
-            await sendEmail(email, 'Verify your ClassMaster account', emailHtml);
-            
-            // Fallback: Save to system notifications
-            await db.prepare("INSERT INTO system_notifications (id, type, recipient, content) VALUES (?, ?, ?, ?)")
-                .bind(crypto.randomUUID(), 'email_verification', email, verifyLink).run();
-            
-            console.log("Verification Link:", verifyLink);
-
-            const token = await signJWT({ id, email, role, is_email_verified: 0, trial_ends_at: trialEndsAt }, JWT_SECRET);
-            return json({ message: "Registered", token, user: { id, email, role, is_email_verified: 0, trial_ends_at: trialEndsAt } });
+            const token = await signJWT({ id, email, role, is_email_verified: 1, trial_ends_at: trialEndsAt }, JWT_SECRET);
+            return json({ message: "Registered", token, user: { id, email, role, is_email_verified: 1, trial_ends_at: trialEndsAt } });
         }
 
         if (path === 'auth' && subPath === 'login' && method === 'POST') {
@@ -204,7 +206,7 @@ export async function onRequest(context) {
                     <p style="font-size: 12px; color: #666;">This is an automated message, please do not reply.</p>
                 </div>
             `;
-            await sendEmail(email, 'Verify your ClassMaster account', emailHtml);
+            await sendEmail(email, 'Verify your ClassMaster account', emailHtml, env);
             
             // Fallback: Save to system notifications
             await db.prepare("INSERT INTO system_notifications (id, type, recipient, content) VALUES (?, ?, ?, ?)")
@@ -231,15 +233,6 @@ export async function onRequest(context) {
         // Trial & Approval Logic
         const isSuperAdmin = userEmail.trim().toLowerCase() === 'sejanrandinu01@gmail.com';
         
-        // Block everything if not verified (except profile and auth)
-        if (!isSuperAdmin && !currentUser.is_email_verified && path !== 'me' && path !== 'auth') {
-            return json({ 
-                error: "Email Not Verified", 
-                details: "Please verify your email address to access this feature.",
-                needsVerification: true 
-            }, 403);
-        }
-
         if (!isSuperAdmin) {
             const now = new Date();
             const trialEnd = currentUser.trial_ends_at ? new Date(currentUser.trial_ends_at) : null;

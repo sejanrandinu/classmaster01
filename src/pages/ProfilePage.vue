@@ -172,8 +172,6 @@ const isTrialActive = computed(() => {
   return new Date(profile.value.trial_ends_at) > new Date()
 })
 
-const resending = ref(false)
-
 onMounted(async () => {
   fetchProfile()
 })
@@ -210,19 +208,6 @@ const updateProfile = async () => {
     loading.value = false
   }
 }
-
-const resendVerification = async () => {
-  resending.value = true
-  try {
-    await client.post('auth/resend-verification', { email: profile.value.email })
-    $q.notify({ type: 'positive', message: 'Verification email resent!' })
-  } catch (error) {
-    $q.notify({ type: 'negative', message: 'Failed to resend: ' + error.message })
-  } finally {
-    resending.value = false
-  }
-}
-
 
 const formatDate = (dateStr) => {
   if (!dateStr) return 'N/A'

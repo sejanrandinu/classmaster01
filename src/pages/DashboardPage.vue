@@ -1,16 +1,8 @@
 <template>
   <q-page class="q-pa-md bg-grey-1">
-     <!-- Trial & Verification Banners -->
-     <div v-if="userProfile && (!userProfile.is_email_verified || isTrialActive)" class="q-mb-md">
-        <q-banner v-if="!userProfile.is_email_verified" dense class="bg-orange-1 text-orange-9 rounded-borders q-mb-sm shadow-1">
-           <template v-slot:avatar><q-icon name="warning" color="orange-9" /></template>
-           Your email address is not verified. Please check your inbox.
-           <template v-slot:action>
-              <q-btn flat color="orange-9" label="Verify in Profile" to="/dashboard/profile" no-caps />
-           </template>
-        </q-banner>
-        
-        <q-banner v-if="isTrialActive" dense class="bg-blue-1 text-blue-9 rounded-borders shadow-1">
+     <!-- Trial Banner -->
+     <div v-if="userProfile && isTrialActive" class="q-mb-md">
+        <q-banner dense class="bg-blue-1 text-blue-9 rounded-borders shadow-1">
            <template v-slot:avatar><q-icon name="info" color="blue-9" /></template>
            You are currently on a 7-day free trial. 
            <strong>{{ trialDaysLeft }} days remaining</strong>.
@@ -189,33 +181,6 @@
                     </q-list>
                 </q-card-section>
             </q-card>
-
-            <!-- Verification Links (Super Admin Only) -->
-            <q-card v-if="userProfile?.email === 'sejanrandinu01@gmail.com'" flat class="glass-modern q-mt-md overflow-hidden border-orange">
-                <q-card-section class="bg-orange-1">
-                    <div class="text-subtitle1 text-weight-bold text-orange-9">
-                        <q-icon name="admin_panel_settings" size="20px" /> Verification Links (Backup)
-                    </div>
-                    <div class="text-caption text-orange-8">Use these if the user didn't receive their email.</div>
-                </q-card-section>
-                <q-list separator>
-                    <q-item v-for="link in verificationLinks" :key="link.id">
-                        <q-item-section>
-                            <q-item-label class="text-weight-bold">{{ link.recipient }}</q-item-label>
-                            <q-item-label caption class="text-blue cursor-pointer" @click="copyToClipboard(link.content)">
-                                {{ link.content }}
-                            </q-item-label>
-                            <q-item-label caption>{{ formatTimeAgo(link.created_at) }}</q-item-label>
-                        </q-item-section>
-                        <q-item-section side>
-                            <q-btn flat round color="primary" icon="content_copy" @click="copyToClipboard(link.content)" />
-                        </q-item-section>
-                    </q-item>
-                    <q-item v-if="verificationLinks.length === 0">
-                        <q-item-section class="text-center text-grey-5 q-py-md">No recent links</q-item-section>
-                    </q-item>
-                </q-list>
-            </q-card>
         </div>
     </div>
 
@@ -306,7 +271,6 @@ const quickLinks = [
 ]
 
 const userProfile = ref(null)
-const verificationLinks = ref([])
 
 onMounted(() => {
     fetchInitialData()
@@ -315,29 +279,15 @@ onMounted(() => {
 
 const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text)
-    $q.notify({ message: 'Link copied to clipboard!', color: 'positive', icon: 'content_copy' })
+    $q.notify({ message: 'Copied to clipboard!', color: 'positive', icon: 'content_copy' })
 }
 
 const fetchUserProfile = async () => {
     try {
         const data = await client.get('me')
-        if (data) {
-            userProfile.value = data
-            if (data.email === 'sejanrandinu01@gmail.com') {
-                fetchVerificationLinks()
-            }
-        }
+        if (data) userProfile.value = data
     } catch (e) {
         console.error('User profile fetch error:', e)
-    }
-}
-
-const fetchVerificationLinks = async () => {
-    try {
-        const data = await client.get('system/verification-links')
-        if (data) verificationLinks.value = data
-    } catch (e) {
-        console.error('Verification links fetch error:', e)
     }
 }
 
