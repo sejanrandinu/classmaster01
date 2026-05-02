@@ -46,13 +46,16 @@ async function verifyJWT(token, secret) {
 async function verifyTurnstile(token, secretKey) {
     if (!token) return false;
     try {
-        const formData = new FormData();
-        formData.append('secret', secretKey);
-        formData.append('response', token);
+        const body = new URLSearchParams();
+        body.append('secret', secretKey);
+        body.append('response', token);
         const url = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
         const result = await fetch(url, {
-            body: formData,
+            body: body.toString(),
             method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
         });
         const outcome = await result.json();
         return outcome.success;
