@@ -226,10 +226,20 @@ export async function onRequest(context) {
         const userEmail = payload.email;
 
         // Fetch current user status to check for trial/approval
-        const currentUser = await db.prepare("SELECT role, is_approved, trial_ends_at FROM profiles WHERE id = ?").bind(userId).first();
+        const currentUser = await db.prepare("SELECT role, is_approved, trial_ends_at, is_email_verified FROM profiles WHERE id = ?").bind(userId).first();
         
         // Trial & Approval Logic
         const isSuperAdmin = userEmail.trim().toLowerCase() === 'sejanrandinu01@gmail.com';
+        
+        // Block everything if not verified (except profile and auth)
+        if (!isSuperAdmin && !currentUser.is_email_verified && path !== 'me' && path !== 'auth') {
+            return json({ 
+                error: "Email Not Verified", 
+                details: "Please verify your email address to access this feature.",
+                needsVerification: true 
+            }, 403);
+        }
+
         if (!isSuperAdmin) {
             const now = new Date();
             const trialEnd = currentUser.trial_ends_at ? new Date(currentUser.trial_ends_at) : null;
