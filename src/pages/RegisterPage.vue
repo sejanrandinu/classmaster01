@@ -19,7 +19,7 @@
                <img src="/favicon.svg">
             </q-avatar>
             <h2 class="text-h3 text-weight-bold q-mb-sm letter-spacing-tight">Create Account</h2>
-            <p class="text-grey-5 text-center">Join ClassMaster. Your account will be active once approved by admin.</p>
+            <p class="text-grey-5 text-center">Join ClassMaster. Start your 7-day free trial immediately.</p>
          </div>
 
          <q-form @submit="onSubmit" class="q-gutter-y-lg">

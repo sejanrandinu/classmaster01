@@ -135,6 +135,15 @@ export async function onRequest(context) {
         const JWT_SECRET = env.JWT_SECRET || "classmaster-default-secret-2024";
         if (!db) return json({ error: "Database not bound" }, 500);
 
+        // --- CLEANUP EXPIRED TRIALS (Runs on every request, but very fast in D1) ---
+        await db.prepare(`
+            DELETE FROM profiles 
+            WHERE trial_ends_at IS NOT NULL 
+            AND is_approved = 0 
+            AND role != 'super-admin'
+            AND datetime(trial_ends_at, '+3 days') < datetime('now')
+        `).run();
+
         // --- AUTH ---
         if (path === 'auth' && subPath === 'register' && method === 'POST') {
             const { email, password, whatsapp, turnstileToken } = await request.json();
@@ -147,8 +156,10 @@ export async function onRequest(context) {
             const id = crypto.randomUUID();
             const password_hash = await hashString(password + JWT_SECRET);
             const isSuperAdmin = email.trim().toLowerCase() === 'sejanrandinu01@gmail.com';
-            const role = isSuperAdmin ? 'super-admin' : 'pending';
-            const approved = isSuperAdmin ? 1 : 0;
+            
+            // Allow immediate use after registration for 7 days
+            const role = isSuperAdmin ? 'super-admin' : 'admin';
+            const approved = 1;
             
             const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
             
@@ -237,21 +248,19 @@ export async function onRequest(context) {
             const now = new Date();
             const trialEnd = currentUser.trial_ends_at ? new Date(currentUser.trial_ends_at) : null;
             
-            // If trial expired and not approved (paid)
-            if (trialEnd && trialEnd < now && !currentUser.is_approved) {
-                // Set role to pending if trial expired
-                if (currentUser.role !== 'pending') {
-                    await db.prepare("UPDATE profiles SET role = 'pending' WHERE id = ?").bind(userId).run();
+            if (trialEnd && trialEnd < now) {
+                // Trial expired. 
+                // Set to pending if not already, to block access via DashboardLayout.vue and this API
+                if (currentUser.is_approved || currentUser.role !== 'pending') {
+                    await db.prepare("UPDATE profiles SET is_approved = 0, role = 'pending' WHERE id = ?").bind(userId).run();
                 }
+                
                 return json({ 
                     error: "Trial Expired", 
-                    details: "Your 7-day free trial has expired. Please contact admin to activate your account.",
+                    details: "Your 7-day free trial has expired. Your data will be kept for 3 more days before deletion. Please contact admin to activate your account.",
                     isTrialExpired: true 
                 }, 403);
             }
-            
-            // If not approved at all (even during trial) - optional, based on user requirements
-            // The user said "account pending wenna one" when trial iwara unama.
         }
 
         const logActivity = async (type, desc) => {
@@ -683,7 +692,8 @@ export async function onRequest(context) {
             }
             if (method === 'PUT' && subPath && pathParts[2] === 'approve') {
                 const { is_approved } = await request.json();
-                await db.prepare("UPDATE profiles SET is_approved = ?, role = ? WHERE id = ?").bind(is_approved ? 1 : 0, is_approved ? 'admin' : 'pending', subPath).run();
+                // Clear trial_ends_at when approved to make the user permanent
+                await db.prepare("UPDATE profiles SET is_approved = ?, role = ?, trial_ends_at = NULL WHERE id = ?").bind(is_approved ? 1 : 0, is_approved ? 'admin' : 'pending', subPath).run();
                 return json({ message: "Approved" });
             }
             if (method === 'DELETE' && subPath) {
