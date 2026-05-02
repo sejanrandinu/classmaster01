@@ -36,27 +36,6 @@
                 </div>
               </div>
             </div>
-            
-            <q-separator class="q-my-md" />
-
-            <div class="row items-center justify-between">
-              <div>
-                <div class="text-subtitle2 text-grey-6">Email Status</div>
-                <div :class="profile.is_email_verified ? 'text-green text-weight-bold' : 'text-orange text-weight-bold'">
-                  {{ profile.is_email_verified ? 'Verified' : 'Unverified' }}
-                </div>
-              </div>
-              <q-btn 
-                v-if="!profile.is_email_verified"
-                flat 
-                dense 
-                color="primary" 
-                label="Resend Email" 
-                no-caps 
-                @click="resendVerification"
-                :loading="resending"
-              />
-            </div>
           </q-card-section>
         </q-card>
       </div>
