@@ -31,6 +31,10 @@
               <q-input dark outlined v-model="form.email" :label="t.email" type="email" :rules="[val => !!val || 'Field is required']" />
               <q-input dark outlined v-model="form.message" :label="t.message" type="textarea" :rules="[val => !!val || 'Field is required']" />
               
+              <div class="q-mb-md flex flex-center">
+                <VueTurnstile site-key="0x4AAAAAADHUUksPvPEHMfdp" v-model="turnstileToken" />
+              </div>
+
               <q-btn 
                 type="submit"
                 color="white" 
@@ -60,6 +64,7 @@ import emailjs from '@emailjs/browser'
 import { useQuasar } from 'quasar'
 import { useAppStore } from 'src/store/app'
 import layoutTranslations from 'src/i18n/layout'
+import VueTurnstile from 'vue-turnstile'
 
 const appStore = useAppStore()
 const t = computed(() => layoutTranslations[appStore.language])
@@ -71,12 +76,21 @@ const form = ref({
   email: '',
   message: ''
 })
+const turnstileToken = ref('')
 
 const onSubmit = async () => {
   if (!form.value.name || !form.value.email || !form.value.message) {
     $q.notify({
       type: 'negative',
       message: appStore.language === 'English' ? 'Please fill in all fields' : 'කරුණාකර සියලුම ක්ෂේත්‍ර පුරවන්න'
+    })
+    return
+  }
+
+  if (!turnstileToken.value) {
+    $q.notify({
+      type: 'warning',
+      message: appStore.language === 'English' ? 'Please complete the security check' : 'කරුණාකර ආරක්ෂක පරීක්ෂණය සම්පූර්ණ කරන්න'
     })
     return
   }
