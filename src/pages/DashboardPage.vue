@@ -230,12 +230,10 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { useQuasar } from 'quasar'
 import { client } from 'src/api'
 import gsap from 'gsap'
 
 const router = useRouter()
-const $q = useQuasar()
 
 // Stats
 const stats = ref([
@@ -276,11 +274,6 @@ onMounted(() => {
     fetchInitialData()
     fetchUserProfile()
 })
-
-const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text)
-    $q.notify({ message: 'Copied to clipboard!', color: 'positive', icon: 'content_copy' })
-}
 
 const fetchUserProfile = async () => {
     try {
