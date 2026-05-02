@@ -1,5 +1,25 @@
 <template>
   <q-page class="q-pa-md bg-grey-1">
+     <!-- Trial & Verification Banners -->
+     <div v-if="userProfile && (!userProfile.is_email_verified || isTrialActive)" class="q-mb-md">
+        <q-banner v-if="!userProfile.is_email_verified" dense class="bg-orange-1 text-orange-9 rounded-borders q-mb-sm shadow-1">
+           <template v-slot:avatar><q-icon name="warning" color="orange-9" /></template>
+           Your email address is not verified. Please check your inbox.
+           <template v-slot:action>
+              <q-btn flat color="orange-9" label="Verify in Profile" to="/dashboard/profile" no-caps />
+           </template>
+        </q-banner>
+        
+        <q-banner v-if="isTrialActive" dense class="bg-blue-1 text-blue-9 rounded-borders shadow-1">
+           <template v-slot:avatar><q-icon name="info" color="blue-9" /></template>
+           You are currently on a 7-day free trial. 
+           <strong>{{ trialDaysLeft }} days remaining</strong>.
+           <template v-slot:action>
+              <q-btn flat color="blue-9" label="Upgrade Now" to="/dashboard/profile" no-caps />
+           </template>
+        </q-banner>
+     </div>
+
     <!-- Header -->
     <div class="row items-center justify-between q-mb-lg">
        <div>
@@ -256,8 +276,31 @@ const quickLinks = [
     { label: 'Messages', icon: 'alternate_email', color: 'purple-7', action: 'message' }
 ]
 
+const userProfile = ref(null)
+
 onMounted(() => {
     fetchInitialData()
+    fetchUserProfile()
+})
+
+const fetchUserProfile = async () => {
+    try {
+        const data = await client.get('me')
+        if (data) userProfile.value = data
+    } catch (e) {
+        console.error('User profile fetch error:', e)
+    }
+}
+
+const isTrialActive = computed(() => {
+    if (!userProfile.value?.trial_ends_at) return false
+    return new Date(userProfile.value.trial_ends_at) > new Date()
+})
+
+const trialDaysLeft = computed(() => {
+    if (!userProfile.value?.trial_ends_at) return 0
+    const diff = new Date(userProfile.value.trial_ends_at).getTime() - Date.now()
+    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)))
 })
 
 const fetchInitialData = async () => {

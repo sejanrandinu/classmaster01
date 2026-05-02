@@ -133,7 +133,19 @@ export async function onRequest(context) {
             
             // Send verification email
             const verifyLink = `${url.origin}/verify-email?token=${verificationToken}`;
-            const emailHtml = `<h2>Welcome to ClassMaster!</h2><p>Please click the link below to verify your email address and start your 7-day free trial:</p><a href="${verifyLink}">${verifyLink}</a>`;
+            const emailHtml = `
+                <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+                    <h2 style="color: #2563eb;">Welcome to ClassMaster!</h2>
+                    <p>Hello,</p>
+                    <p>Thank you for joining ClassMaster. Your account has been created with a <strong>7-day free trial</strong>.</p>
+                    <p>Please click the button below to verify your email address and start your trial:</p>
+                    <a href="${verifyLink}" style="display: inline-block; padding: 12px 24px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 6px; margin: 20px 0;">Verify Email</a>
+                    <p>If the button doesn't work, copy and paste this link into your browser:</p>
+                    <p>${verifyLink}</p>
+                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+                    <p style="font-size: 12px; color: #666;">This is an automated message, please do not reply.</p>
+                </div>
+            `;
             await sendEmail(email, 'Verify your ClassMaster account', emailHtml);
             console.log("Verification Link:", verifyLink);
 
@@ -165,6 +177,32 @@ export async function onRequest(context) {
             return json({ message: "Email verified successfully" });
         }
 
+        if (path === 'auth' && subPath === 'resend-verification' && method === 'POST') {
+            const { email } = await request.json();
+            const user = await db.prepare("SELECT * FROM profiles WHERE email = ?").bind(email).first();
+            if (!user) return json({ error: "User not found" }, 404);
+            if (user.is_email_verified) return json({ error: "Email already verified" }, 400);
+
+            const verificationToken = crypto.randomUUID();
+            await db.prepare("UPDATE profiles SET verification_token = ? WHERE id = ?").bind(verificationToken, user.id).run();
+            
+            const verifyLink = `${url.origin}/verify-email?token=${verificationToken}`;
+            const emailHtml = `
+                <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+                    <h2 style="color: #2563eb;">Verify your ClassMaster account</h2>
+                    <p>Hello,</p>
+                    <p>Please click the button below to verify your email address and continue using ClassMaster:</p>
+                    <a href="${verifyLink}" style="display: inline-block; padding: 12px 24px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 6px; margin: 20px 0;">Verify Email</a>
+                    <p>If the button doesn't work, copy and paste this link into your browser:</p>
+                    <p>${verifyLink}</p>
+                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
+                    <p style="font-size: 12px; color: #666;">This is an automated message, please do not reply.</p>
+                </div>
+            `;
+            await sendEmail(email, 'Verify your ClassMaster account', emailHtml);
+            return json({ message: "Verification email sent" });
+        }
+
         if (path === 'auth' && subPath === 'reset-password' && method === 'POST') {
             return json({ message: "Password reset email sent" });
         }
@@ -187,7 +225,7 @@ export async function onRequest(context) {
         // ME
         if (path === 'me') {
             if (method === 'GET') {
-                const user = await db.prepare("SELECT id, email, whatsapp_number, role, is_approved, is_email_verified, trial_ends_at, bank_name, account_number, account_holder_name, card_background_url, card_theme_color, card_layout_type, card_show_visuals FROM profiles WHERE id = ?").bind(userId).first();
+                const user = await db.prepare("SELECT id, email, whatsapp_number, role, is_approved, is_email_verified, trial_ends_at, bank_name, account_number, account_holder_name, created_at, card_background_url, card_theme_color, card_layout_type, card_show_visuals FROM profiles WHERE id = ?").bind(userId).first();
                 return json(user);
             }
             if (method === 'POST') {

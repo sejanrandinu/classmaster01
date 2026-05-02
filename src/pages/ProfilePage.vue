@@ -21,8 +21,42 @@
           <q-separator />
           
           <q-card-section>
-            <div class="text-subtitle2 text-grey-6 q-mb-xs">Member Since</div>
-            <div class="text-body1 text-weight-medium">{{ formatDate(profile.created_at) }}</div>
+            <div class="row q-col-gutter-sm">
+              <div class="col-6">
+                <div class="text-subtitle2 text-grey-6 q-mb-xs">Member Since</div>
+                <div class="text-body1 text-weight-medium">{{ formatDate(profile.created_at) }}</div>
+              </div>
+              <div class="col-6">
+                <div class="text-subtitle2 text-grey-6 q-mb-xs">Trial Status</div>
+                <q-badge :color="isTrialActive ? 'orange' : 'red'" class="q-pa-xs">
+                  {{ isTrialActive ? 'Trial Active' : 'Trial Expired' }}
+                </q-badge>
+                <div v-if="isTrialActive" class="text-caption text-grey-7 q-mt-xs">
+                  Ends: {{ formatDate(profile.trial_ends_at) }}
+                </div>
+              </div>
+            </div>
+            
+            <q-separator class="q-my-md" />
+
+            <div class="row items-center justify-between">
+              <div>
+                <div class="text-subtitle2 text-grey-6">Email Status</div>
+                <div :class="profile.is_email_verified ? 'text-green text-weight-bold' : 'text-orange text-weight-bold'">
+                  {{ profile.is_email_verified ? 'Verified' : 'Unverified' }}
+                </div>
+              </div>
+              <q-btn 
+                v-if="!profile.is_email_verified"
+                flat 
+                dense 
+                color="primary" 
+                label="Resend Email" 
+                no-caps 
+                @click="resendVerification"
+                :loading="resending"
+              />
+            </div>
           </q-card-section>
         </q-card>
       </div>
@@ -133,6 +167,13 @@ const isApproved = computed(() => {
   return profile.value.is_approved
 })
 
+const isTrialActive = computed(() => {
+  if (!profile.value.trial_ends_at) return false
+  return new Date(profile.value.trial_ends_at) > new Date()
+})
+
+const resending = ref(false)
+
 onMounted(async () => {
   fetchProfile()
 })
@@ -167,6 +208,18 @@ const updateProfile = async () => {
     $q.notify({ type: 'negative', message: 'Update failed: ' + error.message })
   } finally {
     loading.value = false
+  }
+}
+
+const resendVerification = async () => {
+  resending.value = true
+  try {
+    await client.post('auth/resend-verification', { email: profile.value.email })
+    $q.notify({ type: 'positive', message: 'Verification email resent!' })
+  } catch (error) {
+    $q.notify({ type: 'negative', message: 'Failed to resend: ' + error.message })
+  } finally {
+    resending.value = false
   }
 }
 
