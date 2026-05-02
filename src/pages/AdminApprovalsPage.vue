@@ -36,8 +36,8 @@
       >
         <template v-slot:body-cell-status="props">
           <q-td :props="props" class="text-center">
-            <q-badge :color="props.row.is_approved ? 'green' : 'orange'" rounded>
-              {{ props.row.is_approved ? 'Approved' : 'Pending' }}
+            <q-badge :color="props.row.role === 'trial' ? 'blue' : (props.row.is_approved ? 'green' : 'orange')" rounded>
+              {{ props.row.role === 'trial' ? 'Trial' : (props.row.is_approved ? 'Approved' : 'Pending') }}
             </q-badge>
           </q-td>
         </template>

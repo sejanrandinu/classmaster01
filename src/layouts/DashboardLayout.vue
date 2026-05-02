@@ -319,7 +319,8 @@ const isSuperAdmin = computed(() => {
 
 const isApproved = computed(() => {
     if (isSuperAdmin.value) return true
-    return dbApproved.value
+    // Allow access if permanently approved OR if currently in active trial
+    return dbApproved.value || userRole.value === 'trial'
 })
 
 const userDisplayName = computed(() => {
@@ -329,7 +330,8 @@ const userDisplayName = computed(() => {
 
 const userRoleLabel = computed(() => {
     if (isSuperAdmin.value) return 'Super Admin'
-    return isApproved.value ? 'Active Member' : 'Pending Member'
+    if (userRole.value === 'trial') return 'Trial Member'
+    return dbApproved.value ? 'Active Member' : 'Pending Member'
 })
 
 const showWhatsAppDialog = ref(false)

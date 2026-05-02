@@ -157,9 +157,10 @@ export async function onRequest(context) {
             const password_hash = await hashString(password + JWT_SECRET);
             const isSuperAdmin = email.trim().toLowerCase() === 'sejanrandinu01@gmail.com';
             
-            // Allow immediate use after registration for 7 days
-            const role = isSuperAdmin ? 'super-admin' : 'admin';
-            const approved = 1;
+            // Set to 'trial' role with is_approved=0. 
+            // They will be allowed access until trial ends.
+            const role = isSuperAdmin ? 'super-admin' : 'trial';
+            const approved = isSuperAdmin ? 1 : 0;
             
             const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
             
@@ -248,17 +249,26 @@ export async function onRequest(context) {
             const now = new Date();
             const trialEnd = currentUser.trial_ends_at ? new Date(currentUser.trial_ends_at) : null;
             
-            if (trialEnd && trialEnd < now) {
-                // Trial expired. 
-                // Set to pending if not already, to block access via DashboardLayout.vue and this API
-                if (currentUser.is_approved || currentUser.role !== 'pending') {
-                    await db.prepare("UPDATE profiles SET is_approved = 0, role = 'pending' WHERE id = ?").bind(userId).run();
+            // 1. Handle Trial Expiration
+            if (trialEnd && trialEnd < now && !currentUser.is_approved) {
+                // If trial expired and not yet permanently approved
+                if (currentUser.role !== 'pending') {
+                    await db.prepare("UPDATE profiles SET role = 'pending', is_approved = 0 WHERE id = ?").bind(userId).run();
                 }
                 
                 return json({ 
                     error: "Trial Expired", 
                     details: "Your 7-day free trial has expired. Your data will be kept for 3 more days before deletion. Please contact admin to activate your account.",
                     isTrialExpired: true 
+                }, 403);
+            }
+
+            // 2. Allow Trial Users OR Approved Members
+            const isTrialActive = currentUser.role === 'trial' && trialEnd && trialEnd > now;
+            if (!currentUser.is_approved && !isTrialActive) {
+                return json({ 
+                    error: "Access Denied", 
+                    details: "Your account is pending approval or your trial has ended." 
                 }, 403);
             }
         }
