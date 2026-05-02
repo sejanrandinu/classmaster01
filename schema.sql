@@ -11,6 +11,13 @@ CREATE TABLE IF NOT EXISTS profiles (
     bank_name TEXT,
     account_number TEXT,
     account_holder_name TEXT,
+    card_background_url TEXT,
+    card_theme_color TEXT DEFAULT '#0d124d',
+    card_layout_type TEXT DEFAULT 'standard',
+    card_show_visuals INTEGER DEFAULT 1,
+    is_email_verified INTEGER DEFAULT 1,
+    verification_token TEXT,
+    trial_ends_at TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -26,6 +33,10 @@ CREATE TABLE IF NOT EXISTS students (
     contact TEXT,
     status TEXT DEFAULT 'Active',
     subjects_json TEXT, -- Store as JSON array string
+    image_url TEXT,
+    color_theme TEXT,
+    layout_type TEXT DEFAULT 'standard',
+    show_visuals INTEGER DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(user_id) REFERENCES profiles(id) ON DELETE CASCADE
 );

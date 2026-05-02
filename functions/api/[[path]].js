@@ -239,9 +239,17 @@ export async function onRequest(context) {
         const userId = payload.id;
         const userEmail = payload.email;
 
-        // Fetch current user status to check for trial/approval
-        const currentUser = await db.prepare("SELECT role, is_approved, trial_ends_at, is_email_verified FROM profiles WHERE id = ?").bind(userId).first();
+        let currentUser = null;
+        try {
+            currentUser = await db.prepare("SELECT role, is_approved, trial_ends_at FROM profiles WHERE id = ?").bind(userId).first();
+        } catch (e) {
+            console.error('DB Fetch error in middleware:', e);
+            // Fallback for missing columns
+            currentUser = await db.prepare("SELECT role, is_approved FROM profiles WHERE id = ?").bind(userId).first();
+        }
         
+        if (!currentUser) return json({ error: "User not found" }, 401);
+
         // Trial & Approval Logic
         const isSuperAdmin = userEmail.trim().toLowerCase() === 'sejanrandinu01@gmail.com';
         
@@ -258,13 +266,13 @@ export async function onRequest(context) {
                 
                 return json({ 
                     error: "Trial Expired", 
-                    details: "Your 7-day free trial has expired. Your data will be kept for 3 more days before deletion. Please contact admin to activate your account.",
+                    details: "Your 7-day free trial has expired. Please contact admin to activate your account.",
                     isTrialExpired: true 
                 }, 403);
             }
 
             // 2. Allow Trial Users OR Approved Members
-            const isTrialActive = currentUser.role === 'trial' && trialEnd && trialEnd > now;
+            const isTrialActive = currentUser.role === 'trial' && (trialEnd ? trialEnd > now : true);
             if (!currentUser.is_approved && !isTrialActive) {
                 return json({ 
                     error: "Access Denied", 
@@ -284,8 +292,15 @@ export async function onRequest(context) {
         // ME
         if (path === 'me') {
             if (method === 'GET') {
-                const user = await db.prepare("SELECT id, email, whatsapp_number, role, is_approved, is_email_verified, trial_ends_at, bank_name, account_number, account_holder_name, created_at, card_background_url, card_theme_color, card_layout_type, card_show_visuals FROM profiles WHERE id = ?").bind(userId).first();
-                return json(user);
+                try {
+                    const user = await db.prepare("SELECT id, email, whatsapp_number, role, is_approved, is_email_verified, trial_ends_at, bank_name, account_number, account_holder_name, created_at, card_background_url, card_theme_color, card_layout_type, card_show_visuals FROM profiles WHERE id = ?").bind(userId).first();
+                    return json(user);
+                } catch (e) {
+                    console.error('Fetch me error:', e);
+                    // Fallback to minimal set if columns missing
+                    const user = await db.prepare("SELECT id, email, role, is_approved, created_at FROM profiles WHERE id = ?").bind(userId).first();
+                    return json(user);
+                }
             }
             if (method === 'POST') {
                 const d = await request.json();
