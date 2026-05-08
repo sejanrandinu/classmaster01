@@ -7,7 +7,7 @@
            You are currently on a 7-day free trial. 
            <strong>{{ trialDaysLeft }} days remaining</strong>.
            <template v-slot:action>
-              <q-btn flat color="blue-9" label="Upgrade Now" to="/dashboard/profile" no-caps />
+              <q-btn flat color="blue-9" label="Upgrade Now" @click="showPaymentDetails" no-caps />
            </template>
         </q-banner>
      </div>
@@ -230,8 +230,10 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useQuasar } from 'quasar'
 import { client } from 'src/api'
 import gsap from 'gsap'
+import PaymentDialog from 'src/components/PaymentDialog.vue'
 
 const router = useRouter()
 
@@ -269,6 +271,13 @@ const quickLinks = [
 ]
 
 const userProfile = ref(null)
+const $q = useQuasar()
+
+const showPaymentDetails = () => {
+    $q.dialog({
+        component: PaymentDialog
+    })
+}
 
 onMounted(() => {
     fetchInitialData()
