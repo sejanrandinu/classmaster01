@@ -109,7 +109,7 @@ const triggerNotification = async (cls, diff) => {
     message: messageText,
     caption: `${subjectName} | ${tutorName}`,
     position: 'top-right',
-    icon: 'notifications_active',
+    avatar: '/favicon.png',
     timeout: 15000,
     actions: actions
   })
@@ -117,7 +117,7 @@ const triggerNotification = async (cls, diff) => {
   if (window.Notification && Notification.permission === 'granted') {
     new Notification('Class Reminder', {
       body: messageText,
-      icon: '/favicon.svg'
+      icon: '/favicon.png'
     })
   }
 }
