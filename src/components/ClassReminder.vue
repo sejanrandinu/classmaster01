@@ -13,23 +13,27 @@ const classes = ref([])
 const timer = ref(null)
 const lastNotified = ref({}) // Format: { classId_minutesLeft: timestamp }
 
-const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const getColomboTime = () => {
+    // Return a date object adjusted to Colombo Time (+5:30)
+    return new Date(Date.now() + 5.5 * 3600000)
+}
 
 const fetchTodayClasses = async () => {
-  const today = DAYS[new Date().getDay()]
   try {
-    const data = await client.get('classes')
+    console.log('ClassReminder: Fetching today\'s schedule...')
+    const data = await client.get('schedule/today')
     if (data) {
-      classes.value = data.filter(c => c.day === today && c.status === 'Active')
+      classes.value = data
+      console.log(`ClassReminder: Loaded ${data.length} classes for today.`)
     }
-  } catch {
-    // Ignore
+  } catch (e) {
+    console.error('ClassReminder: Fetch error:', e)
   }
 }
 
 const checkReminders = () => {
-  const now = new Date()
-  const currentMinutes = now.getHours() * 60 + now.getMinutes()
+  const now = getColomboTime()
+  const currentMinutes = now.getUTCHours() * 60 + now.getUTCMinutes()
 
   classes.value.forEach(cls => {
     if (!cls.start_time) return
@@ -38,14 +42,19 @@ const checkReminders = () => {
     const classMinutes = h * 60 + m
     const diff = classMinutes - currentMinutes
 
-    const reminderIntervals = [30, 25, 20, 15, 10, 5, 0]
+    const reminderIntervals = [30, 15, 5, 0]
     
-    if (reminderIntervals.includes(diff)) {
-      const key = `${cls.id}_${diff}`
+    // Check if we are within 1 minute of a reminder interval
+    const matchedInterval = reminderIntervals.find(interval => diff === interval)
+    
+    if (matchedInterval !== undefined) {
+      const key = `${cls.id}_${matchedInterval}`
       const nowTs = Date.now()
       
-      if (!lastNotified.value[key] || (nowTs - lastNotified.value[key] > 61000)) {
-        triggerNotification(cls, diff)
+      // Only notify once per interval per 2 minutes to avoid double triggers
+      if (!lastNotified.value[key] || (nowTs - lastNotified.value[key] > 120000)) {
+        console.log(`ClassReminder: Triggering reminder for ${cls.name} at ${matchedInterval}m`)
+        triggerNotification(cls, matchedInterval)
         lastNotified.value[key] = nowTs
       }
     }
@@ -53,9 +62,13 @@ const checkReminders = () => {
 }
 
 const triggerNotification = async (cls, diff) => {
+  const className = cls.name || cls.class_name
+  const subjectName = cls.subject_name || cls.subject
+  const tutorName = cls.tutor_name || cls.tutor
+
   const messageText = diff === 0 
-    ? `Class "${cls.class_name}" is starting NOW!` 
-    : `Reminder: "${cls.class_name}" starts in ${diff} minutes.`
+    ? `Class "${className}" is starting NOW!` 
+    : `Reminder: "${className}" starts in ${diff} minutes.`
 
   const actions = [{ label: 'Dismiss', color: 'white' }]
 
@@ -67,13 +80,13 @@ const triggerNotification = async (cls, diff) => {
         try {
           const data = await client.get('students')
           if (data) {
-            const targetStudents = data.filter(s => s.grade === cls.grade && s.status === 'Active' && s.subjects?.includes(cls.subject))
+            const targetStudents = data.filter(s => s.grade === cls.grade && s.status === 'Active' && s.subjects?.includes(subjectName))
             if (targetStudents.length === 0) {
               $q.notify({ type: 'info', message: 'No students found for this class.' })
               return
             }
 
-            const waMessage = `⏰ *Class Starting Soon!*\n\nClass: ${cls.class_name}\nStarts in: 30 minutes\nTutor: ${cls.tutor}\n\nGet ready! 🚀`
+            const waMessage = `⏰ *Class Starting Soon!*\n\nClass: ${className}\nStarts in: 30 minutes\nTutor: ${tutorName}\n\nGet ready! 🚀`
             targetStudents.forEach(std => {
               let phone = std.contact
               if (phone) {
@@ -94,34 +107,38 @@ const triggerNotification = async (cls, diff) => {
   $q.notify({
     type: diff === 0 ? 'warning' : 'info',
     message: messageText,
-    caption: `${cls.subject} | ${cls.tutor}`,
+    caption: `${subjectName} | ${tutorName}`,
     position: 'top-right',
     icon: 'notifications_active',
     timeout: 15000,
     actions: actions
   })
 
-  if (Notification.permission === 'granted') {
+  if (window.Notification && Notification.permission === 'granted') {
     new Notification('Class Reminder', {
       body: messageText,
-      icon: '/icons/favicon-128x128.png'
+      icon: '/favicon.svg'
     })
-  } else if (Notification.permission !== 'denied') {
-    Notification.requestPermission()
   }
 }
 
 onMounted(() => {
   fetchTodayClasses()
-  setTimeout(checkReminders, 2000)
+  
+  // Initial check after a short delay
+  setTimeout(checkReminders, 3000)
+
+  // Run check every 30 seconds
   timer.value = setInterval(() => {
-    if (new Date().getMinutes() % 10 === 0 && new Date().getSeconds() < 30) {
+    const now = getColomboTime()
+    // Re-fetch classes every hour or if classes list is empty
+    if (now.getUTCMinutes() === 0 || classes.value.length === 0) {
       fetchTodayClasses()
     }
     checkReminders()
   }, 30000)
 
-  if (Notification.permission === 'default') {
+  if (window.Notification && Notification.permission === 'default') {
     Notification.requestPermission()
   }
 })
