@@ -93,9 +93,13 @@ const resendEmail = async () => {
         // For now, we assume the backend has an endpoint or we re-trigger registration logic
         // But since we are using EmailJS, we might need a token from backend
         const res = await auth.getUser() // Get latest status/token
-        if (res.verificationToken) {
+        console.log('User status for resend:', res)
+        
+        const vToken = res?.verification_token || res?.verificationToken
+        
+        if (vToken) {
             const { emailService } = await import('src/utils/email')
-            await emailService.sendVerificationEmail(res.email, res.verificationToken)
+            await emailService.sendVerificationEmail(user.email, vToken)
             $q.notify({ type: 'positive', message: 'Verification email resent!' })
             
             // Start cooldown
@@ -104,6 +108,9 @@ const resendEmail = async () => {
                 cooldown.value--
                 if (cooldown.value <= 0) clearInterval(timer)
             }, 1000)
+        } else {
+            console.warn('Token not found in res object:', res)
+            $q.notify({ type: 'warning', message: 'Verification link not available. Please try later.' })
         }
     } catch {
         $q.notify({ type: 'negative', message: 'Failed to resend email' })

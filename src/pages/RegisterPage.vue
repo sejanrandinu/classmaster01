@@ -206,17 +206,20 @@ const onSubmit = async () => {
     }
 
     // Trigger Verification Email via EmailJS
-    let vToken = response.verificationToken
+    let vToken = response.verification_token || response.verificationToken
     
-    // Fallback: If token not in root response, check user object or fetch it
-    if (!vToken && response.user?.verification_token) {
-        vToken = response.user.verification_token
+    // Fallback: If token not in root response, check user object
+    if (!vToken && response.user) {
+        vToken = response.user.verification_token || response.user.verificationToken
     }
+
+    console.log('Attempting to send email with token:', vToken)
 
     if (vToken) {
         try {
-            console.log('Sending verification email to:', email.value)
-            await emailService.sendVerificationEmail(email.value, vToken)
+            console.log('Calling emailService.sendVerificationEmail...')
+            const emailSent = await emailService.sendVerificationEmail(email.value, vToken)
+            console.log('emailService response:', emailSent)
             $q.notify({
                 type: 'info',
                 message: 'Verification email sent! Please check your inbox.',
@@ -224,13 +227,18 @@ const onSubmit = async () => {
             })
         } catch (e) {
             console.error('EmailJS Error in RegisterPage:', e)
+            $q.notify({ type: 'negative', message: 'EmailJS Error: ' + (e.message || e.text || 'Unknown error') })
         }
     } else {
-        console.warn('No verification token found in registration response')
-        // Try to fetch user to see if token is there
+        console.warn('No verification token found in registration response. Full response:', response)
+        // Try one last time by fetching user
         const latestUser = await auth.getUser()
-        if (latestUser && latestUser.verification_token) {
-            await emailService.sendVerificationEmail(email.value, latestUser.verification_token)
+        const fbToken = latestUser?.verification_token || latestUser?.verificationToken
+        if (fbToken) {
+            console.log('Token found in getUser fallback, sending...')
+            await emailService.sendVerificationEmail(email.value, fbToken)
+        } else {
+            $q.notify({ type: 'warning', message: 'Could not generate verification link. Please contact support.' })
         }
     }
 
