@@ -50,7 +50,6 @@ import { auth } from 'src/api'
 
 const router = useRouter()
 const $q = useQuasar()
-const loading = ref(false)
 const cooldown = ref(0)
 let timer = null
 
