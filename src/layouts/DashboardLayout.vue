@@ -290,6 +290,7 @@ import layoutTranslations from 'src/i18n/layout'
 import ChatbotComponent from 'src/components/ChatbotComponent.vue'
 import ClassReminder from 'src/components/ClassReminder.vue'
 import PaymentDialog from 'src/components/PaymentDialog.vue'
+import { notificationService } from 'src/utils/notifications'
 
 const appStore = useAppStore()
 const t = computed(() => layoutTranslations[appStore.language])
@@ -343,7 +344,38 @@ onMounted(async () => {
     if (isSuperAdmin.value) {
         fetchPendingCount()
     }
+    
+    // Request notification permission for mobile
+    setTimeout(() => {
+        checkNotificationPermission()
+    }, 2000)
 })
+
+const checkNotificationPermission = async () => {
+    if ('Notification' in window && Notification.permission === 'default') {
+        $q.notify({
+            message: appStore.language === 'English' ? 'Enable notifications for important class alerts?' : 'වැදගත් පන්ති දැනුම්දීම් සඳහා අවසර ලබා දෙනවාද?',
+            icon: 'notifications_active',
+            color: 'primary',
+            position: 'top',
+            timeout: 0,
+            actions: [
+                { 
+                    label: appStore.language === 'English' ? 'Enable' : 'අවසර දෙන්න', 
+                    color: 'white', 
+                    handler: async () => {
+                        const granted = await notificationService.requestPermission()
+                        if (granted) {
+                            $q.notify({ type: 'positive', message: 'Notifications enabled!' })
+                            notificationService.notify('ClassMaster Notifications Enabled', { body: 'You will now receive alerts here.' })
+                        }
+                    } 
+                },
+                { label: appStore.language === 'English' ? 'Later' : 'පසුව', color: 'grey-4', handler: () => {} }
+            ]
+        })
+    }
+}
 
 const fetchProfile = async () => {
     loadingProfile.value = true

@@ -27,9 +27,22 @@ export const notificationService = {
     playSound() {
         try {
             const audio = new Audio(NOTIFICATION_SOUND_URL);
-            audio.play().catch(e => console.warn('Audio play failed (browser policy):', e));
+            audio.play().catch(e => {
+                console.warn('Audio play failed (browser policy):', e);
+                // Fallback: Use vibration if audio fails
+                this.vibrate();
+            });
         } catch (e) {
             console.error('Failed to play sound:', e);
+        }
+    },
+
+    /**
+     * Vibrate the device
+     */
+    vibrate() {
+        if ('vibrate' in navigator) {
+            navigator.vibrate([200, 100, 200]); // Short vibration pattern
         }
     },
 
@@ -39,22 +52,28 @@ export const notificationService = {
      * @param {Object} options 
      */
     async notify(title, options = {}) {
-        // 1. Play sound
+        // 1. Play sound & Vibrate
         this.playSound();
+        this.vibrate();
 
         // 2. Show system notification if permitted
         if ('Notification' in window && Notification.permission === 'granted') {
             const defaultOptions = {
                 icon: '/favicon.svg',
                 badge: '/favicon.svg',
-                silent: true, // We handle sound ourselves for better control
+                vibrate: [200, 100, 200],
+                tag: 'classmaster-notify',
+                renotify: true,
+                silent: true, 
                 ...options
             };
             
             try {
+                // For mobile browsers (especially Chrome), new Notification() 
+                // sometimes requires a service worker registration.
+                // We'll try the direct way first.
                 const n = new Notification(title, defaultOptions);
                 
-                // Close after 5 seconds by default
                 if (!options.requireInteraction) {
                     setTimeout(() => n.close(), 5000);
                 }
@@ -64,7 +83,7 @@ export const notificationService = {
                     n.close();
                 };
             } catch (e) {
-                console.error('Notification error:', e);
+                console.error('Direct notification failed, might need Service Worker:', e);
             }
         }
     }

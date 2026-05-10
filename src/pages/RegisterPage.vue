@@ -166,7 +166,6 @@ import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { auth } from 'src/api'
 import VueTurnstile from 'vue-turnstile'
-import { emailService } from 'src/utils/email'
 
 const router = useRouter()
 const $q = useQuasar()
@@ -197,50 +196,7 @@ const onSubmit = async () => {
   loading.value = true
   
   try {
-    const response = await auth.register(email.value, password.value, whatsapp.value, turnstileToken.value)
-    console.log('Registration Response:', response)
-
-    // Save user info if available
-    if (response.user) {
-        localStorage.setItem('classmaster-user', JSON.stringify(response.user))
-    }
-
-    // Trigger Verification Email via EmailJS
-    let vToken = response.verification_token || response.verificationToken
-    
-    // Fallback: If token not in root response, check user object
-    if (!vToken && response.user) {
-        vToken = response.user.verification_token || response.user.verificationToken
-    }
-
-    console.log('Attempting to send email with token:', vToken)
-
-    if (vToken) {
-        try {
-            console.log('Calling emailService.sendVerificationEmail...')
-            const emailSent = await emailService.sendVerificationEmail(email.value, vToken)
-            console.log('emailService response:', emailSent)
-            $q.notify({
-                type: 'info',
-                message: 'Verification email sent! Please check your inbox.',
-                position: 'top'
-            })
-        } catch (e) {
-            console.error('EmailJS Error in RegisterPage:', e)
-            $q.notify({ type: 'negative', message: 'EmailJS Error: ' + (e.message || e.text || 'Unknown error') })
-        }
-    } else {
-        console.warn('No verification token found in registration response. Full response:', response)
-        // Try one last time by fetching user
-        const latestUser = await auth.getUser()
-        const fbToken = latestUser?.verification_token || latestUser?.verificationToken
-        if (fbToken) {
-            console.log('Token found in getUser fallback, sending...')
-            await emailService.sendVerificationEmail(email.value, fbToken)
-        } else {
-            $q.notify({ type: 'warning', message: 'Could not generate verification link. Please contact support.' })
-        }
-    }
+    await auth.register(email.value, password.value, whatsapp.value, turnstileToken.value)
 
     $q.notify({
       type: 'positive',
