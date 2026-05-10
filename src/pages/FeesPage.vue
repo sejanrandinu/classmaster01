@@ -526,7 +526,7 @@ const exportPayments = async () => {
 const exportMonthlyReport = async () => {
     exporting.value = true
     try {
-        const data = await client.get('stats') // Assuming stats has some breakdown or we aggregate payments
+        await client.get('stats') // Keeping the call to ensure data is fresh/server is up, but removing unused assignment
         const payments = await client.get('payments')
         
         // Simple aggregation by month
@@ -548,7 +548,7 @@ const exportMonthlyReport = async () => {
         
         exportToCSV(reportData, 'Monthly_Collection_Summary', exportCols)
         $q.notify({ type: 'positive', message: 'Monthly report exported' })
-    } catch (e) {
+    } catch {
         $q.notify({ type: 'negative', message: 'Failed to generate report' })
     } finally {
         exporting.value = false
@@ -574,7 +574,7 @@ const exportSalarySummary = async () => {
         
         exportToCSV(tutors, 'Tutor_Financial_Details', exportCols)
         $q.notify({ type: 'positive', message: 'Tutor data exported' })
-    } catch (e) {
+    } catch {
         $q.notify({ type: 'negative', message: 'Failed to export tutor data' })
     } finally {
         exporting.value = false
