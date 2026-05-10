@@ -112,7 +112,7 @@ const resendEmail = async () => {
                 if (cooldown.value <= 0) clearInterval(timer)
             }, 1000)
         }
-    } catch (e) {
+    } catch {
         $q.notify({ type: 'negative', message: 'Failed to resend email' })
     }
 }
