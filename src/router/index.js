@@ -1,6 +1,7 @@
 import { defineRouter } from '#q-app/wrappers'
 import { createRouter, createMemoryHistory, createWebHistory, createWebHashHistory } from 'vue-router'
 import routes from './routes'
+import { auth } from 'src/api'
 
 /*
  * If not building with SSR mode, you can
@@ -24,6 +25,42 @@ export default defineRouter(function (/* { store, ssrContext } */) {
     // quasar.conf.js -> build -> vueRouterMode
     // quasar.conf.js -> build -> publicPath
     history: createHistory(process.env.VUE_ROUTER_BASE)
+  })
+
+  Router.beforeEach(async (to, from, next) => {
+    const token = localStorage.getItem('classmaster-token')
+    const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
+
+    if (requiresAuth && !token) {
+      next('/login')
+    } else if (token) {
+      // User is logged in, check verification status
+      try {
+        // We check local storage first for speed, but verify with API if needed
+        let user = JSON.parse(localStorage.getItem('classmaster-user') || 'null')
+        
+        // If no user in local storage, try to fetch it
+        if (!user) {
+          user = await auth.getUser()
+          if (user) localStorage.setItem('classmaster-user', JSON.stringify(user))
+        }
+
+        const isVerified = user?.is_verified
+        
+        if (!isVerified && to.path !== '/verification-pending' && to.path !== '/verify-email' && to.path !== '/logout') {
+          next('/verification-pending')
+        } else if (isVerified && to.path === '/verification-pending') {
+          next('/dashboard')
+        } else {
+          next()
+        }
+      } catch (e) {
+        console.error('Auth guard error:', e)
+        next()
+      }
+    } else {
+      next()
+    }
   })
 
   return Router

@@ -32,6 +32,13 @@ onMounted(async () => {
 
   try {
     await auth.verifyEmail(token);
+    
+    // Fetch latest user info and update local storage so the router guard allows access
+    const user = await auth.getUser();
+    if (user) {
+        localStorage.setItem('classmaster-user', JSON.stringify(user));
+    }
+    
     success.value = true;
     message.value = 'Email verified successfully!';
   } catch (error) {

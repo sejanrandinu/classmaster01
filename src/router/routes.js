@@ -11,6 +11,7 @@ const routes = [
       { path: 'about-us', component: () => import('pages/AboutUsPage.vue') },
       { path: 'contact', component: () => import('pages/ContactPage.vue') },
       { path: 'verify-email', component: () => import('pages/VerifyEmailPage.vue') },
+      { path: 'verification-pending', component: () => import('pages/EmailVerificationPending.vue') },
 
     ]
   },
