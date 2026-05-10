@@ -4,6 +4,7 @@
 
 <script setup>
 import { onMounted } from 'vue'
+import { notificationService } from 'src/utils/notifications'
 
 
 onMounted(async () => {
@@ -18,6 +19,9 @@ onMounted(async () => {
             console.warn('SW Cleanup error:', e)
         }
     }
+    
+    // Check for notification permissions
+    notificationService.requestPermission()
 })
 
 </script>

@@ -166,6 +166,7 @@ import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { auth } from 'src/api'
 import VueTurnstile from 'vue-turnstile'
+import { emailService } from 'src/utils/email'
 
 const router = useRouter()
 const $q = useQuasar()
@@ -196,7 +197,21 @@ const onSubmit = async () => {
   loading.value = true
   
   try {
-    await auth.register(email.value, password.value, whatsapp.value, turnstileToken.value)
+    const response = await auth.register(email.value, password.value, whatsapp.value, turnstileToken.value)
+
+    // Trigger Verification Email via EmailJS
+    if (response.verificationToken) {
+        try {
+            await emailService.sendVerificationEmail(email.value, response.verificationToken)
+            $q.notify({
+                type: 'info',
+                message: 'Verification email sent! Please check your inbox.',
+                position: 'top'
+            })
+        } catch (e) {
+            console.error('Failed to send verification email:', e)
+        }
+    }
 
     $q.notify({
       type: 'positive',

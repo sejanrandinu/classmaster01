@@ -60,11 +60,11 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import emailjs from '@emailjs/browser'
 import { useQuasar } from 'quasar'
 import { useAppStore } from 'src/store/app'
 import layoutTranslations from 'src/i18n/layout'
 import VueTurnstile from 'vue-turnstile'
+import { emailService } from 'src/utils/email'
 
 const appStore = useAppStore()
 const t = computed(() => layoutTranslations[appStore.language])
@@ -98,17 +98,11 @@ const onSubmit = async () => {
   loading.value = true
   
   try {
-    await emailjs.send(
-      'service_h3exkwm',
-      'template_wpax8ym',
-      {
-        from_name: form.value.name,
-        from_email: form.value.email,
-        message: form.value.message,
-        to_email: 'sejanrandinu01@gmail.com'
-      },
-      'W9PbvigHgxkCQCvET'
-    )
+    await emailService.sendContactEmail({
+      name: form.value.name,
+      email: form.value.email,
+      message: form.value.message
+    })
 
     $q.notify({
       type: 'positive',

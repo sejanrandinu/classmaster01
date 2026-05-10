@@ -32,8 +32,11 @@
                   <q-item-label class="text-weight-medium">{{ t.notifications }}</q-item-label>
                   <q-item-label caption>{{ t.notificationsCaption }}</q-item-label>
                 </q-item-section>
-                <q-item-section side>
-                  <q-toggle v-model="settings.notifications" color="primary" />
+                <q-item-section side class="row items-center no-wrap">
+                  <q-btn flat dense color="primary" icon="campaign" class="q-mr-sm" @click="testNotification">
+                    <q-tooltip>Test Notification</q-tooltip>
+                  </q-btn>
+                  <q-toggle v-model="settings.notifications" color="primary" @update:model-value="toggleNotifications" />
                 </q-item-section>
               </q-item>
             </q-list>
@@ -170,6 +173,7 @@ import { reactive, computed, ref, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
 import { auth, client } from 'src/api'
 import { useAppStore } from 'src/store/app'
+import { notificationService } from 'src/utils/notifications'
 
 const $q = useQuasar()
 const appStore = useAppStore()
@@ -346,6 +350,34 @@ const resetPassword = async () => {
     } finally {
       $q.loading.hide()
     }
+  })
+}
+
+const toggleNotifications = async (val) => {
+  if (val) {
+    const granted = await notificationService.requestPermission()
+    if (!granted) {
+      $q.notify({
+        type: 'warning',
+        message: 'Notification permission denied by browser.',
+        caption: 'Please enable it in browser settings to receive alerts.'
+      })
+      settings.notifications = false
+    } else {
+      $q.notify({ type: 'positive', message: 'Notifications enabled!' })
+    }
+  }
+}
+
+const testNotification = async () => {
+  if (!settings.notifications) {
+    $q.notify({ type: 'info', message: 'Please enable notifications first' })
+    return
+  }
+  
+  await notificationService.notify('Notification Test', {
+    body: 'This is how your notifications will appear! 🔔',
+    requireInteraction: false
   })
 }
 </script>

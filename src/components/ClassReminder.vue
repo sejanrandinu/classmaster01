@@ -7,6 +7,7 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 import { client } from 'src/api'
 import { useQuasar } from 'quasar'
+import { notificationService } from 'src/utils/notifications'
 
 const $q = useQuasar()
 const classes = ref([])
@@ -115,7 +116,7 @@ const triggerNotification = async (cls, diff) => {
   })
 
   if (window.Notification && Notification.permission === 'granted') {
-    new Notification('Class Reminder', {
+    notificationService.notify('Class Reminder', {
       body: messageText,
       icon: '/favicon.svg'
     })
@@ -139,7 +140,7 @@ onMounted(() => {
   }, 30000)
 
   if (window.Notification && Notification.permission === 'default') {
-    Notification.requestPermission()
+    notificationService.requestPermission()
   }
 })
 

@@ -203,6 +203,58 @@
         </q-card>
       </div>
     </div>
+    
+    <!-- Financial Reports Section -->
+    <div class="row q-mt-xl">
+        <div class="col-12">
+            <q-card flat class="glass-modern q-pa-lg">
+                <div class="row items-center justify-between q-mb-md">
+                    <div class="text-h6 text-weight-bold row items-center">
+                        <q-icon name="summarize" color="primary" class="q-mr-sm" />
+                        Financial Reports & Exports
+                    </div>
+                </div>
+                <div class="row q-col-gutter-md">
+                    <div class="col-12 col-sm-4">
+                        <q-btn 
+                            outline 
+                            color="primary" 
+                            icon="download" 
+                            label="Download Payment History" 
+                            class="full-width premium-btn" 
+                            @click="exportPayments"
+                            :loading="exporting"
+                        />
+                    </div>
+                    <div class="col-12 col-sm-4">
+                        <q-btn 
+                            outline 
+                            color="green-7" 
+                            icon="file_download" 
+                            label="Monthly Collection Report" 
+                            class="full-width premium-btn"
+                            @click="exportMonthlyReport"
+                            :loading="exporting"
+                        />
+                    </div>
+                    <div class="col-12 col-sm-4">
+                        <q-btn 
+                            outline 
+                            color="orange-8" 
+                            icon="assessment" 
+                            label="Tutor Salary Summary" 
+                            class="full-width premium-btn"
+                            @click="exportSalarySummary"
+                            :loading="exporting"
+                        />
+                    </div>
+                </div>
+                <div class="q-mt-md text-caption text-grey-6">
+                    <q-icon name="info" class="q-mr-xs" /> Reports will be downloaded in CSV format which can be opened in Excel or Google Sheets.
+                </div>
+            </q-card>
+        </div>
+    </div>
   </q-page>
 </template>
 
@@ -211,10 +263,12 @@ import { ref, onMounted, computed } from 'vue'
 import { useQuasar } from 'quasar'
 import { useRoute } from 'vue-router'
 import { client } from 'src/api'
+import { exportToCSV } from 'src/utils/export'
 
 const $q = useQuasar()
 const route = useRoute()
 const loading = ref(false)
+const exporting = ref(false)
 
 // Data refs
 const studentsList = ref([]) // Raw list for filtering
@@ -436,6 +490,94 @@ const processPayment = async () => {
         $q.notify({ type: 'negative', message: msg })
     } finally {
         loading.value = false
+    }
+}
+
+const exportPayments = async () => {
+    exporting.value = true
+    try {
+        const data = await client.get('payments')
+        if (!data || data.length === 0) {
+            $q.notify({ type: 'warning', message: 'No payments found to export' })
+            return
+        }
+        
+        const exportCols = [
+            { label: 'Date', field: row => new Date(row.payment_date).toLocaleString() },
+            { label: 'Student Name', field: 'student_name' },
+            { label: 'Student ID', field: 'student_id_str' },
+            { label: 'Class', field: 'class_name' },
+            { label: 'Month', field: 'month' },
+            { label: 'Amount (LKR)', field: 'amount' },
+            { label: 'Payment Method', field: 'payment_method' },
+            { label: 'Receipt No', field: 'receipt_no' }
+        ]
+        
+        exportToCSV(data, 'Payment_History', exportCols)
+        $q.notify({ type: 'positive', message: 'Payment history exported successfully' })
+    } catch (e) {
+        console.error('Export error:', e)
+        $q.notify({ type: 'negative', message: 'Export failed' })
+    } finally {
+        exporting.value = false
+    }
+}
+
+const exportMonthlyReport = async () => {
+    exporting.value = true
+    try {
+        const data = await client.get('stats') // Assuming stats has some breakdown or we aggregate payments
+        const payments = await client.get('payments')
+        
+        // Simple aggregation by month
+        const monthlyData = {}
+        payments.forEach(p => {
+            if (!monthlyData[p.month]) {
+                monthlyData[p.month] = { month: p.month, total: 0, count: 0 }
+            }
+            monthlyData[p.month].total += p.amount
+            monthlyData[p.month].count += 1
+        })
+        
+        const reportData = Object.values(monthlyData)
+        const exportCols = [
+            { label: 'Month', field: 'month' },
+            { label: 'Total Collections', field: 'total' },
+            { label: 'Transaction Count', field: 'count' }
+        ]
+        
+        exportToCSV(reportData, 'Monthly_Collection_Summary', exportCols)
+        $q.notify({ type: 'positive', message: 'Monthly report exported' })
+    } catch (e) {
+        $q.notify({ type: 'negative', message: 'Failed to generate report' })
+    } finally {
+        exporting.value = false
+    }
+}
+
+const exportSalarySummary = async () => {
+    exporting.value = true
+    try {
+        // Fetch tutors and classes to estimate salaries or fetch from salary table if exists
+        // For now, let's export tutor bank details and subjects as a starting point for finance
+        const tutors = await client.get('tutors')
+        
+        const exportCols = [
+            { label: 'Tutor Name', field: 'name' },
+            { label: 'Subject', field: 'subject' },
+            { label: 'Phone', field: 'phone' },
+            { label: 'Bank Name', field: 'bank_name' },
+            { label: 'Account Name', field: 'bank_account_name' },
+            { label: 'Account Number', field: 'bank_account_number' },
+            { label: 'Branch', field: 'bank_branch' }
+        ]
+        
+        exportToCSV(tutors, 'Tutor_Financial_Details', exportCols)
+        $q.notify({ type: 'positive', message: 'Tutor data exported' })
+    } catch (e) {
+        $q.notify({ type: 'negative', message: 'Failed to export tutor data' })
+    } finally {
+        exporting.value = false
     }
 }
 </script>
