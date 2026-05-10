@@ -198,18 +198,39 @@ const onSubmit = async () => {
   
   try {
     const response = await auth.register(email.value, password.value, whatsapp.value, turnstileToken.value)
+    console.log('Registration Response:', response)
+
+    // Save user info if available
+    if (response.user) {
+        localStorage.setItem('classmaster-user', JSON.stringify(response.user))
+    }
 
     // Trigger Verification Email via EmailJS
-    if (response.verificationToken) {
+    let vToken = response.verificationToken
+    
+    // Fallback: If token not in root response, check user object or fetch it
+    if (!vToken && response.user?.verification_token) {
+        vToken = response.user.verification_token
+    }
+
+    if (vToken) {
         try {
-            await emailService.sendVerificationEmail(email.value, response.verificationToken)
+            console.log('Sending verification email to:', email.value)
+            await emailService.sendVerificationEmail(email.value, vToken)
             $q.notify({
                 type: 'info',
                 message: 'Verification email sent! Please check your inbox.',
                 position: 'top'
             })
         } catch (e) {
-            console.error('Failed to send verification email:', e)
+            console.error('EmailJS Error in RegisterPage:', e)
+        }
+    } else {
+        console.warn('No verification token found in registration response')
+        // Try to fetch user to see if token is there
+        const latestUser = await auth.getUser()
+        if (latestUser && latestUser.verification_token) {
+            await emailService.sendVerificationEmail(email.value, latestUser.verification_token)
         }
     }
 

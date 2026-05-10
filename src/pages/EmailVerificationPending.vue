@@ -11,16 +11,10 @@
         </p>
         
         <div class="q-gutter-y-md">
-          <q-btn 
-            color="primary" 
-            label="I've Verified My Email" 
-            class="full-width premium-btn" 
-            size="lg"
-            unelevated
-            no-caps
-            @click="checkStatus"
-            :loading="loading"
-          />
+          <div class="q-py-md">
+            <q-spinner-dots color="primary" size="2em" />
+            <div class="text-caption text-grey-6 q-mt-sm">Checking verification status...</div>
+          </div>
           
           <q-btn 
             flat 
@@ -61,30 +55,30 @@ const cooldown = ref(0)
 let timer = null
 
 onMounted(() => {
-    // Check if user is already verified
-    checkStatus()
+    // Initial check
+    checkStatus(true)
+    
+    // Auto-poll every 5 seconds
+    timer = setInterval(() => {
+        checkStatus(false)
+    }, 5000)
 })
 
 onUnmounted(() => {
     if (timer) clearInterval(timer)
 })
 
-const checkStatus = async () => {
-    loading.value = true
+const checkStatus = async (showNotify = false) => {
     try {
         const user = await auth.getUser()
         if (user && user.is_verified) {
-            $q.notify({ type: 'positive', message: 'Email verified! Redirecting...' })
+            // Update local storage
+            localStorage.setItem('classmaster-user', JSON.stringify(user))
+            if (showNotify) $q.notify({ type: 'positive', message: 'Email verified! Redirecting...' })
             router.push('/dashboard')
-        } else {
-            if (!loading.value) {
-                $q.notify({ type: 'info', message: 'Email not verified yet. Please check your inbox.' })
-            }
         }
     } catch (e) {
-        console.error(e)
-    } finally {
-        loading.value = false
+        console.error('Polling error:', e)
     }
 }
 
