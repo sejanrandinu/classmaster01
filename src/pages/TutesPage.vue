@@ -291,7 +291,7 @@ const fetchOptions = async () => {
     
     const subs = await client.get('subjects')
     subjectOptions.value = subs.map(s => s.name)
-  } catch (e) {
+  } catch {
     console.warn('Options fetch failed')
   }
 }
@@ -371,7 +371,7 @@ const saveTute = async () => {
     $q.notify({ type: 'positive', message: `Tute ${isEdit.value ? 'updated' : 'uploaded'} successfully` })
     showDialog.value = false
     fetchTutes()
-  } catch (error) {
+  } catch {
     $q.notify({ type: 'negative', message: 'Error saving tute' })
   } finally {
     saving.value = false
@@ -389,7 +389,7 @@ const deleteTute = (id) => {
       await tutes.delete(id)
       $q.notify({ type: 'positive', message: 'Tute deleted' })
       fetchTutes()
-    } catch (e) {
+    } catch {
       $q.notify({ type: 'negative', message: 'Delete failed' })
     }
   })

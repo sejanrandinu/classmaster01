@@ -5,16 +5,6 @@
       <q-btn color="primary" icon="person_add" label="Add Tutor" unelevated no-caps @click="openAddDialog" />
     </div>
 
-    <!-- Empty State -->
-    <div v-if="rows.length === 0" class="flex flex-center bg-white rounded-borders q-pa-xl border-grey">
-        <div class="text-center">
-            <q-icon name="person_off" size="64px" color="grey-4" />
-            <div class="text-h6 text-grey-6 q-mt-md">No tutors found</div>
-            <p class="text-grey-5">Get started by adding a new tutor.</p>
-            <q-btn color="primary" label="Add Tutor" unelevated no-caps class="q-mt-sm" @click="openAddDialog" />
-        </div>
-    </div>
-
     <!-- Filters Row -->
     <div class="row q-col-gutter-md q-mb-md">
       <div class="col-12 col-sm-6">
@@ -37,6 +27,16 @@
           bg-color="white"
         />
       </div>
+    </div>
+
+    <!-- Empty State -->
+    <div v-if="rows.length === 0" class="flex flex-center bg-white rounded-borders q-pa-xl border-grey">
+        <div class="text-center">
+            <q-icon name="person_off" size="64px" color="grey-4" />
+            <div class="text-h6 text-grey-6 q-mt-md">No tutors found</div>
+            <p class="text-grey-5">Get started by adding a new tutor.</p>
+            <q-btn color="primary" label="Add Tutor" unelevated no-caps class="q-mt-sm" @click="openAddDialog" />
+        </div>
     </div>
 
     <q-card v-else flat bordered class="rounded-borders">
