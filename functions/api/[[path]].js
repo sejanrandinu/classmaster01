@@ -248,7 +248,8 @@ export async function onRequest(context) {
                     e.subject_name,
                     (SELECT COUNT(*) + 1 FROM exam_results WHERE exam_id = er.exam_id AND marks_obtained > er.marks_obtained) as rank,
                     (SELECT COUNT(*) FROM exam_results WHERE exam_id = er.exam_id) as total_students,
-                    (SELECT AVG(marks_obtained) FROM exam_results WHERE exam_id = er.exam_id) as average_marks
+                    (SELECT AVG(marks_obtained) FROM exam_results WHERE exam_id = er.exam_id) as average_marks,
+                    (SELECT MAX(marks_obtained) FROM exam_results WHERE exam_id = er.exam_id) as highest_marks
                 FROM exam_results er
                 LEFT JOIN exams e ON er.exam_id = e.id
                 WHERE er.student_id = ?

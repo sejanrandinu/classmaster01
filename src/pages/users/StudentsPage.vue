@@ -225,7 +225,7 @@
                                     <q-img v-if="qrStudent?.image_url" :src="qrStudent.image_url" class="student-photo-img" />
                                     <div v-else class="full-height flex flex-center">
                                         <qrcode-vue 
-                                            :value="qrStudent?.student_id" 
+                                            :value="getPortalUrl(qrStudent?.student_id)" 
                                             :size="globalSettings.card_layout_type === 'compact' ? 80 : 100" 
                                             level="H" 
                                         />
@@ -239,7 +239,7 @@
                             <div class="qr-container-premium mini-qr">
                                 <div class="qr-wrapper bg-white q-pa-xs">
                                     <qrcode-vue 
-                                        :value="qrStudent?.student_id" 
+                                        :value="getPortalUrl(qrStudent?.student_id)" 
                                         :size="60" 
                                         level="H" 
                                         render-as="canvas"
@@ -260,19 +260,24 @@
                                             <div class="text-subtitle1 text-weight-bold no-line-height">{{ qrStudent?.grade }}</div>
                                         </div>
                                         <div class="col-6">
+                                            <div class="text-caption text-indigo-2 text-uppercase font-size-10 text-weight-bold">Student ID</div>
+                                            <div class="text-subtitle1 text-weight-bold no-line-height text-yellow-7">{{ qrStudent?.student_id }}</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="row q-col-gutter-sm q-mt-xs">
+                                        <div class="col-6">
                                             <div class="text-caption text-indigo-2 text-uppercase font-size-10 text-weight-bold">WhatsApp</div>
                                             <div class="text-subtitle1 text-weight-bold flex items-center no-line-height">
                                                 <q-icon name="fab fa-whatsapp" size="14px" color="light-green-13" class="q-mr-xs" />
                                                 {{ qrStudent?.contact }}
                                             </div>
                                         </div>
-                                    </div>
-                                    
-                                    <div class="detail-item q-mt-sm">
-                                        <div class="text-caption text-indigo-2 text-uppercase font-size-10 text-weight-bold">Institute</div>
-                                        <div class="text-subtitle2 text-weight-medium text-indigo-1">
-                                            <q-icon name="location_on" size="12px" class="q-mr-xs" />
-                                            {{ qrStudent?.school }}
+                                        <div class="col-6">
+                                            <div class="text-caption text-indigo-2 text-uppercase font-size-10 text-weight-bold">Institute</div>
+                                            <div class="text-subtitle2 text-weight-medium text-indigo-1">
+                                                {{ qrStudent?.school }}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -427,6 +432,10 @@ const toggleTuteStatus = async (tuteId) => {
 // QR State
 const showQRDialog = ref(false)
 const qrStudent = ref(null)
+const getPortalUrl = (id) => {
+    if (!id) return ''
+    return `${window.location.origin}/student-portal?id=${id}`
+}
 const globalSettings = ref({
     card_background_url: '',
     card_theme_color: '#0d124d',
@@ -605,7 +614,7 @@ const downloadCard = async () => {
 
 const openAddDialog = () => {
     isEdit.value = false
-    const nextId = 'ST-2024' + Math.floor(Math.random() * 10000)
+    const nextId = 'ST-2026' + Math.floor(Math.random() * 10000)
     form.value = { id: null, student_id: nextId, name: '', school: '', grade: '', contact: '', status: 'Active', photo_url: '', subjects: [] }
     showDialog.value = true
 }
