@@ -15,16 +15,40 @@
         </div>
     </div>
 
+    <!-- Filters Row -->
+    <div class="row q-col-gutter-md q-mb-md">
+      <div class="col-12 col-sm-6">
+        <q-select 
+          outlined 
+          dense 
+          v-model="selectedSubject" 
+          :options="['All Subjects', ...subjectOptions]" 
+          label="Filter by Subject"
+          bg-color="white"
+        />
+      </div>
+      <div class="col-12 col-sm-6">
+        <q-select 
+          outlined 
+          dense 
+          v-model="selectedGrade" 
+          :options="['All Grades', ...gradeOptions]" 
+          label="Filter by Grade"
+          bg-color="white"
+        />
+      </div>
+    </div>
+
     <q-card v-else flat bordered class="rounded-borders">
       <q-table
         flat
-        :rows="rows"
+        :rows="filteredRows"
         :columns="columns"
         row-key="id"
         :filter="filter"
       >
         <template v-slot:top-right>
-          <q-input borderless dense debounce="300" v-model="filter" placeholder="Search Tutors">
+          <q-input borderless dense debounce="300" v-model="filter" placeholder="Search Tutors...">
             <template v-slot:append>
               <q-icon name="search" />
             </template>
@@ -132,6 +156,21 @@ const filter = ref('')
 const showDialog = ref(false)
 const isEdit = ref(false)
 const loading = ref(false)
+
+// Filter State
+const selectedSubject = ref('All Subjects')
+const selectedGrade = ref('All Grades')
+const gradeOptions = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'Grade 13']
+
+import { computed } from 'vue'
+
+const filteredRows = computed(() => {
+    return rows.value.filter(row => {
+        const matchSubject = selectedSubject.value === 'All Subjects' || row.subject === selectedSubject.value
+        const matchGrade = selectedGrade.value === 'All Grades' || (row.grades && row.grades.includes(selectedGrade.value))
+        return matchSubject && matchGrade
+    })
+})
 
 // Form Data
 const form = ref({

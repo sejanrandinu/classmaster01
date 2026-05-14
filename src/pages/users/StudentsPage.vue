@@ -15,16 +15,62 @@
         </div>
     </div>
 
+    <!-- Filters Row -->
+    <div class="row q-col-gutter-md q-mb-md">
+      <div class="col-12 col-sm-3">
+        <q-select 
+          outlined 
+          dense 
+          v-model="selectedGrade" 
+          :options="['All Grades', ...gradeOptions]" 
+          label="Filter by Grade"
+          bg-color="white"
+        />
+      </div>
+      <div class="col-12 col-sm-3">
+        <q-select 
+          outlined 
+          dense 
+          v-model="selectedSubject" 
+          :options="['All Subjects', ...subjectOptions]" 
+          label="Filter by Subject"
+          bg-color="white"
+        />
+      </div>
+      <div class="col-12 col-sm-3">
+        <q-select 
+          outlined 
+          dense 
+          v-model="selectedStatus" 
+          :options="['All Status', 'Active', 'Inactive']" 
+          label="Filter by Status"
+          bg-color="white"
+        />
+      </div>
+      <div class="col-12 col-sm-3">
+        <q-input 
+          outlined 
+          dense 
+          v-model="selectedSchool" 
+          label="Filter by Institute"
+          bg-color="white"
+          debounce="300"
+        >
+          <template v-slot:append><q-icon name="business" /></template>
+        </q-input>
+      </div>
+    </div>
+
     <q-card v-else flat bordered class="rounded-borders">
       <q-table
         flat
-        :rows="rows"
+        :rows="filteredRows"
         :columns="columns"
         row-key="id"
         :filter="filter"
       >
         <template v-slot:top-right>
-          <q-input borderless dense debounce="300" v-model="filter" placeholder="Search">
+          <q-input borderless dense debounce="300" v-model="filter" placeholder="Search students...">
             <template v-slot:append>
               <q-icon name="search" />
             </template>
@@ -59,6 +105,18 @@
                                     <q-icon name="qr_code_2" />
                                 </q-item-section>
                                 <q-item-section>View ID Card</q-item-section>
+                            </q-item>
+                            <q-item v-if="props.row.whatsapp_group_url" clickable class="text-green-7" :href="props.row.whatsapp_group_url" target="_blank">
+                                <q-item-section avatar>
+                                    <q-icon name="fa-brands fa-whatsapp" />
+                                </q-item-section>
+                                <q-item-section>WhatsApp Group</q-item-section>
+                            </q-item>
+                            <q-item clickable class="text-indigo-7" @click="openTutesDialog(props.row)">
+                                <q-item-section avatar>
+                                    <q-icon name="description" />
+                                </q-item-section>
+                                <q-item-section>Tutes Status</q-item-section>
                             </q-item>
                             <q-item clickable @click="openEditDialog(props.row)">
                                 <q-item-section avatar>
@@ -238,13 +296,56 @@
             </q-card-actions>
         </q-card>
     </q-dialog>
+
+    <!-- Tutes Status Dialog -->
+    <q-dialog v-model="showTutesDialog">
+        <q-card style="width: 500px; max-width: 95vw; border-radius: 15px;">
+            <q-card-section class="row items-center q-pb-none">
+                <div class="text-h6">Tutes Delivery: {{ tuteStudent?.name }}</div>
+                <q-space />
+                <q-btn icon="close" flat round dense v-close-popup />
+            </q-card-section>
+
+            <q-card-section class="q-pa-md">
+                <div v-if="availableTutes.length === 0" class="text-center q-pa-xl text-grey-6">
+                    <q-icon name="description" size="48px" class="q-mb-md" />
+                    <div>No tutorials found for this student's grade/subjects.</div>
+                </div>
+                <q-list v-else bordered separator class="rounded-borders">
+                    <q-item v-for="tute in availableTutes" :key="tute.id">
+                        <q-item-section>
+                            <q-item-label class="text-weight-bold">{{ tute.title }}</q-item-label>
+                            <q-item-label caption>{{ tute.subject_name }} | {{ tute.file_type }}</q-item-label>
+                        </q-item-section>
+                        <q-item-section side>
+                            <q-btn 
+                                :color="isTuteReceived(tute.id) ? 'green' : 'grey-4'" 
+                                :text-color="isTuteReceived(tute.id) ? 'white' : 'grey-9'"
+                                :icon="isTuteReceived(tute.id) ? 'check_circle' : 'radio_button_unchecked'" 
+                                :label="isTuteReceived(tute.id) ? 'Received' : 'Mark Received'" 
+                                unelevated 
+                                no-caps
+                                size="sm"
+                                :loading="tuteLoading === tute.id"
+                                @click="toggleTuteStatus(tute.id)"
+                            />
+                        </q-section>
+                    </q-item>
+                </q-list>
+            </q-card-section>
+            
+            <q-card-actions align="right" class="q-pa-md">
+                <q-btn flat label="Done" color="primary" v-close-popup />
+            </q-card-actions>
+        </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
-import { client } from 'src/api'
+import { client, tutes, studentTutes } from 'src/api'
 import QrcodeVue from 'qrcode.vue'
 import html2canvas from 'html2canvas'
 
@@ -253,6 +354,75 @@ const filter = ref('')
 const showDialog = ref(false)
 const isEdit = ref(false)
 const loading = ref(false)
+
+// New Filter State
+const selectedGrade = ref('All Grades')
+const selectedSubject = ref('All Subjects')
+const selectedStatus = ref('All Status')
+const selectedSchool = ref('')
+const gradeOptions = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'Grade 13']
+
+import { computed } from 'vue'
+
+const filteredRows = computed(() => {
+    return rows.value.filter(row => {
+        const matchGrade = selectedGrade.value === 'All Grades' || row.grade === selectedGrade.value
+        const matchStatus = selectedStatus.value === 'All Status' || row.status === selectedStatus.value
+        const matchSchool = !selectedSchool.value || (row.school && row.school.toLowerCase().includes(selectedSchool.value.toLowerCase()))
+        const matchSubject = selectedSubject.value === 'All Subjects' || (row.subjects && row.subjects.includes(selectedSubject.value))
+        
+        return matchGrade && matchStatus && matchSchool && matchSubject
+    })
+})
+
+// Tute Tracking State
+const showTutesDialog = ref(false)
+const tuteStudent = ref(null)
+const availableTutes = ref([])
+const receivedTutes = ref([])
+const tuteLoading = ref(null)
+
+const openTutesDialog = async (student) => {
+    tuteStudent.value = student
+    showTutesDialog.value = true
+    fetchAvailableTutes(student)
+}
+
+const fetchAvailableTutes = async (student) => {
+    try {
+        const [allTutes, studentTuteHistory] = await Promise.all([
+            tutes.getAll({ grade: student.grade }),
+            studentTutes.getAll({ student_id: student.id })
+        ])
+        
+        // Filter tutes by student's subjects
+        availableTutes.value = allTutes.filter(t => 
+            student.subjects && student.subjects.includes(t.subject_name)
+        )
+        receivedTutes.value = studentTuteHistory.map(h => h.tute_id)
+    } catch (e) {
+        console.error('Error fetching tutes for student:', e)
+    }
+}
+
+const isTuteReceived = (tuteId) => receivedTutes.value.includes(tuteId)
+
+const toggleTuteStatus = async (tuteId) => {
+    tuteLoading.value = tuteId
+    try {
+        if (isTuteReceived(tuteId)) {
+            await studentTutes.remove(tuteStudent.value.id, tuteId)
+            receivedTutes.value = receivedTutes.value.filter(id => id !== tuteId)
+        } else {
+            await studentTutes.markReceived(tuteStudent.value.id, tuteId)
+            receivedTutes.value.push(tuteId)
+        }
+    } catch (e) {
+        $q.notify({ type: 'negative', message: 'Failed to update status' })
+    } finally {
+        tuteLoading.value = null
+    }
+}
 
 // QR State
 const showQRDialog = ref(false)

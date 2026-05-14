@@ -101,7 +101,12 @@
                             <span class="amount">{{ Number(item.fee).toLocaleString() }}</span>
                             <span class="period">/month</span>
                         </div>
-                        <q-btn flat color="primary" label="Details" no-caps icon-right="chevron_right" @click="showClassDetails(item)" />
+                        <div class="row q-gutter-xs">
+                          <q-btn v-if="item.whatsapp_group_url" flat round color="green-7" icon="fa-brands fa-whatsapp" :href="item.whatsapp_group_url" target="_blank">
+                            <q-tooltip>WhatsApp Group</q-tooltip>
+                          </q-btn>
+                          <q-btn flat color="primary" label="Details" no-caps icon-right="chevron_right" @click="showClassDetails(item)" />
+                        </div>
                     </div>
                 </q-card-section>
             </q-card>
@@ -162,6 +167,15 @@
                     >
                         <template v-slot:prepend><q-icon name="person_pin" color="primary" /></template>
                     </q-select>
+
+                    <q-input 
+                        filled 
+                        v-model="form.whatsapp_group_url" 
+                        label="WhatsApp Group Link" 
+                        placeholder="https://chat.whatsapp.com/..."
+                    >
+                        <template v-slot:prepend><q-icon name="fa-brands fa-whatsapp" color="green-7" /></template>
+                    </q-input>
 
                     <div class="row q-col-gutter-lg">
                         <div class="col-12 col-md-6">
@@ -429,7 +443,8 @@ const form = ref({
     fee: 3500,
     status: 'Active',
     image_url: '',
-    color_theme: null
+    color_theme: null,
+    whatsapp_group_url: ''
 })
 
 const suggestImage = () => {

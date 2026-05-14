@@ -328,6 +328,9 @@ export async function onRequest(context) {
                 if (subPath === 'by-id') {
                     const sid = pathParts[2];
                     const s = await db.prepare("SELECT * FROM students WHERE user_id = ? AND student_id = ?").bind(userId, sid).first();
+                    if (s) {
+                        try { s.subjects = JSON.parse(s.subjects_json || '[]'); } catch (e) { s.subjects = []; }
+                    }
                     return json(s);
                 }
                 const grade = url.searchParams.get('grade');
@@ -336,11 +339,23 @@ export async function onRequest(context) {
                 const p = [userId];
                 if (grade) { q += " AND grade = ?"; p.push(grade); }
                 if (status) { q += " AND status = ?"; p.push(status); }
-                const { results } = await db.prepare(q + " ORDER BY name ASC").bind(...p).all();
-                const mapped = (results || []).map(s => {
+                const { results: students } = await db.prepare(q + " ORDER BY name ASC").bind(...p).all();
+                const { results: classes } = await db.prepare("SELECT subject_name, whatsapp_group_url FROM classes WHERE user_id = ? AND whatsapp_group_url IS NOT NULL").bind(userId).all();
+                
+                const mapped = (students || []).map(s => {
                     let subjects = [];
                     try { subjects = JSON.parse(s.subjects_json || '[]'); } catch (e) { subjects = []; }
-                    return { ...s, subjects };
+                    
+                    const groups = (classes || [])
+                        .filter(c => subjects.includes(c.subject_name))
+                        .map(c => c.whatsapp_group_url);
+                        
+                    return { 
+                        ...s, 
+                        subjects,
+                        whatsapp_group_url: groups.length > 0 ? groups[0] : null,
+                        all_whatsapp_groups: groups
+                    };
                 });
                 return json(mapped);
             }
@@ -402,7 +417,7 @@ export async function onRequest(context) {
                 const now = new Date(Date.now() + 5.5 * 3600000);
                 const todayDate = now.toISOString().split('T')[0];
 
-                let q = "SELECT id, name, name as class_name, tutor_name, tutor_name as tutor, subject_name, subject_name as subject, grade, day, class_date, start_time, end_time, fee, status, image_url, color_theme FROM classes WHERE user_id = ?";
+                let q = "SELECT id, name, name as class_name, tutor_name, tutor_name as tutor, subject_name, subject_name as subject, grade, day, class_date, start_time, end_time, fee, status, image_url, color_theme, whatsapp_group_url FROM classes WHERE user_id = ?";
                 const p = [userId];
                 if (grade) { q += " AND grade = ?"; p.push(grade); }
                 if (status) { q += " AND status = ?"; p.push(status); }
@@ -421,8 +436,8 @@ export async function onRequest(context) {
             if (method === 'POST') {
                 const d = await request.json();
                 try {
-                    await db.prepare("INSERT INTO classes (user_id, name, tutor_name, subject_name, grade, day, class_date, start_time, end_time, fee, status, image_url, color_theme) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-                        .bind(userId, d.class_name, d.tutor, d.subject, d.grade, d.day, d.class_date || null, d.start_time, d.end_time, d.fee, d.status || 'Active', d.image_url || null, d.color_theme || null).run();
+                    await db.prepare("INSERT INTO classes (user_id, name, tutor_name, subject_name, grade, day, class_date, start_time, end_time, fee, status, image_url, color_theme, whatsapp_group_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                        .bind(userId, d.class_name, d.tutor, d.subject, d.grade, d.day, d.class_date || null, d.start_time, d.end_time, d.fee, d.status || 'Active', d.image_url || null, d.color_theme || null, d.whatsapp_group_url || null).run();
                     await logActivity('class', `Scheduled class ${d.class_name}`);
                     return json({ message: "Added" });
                 } catch (e) {
@@ -433,8 +448,8 @@ export async function onRequest(context) {
             if (method === 'PUT' && subPath) {
                 const d = await request.json();
                 try {
-                    await db.prepare("UPDATE classes SET name = ?, tutor_name = ?, subject_name = ?, grade = ?, day = ?, class_date = ?, start_time = ?, end_time = ?, fee = ?, status = ?, image_url = ?, color_theme = ? WHERE id = ? AND user_id = ?")
-                        .bind(d.class_name, d.tutor, d.subject, d.grade, d.day, d.class_date || null, d.start_time, d.end_time, d.fee, d.status, d.image_url || null, d.color_theme || null, subPath, userId).run();
+                    await db.prepare("UPDATE classes SET name = ?, tutor_name = ?, subject_name = ?, grade = ?, day = ?, class_date = ?, start_time = ?, end_time = ?, fee = ?, status = ?, image_url = ?, color_theme = ?, whatsapp_group_url = ? WHERE id = ? AND user_id = ?")
+                        .bind(d.class_name, d.tutor, d.subject, d.grade, d.day, d.class_date || null, d.start_time, d.end_time, d.fee, d.status, d.image_url || null, d.color_theme || null, d.whatsapp_group_url || null, subPath, userId).run();
                     return json({ message: "Updated" });
                 } catch (e) {
                     console.error('Class Update Error:', e);
@@ -701,6 +716,37 @@ export async function onRequest(context) {
             }
         }
 
+        // TUTES
+        if (path === 'tutes') {
+            if (method === 'GET') {
+                const className = url.searchParams.get('class_name');
+                const subjectName = url.searchParams.get('subject_name');
+                let q = "SELECT * FROM tutes WHERE user_id = ?";
+                const p = [userId];
+                if (className) { q += " AND class_name = ?"; p.push(className); }
+                if (subjectName) { q += " AND subject_name = ?"; p.push(subjectName); }
+                const { results } = await db.prepare(q + " ORDER BY created_at DESC").bind(...p).all();
+                return json(results || []);
+            }
+            if (method === 'POST') {
+                const d = await request.json();
+                await db.prepare("INSERT INTO tutes (user_id, title, description, class_name, subject_name, file_url, file_type, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+                    .bind(userId, d.title, d.description, d.class_name, d.subject_name, d.file_url, d.file_type || 'pdf', d.is_active ?? 1).run();
+                await logActivity('tute', `Uploaded tute: ${d.title}`);
+                return json({ message: "Added" });
+            }
+            if (method === 'PUT' && subPath) {
+                const d = await request.json();
+                await db.prepare("UPDATE tutes SET title = ?, description = ?, class_name = ?, subject_name = ?, file_url = ?, file_type = ?, is_active = ? WHERE id = ? AND user_id = ?")
+                    .bind(d.title, d.description, d.class_name, d.subject_name, d.file_url, d.file_type, d.is_active, subPath, userId).run();
+                return json({ message: "Updated" });
+            }
+            if (method === 'DELETE' && subPath) {
+                await db.prepare("DELETE FROM tutes WHERE id = ? AND user_id = ?").bind(subPath, userId).run();
+                return json({ message: "Deleted" });
+            }
+        }
+
         // ACTIVITIES
         if (path === 'activities' && method === 'GET') {
             const { results } = await db.prepare("SELECT content as description, recipient_type as type, created_at || 'Z' as created_at FROM messages WHERE user_id = ? AND status = 'Log' ORDER BY created_at DESC LIMIT 10").bind(userId).all();
@@ -723,6 +769,32 @@ export async function onRequest(context) {
             }
             if (method === 'DELETE' && subPath) {
                 await db.prepare("DELETE FROM profiles WHERE id = ?").bind(subPath).run();
+                return json({ message: "Deleted" });
+            }
+        }
+
+        // STUDENT TUTES (Physical Tracking)
+        if (path === 'student-tutes') {
+            if (method === 'GET') {
+                const sid = url.searchParams.get('student_id');
+                const tid = url.searchParams.get('tute_id');
+                let q = "SELECT * FROM student_tutes WHERE user_id = ?";
+                const p = [userId];
+                if (sid) { q += " AND student_id = ?"; p.push(sid); }
+                if (tid) { q += " AND tute_id = ?"; p.push(tid); }
+                const { results } = await db.prepare(q).bind(...p).all();
+                return json(results || []);
+            }
+            if (method === 'POST') {
+                const { student_id, tute_id, status } = await request.json();
+                await db.prepare("INSERT INTO student_tutes (user_id, student_id, tute_id, status) VALUES (?, ?, ?, ?) ON CONFLICT(student_id, tute_id) DO UPDATE SET status = excluded.status, received_date = CURRENT_TIMESTAMP")
+                    .bind(userId, student_id, tute_id, status || 'Received').run();
+                return json({ message: "Updated" });
+            }
+            if (method === 'DELETE') {
+                const sid = url.searchParams.get('student_id');
+                const tid = url.searchParams.get('tute_id');
+                await db.prepare("DELETE FROM student_tutes WHERE user_id = ? AND student_id = ? AND tute_id = ?").bind(userId, sid, tid).run();
                 return json({ message: "Deleted" });
             }
         }

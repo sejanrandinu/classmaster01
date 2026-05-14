@@ -107,3 +107,36 @@ export const auth = {
         return await client.put('me/password', { password: newPassword });
     }
 };
+
+export const tutes = {
+    async getAll(params = {}) {
+        let path = 'tutes';
+        const search = new URLSearchParams(params).toString();
+        if (search) path += `?${search}`;
+        return await client.get(path);
+    },
+    async create(data) {
+        return await client.post('tutes', data);
+    },
+    async update(id, data) {
+        return await client.put(`tutes/${id}`, data);
+    },
+    async delete(id) {
+        return await client.delete(`tutes/${id}`);
+    }
+};
+
+export const studentTutes = {
+    async getAll(params = {}) {
+        let path = 'student-tutes';
+        const search = new URLSearchParams(params).toString();
+        if (search) path += `?${search}`;
+        return await client.get(path);
+    },
+    async markReceived(student_id, tute_id, status = 'Received') {
+        return await client.post('student-tutes', { student_id, tute_id, status });
+    },
+    async remove(student_id, tute_id) {
+        return await client.delete(`student-tutes?student_id=${student_id}&tute_id=${tute_id}`);
+    }
+};

@@ -15,16 +15,40 @@
         </div>
     </div>
 
+    <!-- Filters Row -->
+    <div class="row q-col-gutter-md q-mb-md">
+      <div class="col-12 col-sm-6">
+        <q-select 
+          outlined 
+          dense 
+          v-model="selectedRole" 
+          :options="['All Roles', ...roleOptions]" 
+          label="Filter by Role"
+          bg-color="white"
+        />
+      </div>
+      <div class="col-12 col-sm-6">
+        <q-select 
+          outlined 
+          dense 
+          v-model="selectedStatus" 
+          :options="['All Status', 'Paid', 'Pending']" 
+          label="Filter by Payment Status (This Month)"
+          bg-color="white"
+        />
+      </div>
+    </div>
+
     <q-card v-else flat bordered class="rounded-borders">
       <q-table
         flat
-        :rows="rows"
+        :rows="filteredRows"
         :columns="columns"
         row-key="id"
         :filter="filter"
       >
         <template v-slot:top-right>
-          <q-input borderless dense debounce="300" v-model="filter" placeholder="Search Staff">
+          <q-input borderless dense debounce="300" v-model="filter" placeholder="Search Staff Members...">
             <template v-slot:append>
               <q-icon name="search" />
             </template>
@@ -197,6 +221,21 @@ const showHistoryDialog = ref(false)
 const isEdit = ref(false)
 const loading = ref(false)
 const loadingHistory = ref(false)
+
+// Filter State
+const selectedRole = ref('All Roles')
+const selectedStatus = ref('All Status')
+
+import { computed } from 'vue'
+
+const filteredRows = computed(() => {
+    return rows.value.filter(row => {
+        const matchRole = selectedRole.value === 'All Roles' || row.role === selectedRole.value
+        const matchStatus = selectedStatus.value === 'All Status' || 
+            (selectedStatus.value === 'Paid' ? row.isPaidThisMonth : !row.isPaidThisMonth)
+        return matchRole && matchStatus
+    })
+})
 
 // Form Data
 const form = ref({
