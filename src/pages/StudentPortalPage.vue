@@ -267,7 +267,7 @@ const fetchStudentStatus = async () => {
         const history = await studentTutes.getAll({ student_id: data.student.id })
         receivedTuteIds.value = history.map(h => h.tute_id)
 
-    } catch (e) {
+    } catch {
         $q.notify({ type: 'negative', message: 'Network synchronization failed.' })
     } finally {
         loading.value = false
