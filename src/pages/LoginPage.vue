@@ -81,6 +81,10 @@
             <div class="text-center q-mt-xl text-grey-5">
                Don't have an account? <router-link to="/register" class="text-white text-weight-bold" style="text-decoration: none;">Register Now</router-link>
             </div>
+            
+            <div class="text-center q-mt-md">
+               <q-btn flat color="indigo-2" label="Access Student Portal" to="/student-portal" no-caps icon="school" class="text-weight-bold" />
+            </div>
          </div>
       </div>
    </q-page>

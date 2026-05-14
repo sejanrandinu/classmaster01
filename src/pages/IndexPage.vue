@@ -63,6 +63,29 @@
       </div>
     </section>
 
+    <!-- Student Portal Quick Access -->
+    <div class="bg-indigo-10 q-py-lg">
+      <div class="container-xl row items-center justify-between q-px-md">
+        <div class="row items-center q-gutter-md">
+          <q-icon name="school" color="white" size="32px" />
+          <div>
+            <div class="text-h6 text-white text-weight-bold">Are you a Student?</div>
+            <div class="text-indigo-2">Check your results, attendance, and materials instantly.</div>
+          </div>
+        </div>
+        <q-btn 
+          color="white" 
+          text-color="indigo-10" 
+          label="Go to Student Portal" 
+          to="/student-portal" 
+          no-caps 
+          rounded 
+          unelevated 
+          class="text-weight-bold q-px-xl"
+        />
+      </div>
+    </div>
+
     <!-- Stats Section -->
     <div class="bg-black border-dark border-top border-bottom">
       <div class="row justify-evenly items-center text-center container-xl q-py-xl">

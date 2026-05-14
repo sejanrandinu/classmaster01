@@ -16,7 +16,7 @@
         <div class="q-gutter-sm row items-center gt-sm">
           <q-btn flat rounded label="Home" to="/" class="text-white text-weight-medium" no-caps />
           <q-btn flat rounded label="Features" href="/#features" class="text-white text-weight-medium" no-caps />
-          <q-btn flat rounded label="Testimonials" href="/#testimonials" class="text-white text-weight-medium" no-caps />
+          <q-btn flat rounded label="Student Portal" to="/student-portal" class="text-indigo-2 text-weight-bold" no-caps icon="school" />
             
           <template v-if="!user">
              <q-btn flat rounded label="Login" to="/login" class="text-white text-weight-medium" no-caps />
@@ -54,6 +54,7 @@
             <div class="text-subtitle1 text-weight-bold q-mb-md">Product</div>
             <div class="column q-gutter-sm">
               <a href="/#features" class="text-grey-5 hover-white text-decoration-none">Features</a>
+              <router-link to="/student-portal" class="text-grey-5 hover-white text-decoration-none">Student Portal</router-link>
             </div>
           </div>
           <div class="col-xs-6 col-md-2">
