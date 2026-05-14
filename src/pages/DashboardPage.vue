@@ -1,5 +1,17 @@
 <template>
   <q-page class="q-pa-md bg-grey-1">
+     <!-- Notification Banner -->
+     <div v-if="notificationPermissionNeeded" class="q-mb-md">
+        <q-banner dense class="bg-indigo-1 text-indigo-9 rounded-borders shadow-1">
+           <template v-slot:avatar><q-icon name="notifications_active" color="indigo-9" /></template>
+           Stay updated! Enable system notifications for important alerts.
+           <template v-slot:action>
+              <q-btn flat color="indigo-9" label="Enable Now" @click="requestNotificationPermission" no-caps />
+              <q-btn flat color="grey-6" label="Later" @click="showNotificationBanner = false" no-caps />
+           </template>
+        </q-banner>
+     </div>
+
      <!-- Trial Banner -->
      <div v-if="userProfile && isTrialActive" class="q-mb-md">
         <q-banner dense class="bg-blue-1 text-blue-9 rounded-borders shadow-1">
@@ -234,8 +246,25 @@ import { useQuasar } from 'quasar'
 import { client } from 'src/api'
 import gsap from 'gsap'
 import PaymentDialog from 'src/components/PaymentDialog.vue'
+import { notificationService } from 'src/utils/notifications'
 
 const router = useRouter()
+const showNotificationBanner = ref(true)
+
+const notificationPermissionNeeded = computed(() => {
+    return showNotificationBanner.value && 
+           'Notification' in window && 
+           Notification.permission === 'default'
+})
+
+const requestNotificationPermission = async () => {
+    const granted = await notificationService.requestPermission()
+    if (granted) {
+        $q.notify({ type: 'positive', message: 'Notifications enabled!' })
+        notificationService.send('Welcome to ClassMaster!', { body: 'You will now receive important updates here.' })
+    }
+    showNotificationBanner.value = false
+}
 
 // Stats
 const stats = ref([

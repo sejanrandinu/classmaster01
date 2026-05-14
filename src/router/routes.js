@@ -10,8 +10,7 @@ const routes = [
       { path: 'terms-of-service', component: () => import('pages/TermsOfServicePage.vue') },
       { path: 'about-us', component: () => import('pages/AboutUsPage.vue') },
       { path: 'contact', component: () => import('pages/ContactPage.vue') },
-
-
+      { path: 'student-portal', component: () => import('pages/StudentPortalPage.vue') },
     ]
   },
 
@@ -28,6 +27,7 @@ const routes = [
        { path: 'attendance-history', component: () => import('pages/AttendanceHistoryPage.vue'), meta: { requiresAuth: true } },
        { path: 'fees', component: () => import('pages/FeesPage.vue'), meta: { requiresAuth: true } },
       { path: 'tutes', component: () => import('pages/TutesPage.vue'), meta: { requiresAuth: true } },
+      { path: 'exams', component: () => import('pages/ExamsPage.vue'), meta: { requiresAuth: true } },
       { path: 'messages', component: () => import('pages/MessagingPage.vue'), meta: { requiresAuth: true } },
       { path: 'sms-settings', component: () => import('pages/SmsSettingsPage.vue'), meta: { requiresAuth: true } },
       { path: 'roles', component: () => import('pages/users/RolesPage.vue'), meta: { requiresAuth: true } },

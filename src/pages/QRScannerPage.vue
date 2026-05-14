@@ -115,10 +115,46 @@
                                 icon="open_in_new" 
                                 label="Manual Entry" 
                                 no-caps 
-                                size="sm"
+                                size="sm" 
                                 class="full-width q-mt-xs"
                                 @click="goToFees"
                             />
+                        </q-card>
+                    </div>
+
+                    <!-- Tutes Section -->
+                    <div class="col-12 q-mt-md">
+                        <q-card flat bordered class="q-pa-md bg-indigo-50">
+                            <div class="row items-center justify-between">
+                                <div class="text-subtitle1 text-weight-bold text-indigo-9">Tutes & Materials</div>
+                                <div v-if="tuteLoadingStatus"><q-spinner-dots color="indigo-9" /></div>
+                            </div>
+                            
+                            <div v-if="availableTutes.length === 0 && !tuteLoadingStatus" class="text-caption text-grey-6 q-mt-sm">
+                                No physical tutes assigned for this student.
+                            </div>
+                            <q-list v-else dense separator class="q-mt-sm rounded-borders border-grey overflow-hidden">
+                                <q-item v-for="tute in availableTutes" :key="tute.id" class="bg-white">
+                                    <q-item-section>
+                                        <q-item-label class="text-weight-bold">{{ tute.title }}</q-item-label>
+                                        <q-item-label caption>{{ tute.subject_name }}</q-item-label>
+                                    </q-item-section>
+                                    <q-item-section side>
+                                        <q-btn 
+                                            :color="isTuteReceived(tute.id) ? 'green' : 'grey-4'" 
+                                            :text-color="isTuteReceived(tute.id) ? 'white' : 'grey-9'"
+                                            :icon="isTuteReceived(tute.id) ? 'check_circle' : 'radio_button_unchecked'" 
+                                            size="sm"
+                                            unelevated 
+                                            round
+                                            :loading="tuteMarkingId === tute.id"
+                                            @click="toggleTuteStatus(tute.id)"
+                                        >
+                                            <q-tooltip>{{ isTuteReceived(tute.id) ? 'Received' : 'Mark Received' }}</q-tooltip>
+                                        </q-btn>
+                                    </q-item-section>
+                                </q-item>
+                            </q-list>
                         </q-card>
                     </div>
                 </div>
@@ -137,7 +173,7 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useQuasar } from 'quasar'
 import { useRouter } from 'vue-router'
-import { client } from 'src/api'
+import { client, tutes, studentTutes } from 'src/api'
 import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode'
 
 const $q = useQuasar()
@@ -154,6 +190,51 @@ const attendanceLoading = ref(false)
 const markingAttendance = ref(false)
 const feesLoading = ref(false)
 const markingFees = ref(false)
+
+// Tute Tracking State
+const availableTutes = ref([])
+const receivedTutes = ref([])
+const tuteLoadingStatus = ref(false)
+const tuteMarkingId = ref(null)
+
+const isTuteReceived = (tuteId) => receivedTutes.value.includes(tuteId)
+
+const fetchStudentTutes = async (student) => {
+    tuteLoadingStatus.value = true
+    try {
+        const [allTutes, studentTuteHistory] = await Promise.all([
+            tutes.getAll({ grade: student.grade }),
+            studentTutes.getAll({ student_id: student.id })
+        ])
+        
+        // Filter tutes by student's subjects
+        availableTutes.value = allTutes.filter(t => 
+            student.subjects && student.subjects.includes(t.subject_name)
+        )
+        receivedTutes.value = studentTuteHistory.map(h => h.tute_id)
+    } catch {
+        console.warn('Error fetching tutes')
+    } finally {
+        tuteLoadingStatus.value = false
+    }
+}
+
+const toggleTuteStatus = async (tuteId) => {
+    tuteMarkingId.value = tuteId
+    try {
+        if (isTuteReceived(tuteId)) {
+            await studentTutes.remove(scannedStudent.value.id, tuteId)
+            receivedTutes.value = receivedTutes.value.filter(id => id !== tuteId)
+        } else {
+            await studentTutes.markReceived(scannedStudent.value.id, tuteId)
+            receivedTutes.value.push(tuteId)
+        }
+    } catch {
+        $q.notify({ type: 'negative', message: 'Failed to update status' })
+    } finally {
+        tuteMarkingId.value = null
+    }
+}
 
 const currentMonth = new Date().toLocaleString('default', { month: 'long', year: 'numeric' })
 const todayDate = new Date().toISOString().split('T')[0]
@@ -271,6 +352,7 @@ const handleScannedStudent = async (studentId) => {
         scannedStudent.value = student
         fetchAttendance(student.id)
         fetchFees(student.id)
+        fetchStudentTutes(student)
         
         // Auto-mark attendance
         markAttendanceAuto()
@@ -344,7 +426,8 @@ const sendAttendanceWA = (student) => {
     // Clean all non-numeric characters
     phone = phone.replace(/\D/g, '')
 
-    const message = `Halo ${student.name}, අද පන්තියට පැමිණි බව අපි සටහන් කර ගත්තා. ස්තූතියි!`
+    const portalLink = `${window.location.origin}/#/student-portal?id=${student.student_id}`
+    const message = `Halo ${student.name}, අද පන්තියට පැමිණි බව අපි සටහන් කර ගත්තා. ඔබේ පැමිණීම සහ ගෙවීම් මෙතැනින් පරීක්ෂා කරන්න: ${portalLink}`
     const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
     
     // Attempt to open WhatsApp

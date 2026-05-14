@@ -146,6 +146,13 @@
                     <q-item-section class="text-weight-medium">{{ t.tutes }}</q-item-section>
                 </q-item>
 
+                <q-item clickable v-ripple to="/dashboard/exams" active-class="bg-primary text-white">
+                    <q-item-section avatar>
+                        <q-icon name="assignment" />
+                    </q-item-section>
+                    <q-item-section class="text-weight-medium">{{ t.exams }}</q-item-section>
+                </q-item>
+
                 <q-item clickable v-ripple to="/dashboard/messages" active-class="bg-primary text-white">
                     <q-item-section avatar>
                         <q-icon name="send" />

@@ -227,8 +227,46 @@ export async function onRequest(context) {
             return json({ message: "Verification email sent" });
         }
 
-        if (path === 'auth' && subPath === 'reset-password' && method === 'POST') {
-            return json({ message: "Password reset email sent" });
+        // --- PUBLIC PORTAL ---
+        if (path === 'students' && subPath === 'public-portal' && method === 'GET') {
+            const sid = pathParts[2];
+            const student = await db.prepare("SELECT id, student_id, name, grade, subjects_json FROM students WHERE student_id = ?").bind(sid).first();
+            if (!student) return json(null);
+
+            const studentDbId = student.id;
+            try { student.subjects = JSON.parse(student.subjects_json || '[]'); } catch (e) { student.subjects = []; }
+
+            const { results: attendance } = await db.prepare("SELECT a.*, c.name as class_name FROM attendance a LEFT JOIN classes c ON a.class_id = c.id WHERE a.student_id = ? ORDER BY a.date DESC LIMIT 10").bind(studentDbId).all();
+            const { results: payments } = await db.prepare("SELECT * FROM payments WHERE student_id = ? ORDER BY created_at DESC LIMIT 10").bind(studentDbId).all();
+            
+            // Fetch Exam Results with Rankings
+            const { results: rawResults } = await db.prepare(`
+                SELECT 
+                    er.*, 
+                    e.title as exam_title, 
+                    e.max_marks,
+                    e.subject_name,
+                    (SELECT COUNT(*) + 1 FROM exam_results WHERE exam_id = er.exam_id AND marks_obtained > er.marks_obtained) as rank,
+                    (SELECT COUNT(*) FROM exam_results WHERE exam_id = er.exam_id) as total_students,
+                    (SELECT AVG(marks_obtained) FROM exam_results WHERE exam_id = er.exam_id) as average_marks
+                FROM exam_results er
+                LEFT JOIN exams e ON er.exam_id = e.id
+                WHERE er.student_id = ?
+                ORDER BY e.date DESC
+            `).bind(studentDbId).all();
+
+            // Add Color Coding based on performance percentage
+            const examResults = rawResults.map(r => {
+                const percentage = (r.marks_obtained / r.max_marks) * 100;
+                let group = 'red';
+                if (percentage >= 75) group = 'green';
+                else if (percentage >= 65) group = 'blue';
+                else if (percentage >= 45) group = 'yellow';
+                
+                return { ...r, percentage, group };
+            });
+
+            return json({ student, attendance, payments, examResults });
         }
 
         // --- PROTECTED ---
@@ -796,6 +834,47 @@ export async function onRequest(context) {
                 const tid = url.searchParams.get('tute_id');
                 await db.prepare("DELETE FROM student_tutes WHERE user_id = ? AND student_id = ? AND tute_id = ?").bind(userId, sid, tid).run();
                 return json({ message: "Deleted" });
+            }
+        }
+        // EXAMS
+        if (path === 'exams') {
+            if (method === 'GET') {
+                const { results } = await db.prepare("SELECT e.*, c.name as class_name FROM exams e LEFT JOIN classes c ON e.class_id = c.id WHERE c.user_id = ? ORDER BY e.date DESC").bind(userId).all();
+                return json(results || []);
+            }
+            if (method === 'POST') {
+                const d = await request.json();
+                const id = crypto.randomUUID();
+                await db.prepare("INSERT INTO exams (id, title, class_id, subject_name, date, max_marks) VALUES (?, ?, ?, ?, ?, ?)")
+                    .bind(id, d.title, d.class_id, d.subject_name, d.date, d.max_marks || 100).run();
+                return json({ message: "Created", id });
+            }
+            if (method === 'PUT' && subPath) {
+                const d = await request.json();
+                await db.prepare("UPDATE exams SET title = ?, subject_name = ?, date = ?, max_marks = ? WHERE id = ?").bind(d.title, d.subject_name, d.date, d.max_marks, subPath).run();
+                return json({ message: "Updated" });
+            }
+            if (method === 'DELETE' && subPath) {
+                await db.prepare("DELETE FROM exams WHERE id = ?").bind(subPath).run();
+                await db.prepare("DELETE FROM exam_results WHERE exam_id = ?").bind(subPath).run();
+                return json({ message: "Deleted" });
+            }
+        }
+
+        // EXAM RESULTS
+        if (path === 'exam-results') {
+            if (method === 'GET') {
+                const examId = url.searchParams.get('exam_id');
+                const { results } = await db.prepare("SELECT er.*, s.name as student_name, s.student_id as student_id_str FROM exam_results er JOIN students s ON er.student_id = s.id WHERE er.exam_id = ?").bind(examId).all();
+                return json(results || []);
+            }
+            if (subPath === 'upsert' && method === 'POST') {
+                const { exam_id, results } = await request.json();
+                for (const r of results) {
+                    await db.prepare("INSERT INTO exam_results (id, exam_id, student_id, marks_obtained, remarks) VALUES (?, ?, ?, ?, ?) ON CONFLICT(exam_id, student_id) DO UPDATE SET marks_obtained = excluded.marks_obtained, remarks = excluded.remarks")
+                        .bind(crypto.randomUUID(), exam_id, r.student_id, Number(r.marks_obtained), r.remarks || '').run();
+                }
+                return json({ message: "Saved" });
             }
         }
 

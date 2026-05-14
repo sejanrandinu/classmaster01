@@ -140,3 +140,17 @@ export const studentTutes = {
         return await client.delete(`student-tutes?student_id=${student_id}&tute_id=${tute_id}`);
     }
 };
+
+export const exams = {
+    getAll: (params) => client.get('exams', params),
+    create: (data) => client.post('exams', data),
+    update: (id, data) => client.put(`exams/${id}`, data),
+    delete: (id) => client.delete(`exams/${id}`)
+}
+
+export const examResults = {
+    getAll: (params) => client.get('exam-results', params),
+    upsert: (data) => client.post('exam-results/upsert', data), 
+    getStudentResults: (studentId) => client.get(`exam-results/student/${studentId}`),
+    getExamAnalytics: (examId) => client.get(`exam-results/analytics/${examId}`)
+}
