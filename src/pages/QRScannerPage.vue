@@ -175,8 +175,10 @@ import { useQuasar } from 'quasar'
 import { useRouter } from 'vue-router'
 import { client, tutes, studentTutes } from 'src/api'
 import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode'
+import { useAppStore } from 'src/store/app'
 
 const $q = useQuasar()
+const appStore = useAppStore()
 const router = useRouter()
 const scanner = ref(null)
 const scanning = ref(false)
@@ -418,6 +420,7 @@ const markAttendanceAuto = async () => {
 }
 
 const sendAttendanceWA = (student) => {
+    if (!appStore.whatsappEnabled) return
     if (!student.contact) return
 
     let phone = student.contact

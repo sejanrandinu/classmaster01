@@ -58,7 +58,6 @@
 
                 <div class="row items-center justify-between q-mt-sm">
                    <q-checkbox v-model="rememberMe" label="Remember me" dark color="white" dense />
-                   <q-btn flat no-caps label="Forgot Password?" color="grey-5" dense size="sm" />
                 </div>
 
 

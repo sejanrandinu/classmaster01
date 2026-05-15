@@ -215,11 +215,12 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useQuasar } from 'quasar'
 import { exams, examResults, client } from 'src/api'
 import { notificationService } from 'src/utils/notifications'
+import { useAppStore } from 'src/store/app'
 
 const $q = useQuasar()
+const appStore = useAppStore()
 const loading = ref(false)
 const saving = ref(false)
 const savingMarks = ref(false)
@@ -370,6 +371,7 @@ const saveMarks = async () => {
 }
 
 const sendMarksWA = async (row) => {
+    if (!appStore.whatsappEnabled) return
     if (!row.contact) {
         $q.notify({ type: 'warning', message: 'Student contact not found' })
         return

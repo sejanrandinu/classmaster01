@@ -268,6 +268,7 @@ const saveAttendance = async () => {
 }
 
 const notifyAllPresent = () => {
+    if (!appStore.whatsappEnabled) return
     const presentStudents = students.value.filter(s => s.attendanceStatus === 'Present' && s.contact)
     if (presentStudents.length === 0) return
 
@@ -284,8 +285,8 @@ const notifyAllPresent = () => {
 }
 
 const sendWA = (student) => {
-    if (!student.contact) return
     if (!appStore.whatsappEnabled) return
+    if (!student.contact) return
     
     let phone = student.contact
     if (phone.startsWith('0')) phone = '94' + phone.substring(1)

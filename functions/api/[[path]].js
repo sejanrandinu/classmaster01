@@ -332,7 +332,7 @@ export async function onRequest(context) {
         if (path === 'me') {
             if (method === 'GET') {
                 try {
-                    const user = await db.prepare("SELECT id, email, whatsapp_number, role, is_approved, is_email_verified, trial_ends_at, bank_name, account_number, account_holder_name, created_at, card_background_url, card_theme_color, card_layout_type, card_show_visuals FROM profiles WHERE id = ?").bind(userId).first();
+                    const user = await db.prepare("SELECT id, email, whatsapp_number, whatsapp_enabled, profile_image_url, role, is_approved, is_email_verified, trial_ends_at, bank_name, account_number, account_holder_name, created_at, card_background_url, card_theme_color, card_layout_type, card_show_visuals FROM profiles WHERE id = ?").bind(userId).first();
                     return json(user);
                 } catch (e) {
                     console.error('Fetch me error:', e);
@@ -343,7 +343,33 @@ export async function onRequest(context) {
             }
             if (method === 'POST') {
                 const d = await request.json();
-                await db.prepare("UPDATE profiles SET whatsapp_number = ?, bank_name = ?, account_number = ?, account_holder_name = ?, card_background_url = ?, card_theme_color = ?, card_layout_type = ?, card_show_visuals = ? WHERE id = ?").bind(d.whatsapp_number, d.bank_name, d.account_number, d.account_holder_name, d.card_background_url || null, d.card_theme_color || '#0d124d', d.card_layout_type || 'standard', d.card_show_visuals ?? 1, userId).run();
+                const fields = [];
+                const values = [];
+                
+                const possibleFields = [
+                    'whatsapp_number', 'bank_name', 'account_number', 'account_holder_name',
+                    'card_background_url', 'card_theme_color', 'card_layout_type', 
+                    'card_show_visuals', 'profile_image_url', 'whatsapp_enabled'
+                ];
+
+                for (const f of possibleFields) {
+                    if (d[f] !== undefined) {
+                        fields.push(`${f} = ?`);
+                        values.push(d[f]);
+                    }
+                }
+
+                if (fields.length > 0) {
+                    values.push(userId);
+                    const sql = `UPDATE profiles SET ${fields.join(', ')} WHERE id = ?`;
+                    try {
+                        await db.prepare(sql).bind(...values).run();
+                    } catch (e) {
+                        console.error('Update profile error:', e);
+                        // Fallback for missing columns - try updating only basic fields if they exist
+                        return json({ error: "Update failed. Database schema might need update." }, 500);
+                    }
+                }
                 return json({ message: "Updated" });
             }
             if (method === 'PUT' && subPath === 'password') {

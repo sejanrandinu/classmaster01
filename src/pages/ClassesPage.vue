@@ -363,8 +363,10 @@
 import { ref, onMounted, computed } from 'vue'
 import { useQuasar } from 'quasar'
 import { client } from 'src/api'
+import { useAppStore } from 'src/store/app'
 
 const $q = useQuasar()
+const appStore = useAppStore()
 const rows = ref([])
 const loading = ref(false)
 const showDialog = ref(false)
@@ -565,6 +567,7 @@ const prepareBroadcast = async (classData) => {
 }
 
 const sendBroadcast = () => {
+    if (!appStore.whatsappEnabled) return
     const studentsToNotify = targetStudents.value.filter(s => selectedBroadcastIds.value.includes(s.id))
     const classTime = lastScheduledClass.value.class_date 
       ? formatDate(lastScheduledClass.value.class_date) 
