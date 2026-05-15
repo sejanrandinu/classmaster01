@@ -9,8 +9,9 @@
       <div class="col-12 col-md-4">
         <q-card flat bordered class="rounded-borders bg-white">
           <q-card-section class="text-center q-pa-xl">
-            <q-avatar size="120px" font-size="52px" color="primary" text-color="white" class="shadow-10 q-mb-md">
-              {{ profile.email ? profile.email.charAt(0).toUpperCase() : 'U' }}
+            <q-avatar size="120px" font-size="52px" color="primary" text-color="white" class="shadow-10 q-mb-md profile-avatar-glow">
+              <img v-if="profile.profile_image_url" :src="profile.profile_image_url">
+              <template v-else>{{ profile.email ? profile.email.charAt(0).toUpperCase() : 'U' }}</template>
             </q-avatar>
             <div class="text-h5 text-weight-bold text-grey-9">{{ profile.email }}</div>
             <q-chip color="green-1" text-color="green-8" class="q-mt-sm text-weight-bold" icon="verified">
@@ -138,7 +139,8 @@ const profile = ref({
   account_number: '',
   account_holder_name: '',
   is_approved: false,
-  created_at: ''
+  created_at: '',
+  profile_image_url: ''
 })
 
 const isApproved = computed(() => {
@@ -197,3 +199,11 @@ const formatDate = (dateStr) => {
   })
 }
 </script>
+
+<style scoped lang="scss">
+.profile-avatar-glow {
+    border: 4px solid #6366f1;
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
+}
+</style>
+
