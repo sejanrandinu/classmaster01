@@ -260,12 +260,12 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import { useQuasar } from 'quasar'
-import { useRoute } from 'vue-router'
 import { client } from 'src/api'
 import { exportToCSV } from 'src/utils/export'
+import { useAppStore } from 'src/store/app'
 
 const $q = useQuasar()
+const appStore = useAppStore()
 const route = useRoute()
 const loading = ref(false)
 const exporting = ref(false)
@@ -321,15 +321,25 @@ const historyColumns = [
 ]
 
 const sendWhatsAppReceipt = (student, amount, month, receiptNo) => {
-    const message = `*ClassMaster - Payment Receipt*%0A%0A` +
-        `Student: ${student.label}%0A` +
-        `Month: ${month}%0A` +
-        `Amount: Rs. ${amount.toLocaleString()}%0A` +
-        `Receipt No: ${receiptNo}%0A` +
-        `Status: Paid%0A%0A` +
-        `*Sent to Admin Verification at 0702838364*`;
+    if (!appStore.whatsappEnabled) return
     
-    window.open(`https://wa.me/94702838364?text=${message}`, '_blank');
+    // Find the full student record for contact number and student_id
+    const fullStudent = studentsList.value.find(s => s.id === student.value)
+    if (!fullStudent || !fullStudent.contact) return
+
+    let phone = fullStudent.contact
+    if (phone.startsWith('0')) phone = '94' + phone.substring(1)
+    phone = phone.replace(/\D/g, '')
+
+    const portalLink = `${window.location.origin}/#/student-portal?id=${fullStudent.student_id}`
+    const message = `ආයුබෝවන් ${fullStudent.name}, ${month} මාසය සඳහා රු. ${amount.toLocaleString()} පන්ති ගාස්තු ගෙවීම සාර්ථකව සටහන් කර ගත්තා.
+
+ලැබීම් අංකය: ${receiptNo}
+ඔබේ සියලුම ගෙවීම් වාර්තා මෙතැනින් බලන්න: ${portalLink}
+
+ස්තූතියි!`
+    
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
 }
 
 onMounted(async () => {
