@@ -231,10 +231,11 @@ export async function onRequest(context) {
         if (path === 'students' && subPath === 'public-portal' && method === 'GET') {
             try {
                 const sid = pathParts[2];
-                const student = await db.prepare("SELECT id, student_id, name, grade, subjects_json FROM students WHERE student_id = ?").bind(sid).first();
+                const student = await db.prepare("SELECT id, user_id, student_id, name, grade, subjects_json FROM students WHERE student_id = ?").bind(sid).first();
                 if (!student) return json(null);
 
                 const studentDbId = student.id;
+                const instituteId = student.user_id;
                 try { student.subjects = JSON.parse(student.subjects_json || '[]'); } catch (e) { student.subjects = []; }
 
                 const { results: attendance } = await db.prepare("SELECT a.*, c.name as class_name FROM attendance a LEFT JOIN classes c ON a.class_id = c.id WHERE a.student_id = ? ORDER BY a.date DESC LIMIT 10").bind(studentDbId).all();
@@ -266,8 +267,8 @@ export async function onRequest(context) {
                     return { ...r, percentage, group };
                 });
 
-                // Fetch Tutes
-                const { results: allTutes } = await db.prepare("SELECT * FROM tutes WHERE grade = ?").bind(student.grade).all();
+                // Fetch Tutes (Filtered by institute, then we filter by subject in JS since class/subject logic varies)
+                const { results: allTutes } = await db.prepare("SELECT * FROM tutes WHERE user_id = ? AND is_active = 1").bind(instituteId).all();
                 const { results: studentTuteHistory } = await db.prepare("SELECT tute_id FROM student_tutes WHERE student_id = ?").bind(studentDbId).all();
                 
                 const tutes = (allTutes || []).filter(t => 
@@ -285,7 +286,7 @@ export async function onRequest(context) {
                 });
             } catch (e) {
                 console.error('Public Portal API Error:', e);
-                return json({ error: "Public Portal Data Sync Error", details: e.message }, 500);
+                return json({ error: `Public Portal Sync Error: ${e.message}` }, 500);
             }
         }
 
