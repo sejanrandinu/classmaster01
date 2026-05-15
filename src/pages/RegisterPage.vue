@@ -97,9 +97,30 @@
                 <div class="text-subtitle1 text-weight-bold text-white">Payment Information</div>
               </div>
 
-              <div class="q-mb-md">
-                <div class="text-caption text-grey-5">Registration Fee (One-time)</div>
-                <div class="text-h4 text-weight-bolder text-white">Rs. 30,000</div>
+              <div class="row q-col-gutter-md q-mb-md">
+                <div class="col-12">
+                  <div class="text-caption text-grey-5">Choose Your Payment Option:</div>
+                </div>
+                <!-- Lifetime -->
+                <div class="col-12">
+                  <div class="q-pa-md rounded-borders bg-indigo-10 border-indigo">
+                    <div class="text-caption text-indigo-3 text-uppercase text-weight-bold">Lifetime Deal</div>
+                    <div class="text-h5 text-weight-bold text-white">
+                      <span class="text-grey-6 text-strike q-mr-xs text-subtitle1">Rs. 45,000</span> Rs. 40,000
+                    </div>
+                  </div>
+                </div>
+                <!-- OR -->
+                <div class="col-12 text-center">
+                  <q-badge color="grey-9" label="OR" class="q-pa-xs" />
+                </div>
+                <!-- Monthly -->
+                <div class="col-12">
+                  <div class="q-pa-md rounded-borders" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);">
+                    <div class="text-caption text-grey-5 text-uppercase text-weight-bold">Monthly Plan</div>
+                    <div class="text-h5 text-weight-bold text-yellow-6">Rs. 5,000 / month</div>
+                  </div>
+                </div>
               </div>
               
               <div v-if="adminDetails" class="q-mb-md q-pa-md rounded-borders" style="background: linear-gradient(135deg, rgba(63, 81, 181, 0.2) 0%, rgba(33, 150, 243, 0.1) 100%); border: 1px solid rgba(255,255,255,0.2);">
@@ -249,6 +270,11 @@ const onSubmit = async () => {
     box-shadow: 0 0 25px rgba(255, 255, 255, 0.3);
     transform: translateY(-2px);
   }
+}
+
+.border-indigo {
+  border: 1px solid rgba(63, 81, 181, 0.4) !important;
+  box-shadow: 0 0 20px rgba(63, 81, 181, 0.2);
 }
 
 .google-btn {

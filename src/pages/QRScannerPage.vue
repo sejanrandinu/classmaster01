@@ -342,7 +342,24 @@ const onFileChange = async (file) => {
     }
 }
 
-const handleScannedStudent = async (studentId) => {
+const handleScannedStudent = async (scannedText) => {
+    if (!scannedText) return
+    
+    let studentId = scannedText.trim()
+    
+    // Handle Student Portal URLs (e.g. https://.../#/student-portal?id=ST001)
+    if (studentId.includes('?id=')) {
+        try {
+            // Simple extraction to avoid URL parsing issues with hash routes
+            const parts = studentId.split('?id=')
+            if (parts.length > 1) {
+                studentId = parts[1].split('&')[0].split('#')[0]
+            }
+        } catch (e) {
+            console.error('URL parse error:', e)
+        }
+    }
+
     $q.loading.show({ message: 'Fetching student details...' })
     try {
         const student = await client.get(`students/by-id/${studentId}`)
@@ -358,8 +375,12 @@ const handleScannedStudent = async (studentId) => {
         
         // Auto-mark attendance
         markAttendanceAuto()
-    } catch {
-        $q.notify({ type: 'negative', message: 'Error fetching student details' })
+    } catch (err) {
+        $q.notify({ 
+            type: 'negative', 
+            message: err.message || 'Error fetching student details',
+            caption: 'Please check your connection or trial status.'
+        })
         startScanner()
     } finally {
         $q.loading.hide()

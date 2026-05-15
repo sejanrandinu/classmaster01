@@ -296,16 +296,9 @@ const fetchStudentStatus = async () => {
         studentData.value = data.student
         attendance.value = data.attendance || []
         payments.value = data.payments || []
-        examResultsList.value = (data.examResults || []).reverse() // Chronological for charts
-
-        // Fetch tutes list for the student's grade/subjects
-        const allTutes = await tutes.getAll({ grade: data.student.grade })
-        tutesList.value = allTutes.filter(t => 
-            data.student.subjects && data.student.subjects.includes(t.subject_name)
-        )
-
-        const history = await studentTutes.getAll({ student_id: data.student.id })
-        receivedTuteIds.value = history.map(h => h.tute_id)
+        examResultsList.value = (data.examResults || []).reverse() 
+        tutesList.value = data.tutes || []
+        receivedTuteIds.value = data.receivedTuteIds || []
 
     } catch {
         $q.notify({ type: 'negative', message: 'Network synchronization failed.' })

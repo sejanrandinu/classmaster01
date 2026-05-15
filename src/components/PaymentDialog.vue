@@ -10,9 +10,16 @@
           <p class="text-grey-4 q-mt-xs">Please verify your payment to activate the account</p>
         </div>
 
-        <div class="q-mb-md">
+        <div class="q-mb-sm">
           <div class="text-caption text-grey-5">Registration Fee (One-time)</div>
-          <div class="text-h4 text-weight-bolder text-white">Rs. 30,000</div>
+          <div class="text-h5 text-weight-bold text-white">
+            <span class="text-grey-6 text-strike q-mr-sm">Rs. 45,000</span> Rs. 40,000
+          </div>
+        </div>
+        <div class="q-mb-md">
+          <div class="text-caption text-grey-5">Monthly Subscription Fee</div>
+          <div class="text-h5 text-weight-bold text-yellow-6">Rs. 5,000</div>
+          <div class="text-caption text-indigo-3">Monthly recurring payment</div>
         </div>
 
         <div class="q-mb-lg q-pa-md rounded-borders" style="background: linear-gradient(135deg, rgba(63, 81, 181, 0.2) 0%, rgba(33, 150, 243, 0.1) 100%); border: 1px solid rgba(255,255,255,0.2);">

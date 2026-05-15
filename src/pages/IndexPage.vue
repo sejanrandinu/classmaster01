@@ -92,6 +92,17 @@
         <div class="col-xs-12 col-md-3 q-mb-xl q-mb-md-none">
           <div class="text-h2 text-weight-bolder">500<span class="text-grey-7">+</span></div>
           <div class="text-caption text-grey-7 text-uppercase letter-spacing-wide">Institutes</div>
+              <div class="q-mb-md">
+                <div class="text-caption text-grey-5">Registration Fee (One-time)</div>
+                <div class="text-h5 text-weight-bold text-white">
+                  <span class="text-grey-6 text-strike q-mr-sm">Rs. 45,000</span> Rs. 40,000
+                </div>
+              </div>
+              <div class="q-mb-md">
+                <div class="text-caption text-grey-5">Monthly Subscription Fee</div>
+                <div class="text-h5 text-weight-bold text-yellow-6">Rs. 5,000</div>
+                <div class="text-caption text-indigo-3">Monthly recurring payment</div>
+              </div>
         </div>
         <div class="col-xs-12 col-md-3 q-mb-xl q-mb-md-none">
           <div class="text-h2 text-weight-bolder">10<span class="text-grey-7">k+</span></div>
@@ -225,39 +236,47 @@
     <!-- Pricing Section -->
     <section class="section-padding">
        <div class="container-xl">
-          <div class="glass-card q-pa-xl q-pa-xs-lg rounded-borders text-center relative-position overflow-hidden">
-            
-             <div class="relative-position z-top">
-                <q-badge outline color="white" label="LIMITED TIME OFFER" class="q-mb-lg q-px-md q-py-xs letter-spacing-wide" rounded />
-                <h2 class="text-h1 q-mb-lg text-weight-bolder letter-spacing-tight">
-                  <span class="text-grey-7 text-strike text-h3 q-mr-md" style="vertical-align: middle;">Rs. 35,000</span>
-                  Rs. 30,000 <br class="lt-md">One-Time.
+          <div class="text-center q-mb-xl">
+             <q-badge outline color="white" label="FLEXIBLE PRICING" class="q-mb-md q-px-md q-py-xs letter-spacing-wide" rounded />
+             <h2 class="text-h2 text-weight-bolder">Choose Your Plan</h2>
+          </div>
+          <div class="row q-col-gutter-xl justify-center">
+            <!-- Lifetime Plan -->
+            <div class="col-xs-12 col-sm-6 col-md-5">
+              <div class="glass-card q-pa-xl rounded-borders h-full flex flex-center flex-column relative-position overflow-hidden border-indigo">
+                <div class="absolute-top-right q-pa-md">
+                   <q-badge color="indigo-10" label="LIFETIME ACCESS" class="q-pa-sm" />
+                </div>
+                <div class="text-h4 q-mb-md text-weight-bold">Enterprise Lifetime</div>
+                <h2 class="text-h2 q-mb-md text-weight-bolder">
+                   <span class="text-grey-7 text-strike text-h4 q-mr-sm">Rs. 45,000</span>
+                   Rs. 40,000
                 </h2>
-                <p class="text-h5 text-grey-5 q-mb-xl opacity-80" style="max-width: 700px; margin-left: auto; margin-right: auto;">
-                   Get full access to the ClassMaster ecosystem for a special promotional price. A small investment to modernize and scale your tuition institute.
-                </p>
-                
-                <div class="row justify-center q-gutter-md">
-                   <div v-for="item in ['One-Time Payment', 'Lifetime Access', 'Full Feature Set']" :key="item" class="row items-center q-px-md q-py-sm rounded-borders" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);">
-                      <q-icon name="check_circle" color="white" size="20px" class="q-mr-sm" />
-                      <span class="text-body1">{{ item }}</span>
-                   </div>
-                </div>
-
-                <div class="q-mt-xl">
-                   <q-btn 
-                     size="lg" 
-                     color="white" 
-                     text-color="black" 
-                     label="Get Started Now" 
-                     to="/register"
-                     no-caps 
-                     rounded
-                     padding="16px 64px"
-                     class="text-weight-bold hover-glow shadow-24"
-                   />
-                </div>
-             </div>
+                <p class="text-grey-5 q-mb-xl">One-time payment for perpetual access. Best for established institutes.</p>
+                <q-list dense class="q-gutter-y-md q-mb-xl full-width">
+                   <q-item v-for="item in ['All Core Modules', 'Unlimited Students', 'No Monthly Bills', 'Life-time Updates']" :key="item" class="q-px-none">
+                      <q-item-section avatar min-width="24px"><q-icon name="check_circle" color="white" size="20px" /></q-item-section>
+                      <q-item-section class="text-grey-3">{{ item }}</q-item-section>
+                   </q-item>
+                </q-list>
+                <q-btn size="lg" color="white" text-color="black" label="Select Lifetime" to="/register" no-caps rounded class="full-width text-weight-bold" />
+              </div>
+            </div>
+            <!-- Monthly Plan -->
+            <div class="col-xs-12 col-sm-6 col-md-5">
+              <div class="glass-card q-pa-xl rounded-borders h-full flex flex-center flex-column relative-position overflow-hidden">
+                <div class="text-h4 q-mb-md text-weight-bold">Starter Monthly</div>
+                <h2 class="text-h2 q-mb-md text-weight-bolder">Rs. 5,000</h2>
+                <p class="text-grey-5 q-mb-xl">Low entry cost. Pay as you grow. Ideal for growing academies.</p>
+                <q-list dense class="q-gutter-y-md q-mb-xl full-width">
+                   <q-item v-for="item in ['All Core Modules', 'Monthly Billing', 'Cancel Anytime', 'Premium Support']" :key="item" class="q-px-none">
+                      <q-item-section avatar min-width="24px"><q-icon name="check_circle" color="white" size="20px" /></q-item-section>
+                      <q-item-section class="text-grey-3">{{ item }}</q-item-section>
+                   </q-item>
+                </q-list>
+                <q-btn size="lg" outline color="white" label="Select Monthly" to="/register" no-caps rounded class="full-width text-weight-bold glass-button" />
+              </div>
+            </div>
           </div>
        </div>
     </section>
@@ -449,6 +468,11 @@ const features = [
       padding-left: 0 !important;
       padding-right: 0 !important;
   }
+}
+
+.border-indigo {
+  border: 1px solid rgba(63, 81, 181, 0.4) !important;
+  box-shadow: 0 0 30px rgba(63, 81, 181, 0.2);
 }
 
 .opacity-0 {

@@ -267,7 +267,23 @@ export async function onRequest(context) {
                 return { ...r, percentage, group };
             });
 
-            return json({ student, attendance, payments, examResults });
+            // Fetch Tutes
+            const { results: allTutes } = await db.prepare("SELECT * FROM tutes WHERE grade = ?").bind(student.grade).all();
+            const { results: studentTuteHistory } = await db.prepare("SELECT tute_id FROM student_tutes WHERE student_id = ?").bind(studentDbId).all();
+            
+            const tutes = (allTutes || []).filter(t => 
+                student.subjects && student.subjects.includes(t.subject_name)
+            );
+            const receivedTuteIds = (studentTuteHistory || []).map(h => h.tute_id);
+
+            return json({ 
+                student, 
+                attendance, 
+                payments, 
+                examResults,
+                tutes,
+                receivedTuteIds
+            });
         }
 
         // --- PROTECTED ---
@@ -392,11 +408,21 @@ export async function onRequest(context) {
             if (method === 'GET') {
                 if (subPath === 'by-id') {
                     const sid = pathParts[2];
-                    const s = await db.prepare("SELECT * FROM students WHERE user_id = ? AND student_id = ?").bind(userId, sid).first();
+                    if (!sid) return json({ error: "Missing ID" }, 400);
+
+                    // Try searching by primary key (integer) OR student_id (string)
+                    let s = null;
+                    if (!isNaN(sid)) {
+                        s = await db.prepare("SELECT * FROM students WHERE user_id = ? AND (id = ? OR student_id = ?)").bind(userId, sid, sid).first();
+                    } else {
+                        s = await db.prepare("SELECT * FROM students WHERE user_id = ? AND student_id = ?").bind(userId, sid).first();
+                    }
+
                     if (s) {
                         try { s.subjects = JSON.parse(s.subjects_json || '[]'); } catch (e) { s.subjects = []; }
+                        return json(s);
                     }
-                    return json(s);
+                    return json({ error: "Student not found in your database" }, 404);
                 }
                 const grade = url.searchParams.get('grade');
                 const status = url.searchParams.get('status');
