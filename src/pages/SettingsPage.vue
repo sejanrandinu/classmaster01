@@ -569,7 +569,7 @@ const confirmReset = (type) => {
                 // Refresh or redirect to dashboard after full reset
                 window.location.reload()
             }
-        } catch (e) {
+        } catch {
             $q.notify({ type: 'negative', message: 'Reset failed' })
         }
     })
