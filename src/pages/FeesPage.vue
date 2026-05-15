@@ -260,6 +260,8 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
+import { useQuasar } from 'quasar'
+import { useRoute } from 'vue-router'
 import { client } from 'src/api'
 import { exportToCSV } from 'src/utils/export'
 import { useAppStore } from 'src/store/app'

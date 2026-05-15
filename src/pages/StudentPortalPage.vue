@@ -259,7 +259,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useQuasar } from 'quasar'
 import { useRoute } from 'vue-router'
-import { client, tutes, studentTutes } from 'src/api'
+import { client } from 'src/api'
 import VueApexCharts from 'vue3-apexcharts'
 
 const apexchart = VueApexCharts
