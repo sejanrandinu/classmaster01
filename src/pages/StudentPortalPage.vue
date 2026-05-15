@@ -300,8 +300,12 @@ const fetchStudentStatus = async () => {
         tutesList.value = data.tutes || []
         receivedTuteIds.value = data.receivedTuteIds || []
 
-    } catch {
-        $q.notify({ type: 'negative', message: 'Network synchronization failed.' })
+    } catch (err) {
+        $q.notify({ 
+            type: 'negative', 
+            message: err.message || 'Network synchronization failed.',
+            caption: 'Please contact institute admin if this persists.'
+        })
     } finally {
         loading.value = false
     }

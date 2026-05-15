@@ -229,61 +229,64 @@ export async function onRequest(context) {
 
         // --- PUBLIC PORTAL ---
         if (path === 'students' && subPath === 'public-portal' && method === 'GET') {
-            const sid = pathParts[2];
-            const student = await db.prepare("SELECT id, student_id, name, grade, subjects_json FROM students WHERE student_id = ?").bind(sid).first();
-            if (!student) return json(null);
+            try {
+                const sid = pathParts[2];
+                const student = await db.prepare("SELECT id, student_id, name, grade, subjects_json FROM students WHERE student_id = ?").bind(sid).first();
+                if (!student) return json(null);
 
-            const studentDbId = student.id;
-            try { student.subjects = JSON.parse(student.subjects_json || '[]'); } catch (e) { student.subjects = []; }
+                const studentDbId = student.id;
+                try { student.subjects = JSON.parse(student.subjects_json || '[]'); } catch (e) { student.subjects = []; }
 
-            const { results: attendance } = await db.prepare("SELECT a.*, c.name as class_name FROM attendance a LEFT JOIN classes c ON a.class_id = c.id WHERE a.student_id = ? ORDER BY a.date DESC LIMIT 10").bind(studentDbId).all();
-            const { results: payments } = await db.prepare("SELECT * FROM payments WHERE student_id = ? ORDER BY created_at DESC LIMIT 10").bind(studentDbId).all();
-            
-            // Fetch Exam Results with Rankings
-            const { results: rawResults } = await db.prepare(`
-                SELECT 
-                    er.*, 
-                    e.title as exam_title, 
-                    e.max_marks,
-                    e.subject_name,
-                    (SELECT COUNT(*) + 1 FROM exam_results WHERE exam_id = er.exam_id AND marks_obtained > er.marks_obtained) as rank,
-                    (SELECT COUNT(*) FROM exam_results WHERE exam_id = er.exam_id) as total_students,
-                    (SELECT AVG(marks_obtained) FROM exam_results WHERE exam_id = er.exam_id) as average_marks,
-                    (SELECT MAX(marks_obtained) FROM exam_results WHERE exam_id = er.exam_id) as highest_marks
-                FROM exam_results er
-                LEFT JOIN exams e ON er.exam_id = e.id
-                WHERE er.student_id = ?
-                ORDER BY e.date DESC
-            `).bind(studentDbId).all();
-
-            // Add Color Coding based on performance percentage
-            const examResults = rawResults.map(r => {
-                const percentage = (r.marks_obtained / r.max_marks) * 100;
-                let group = 'red';
-                if (percentage >= 75) group = 'green';
-                else if (percentage >= 65) group = 'yellow';
-                else if (percentage >= 55) group = 'blue';
+                const { results: attendance } = await db.prepare("SELECT a.*, c.name as class_name FROM attendance a LEFT JOIN classes c ON a.class_id = c.id WHERE a.student_id = ? ORDER BY a.date DESC LIMIT 10").bind(studentDbId).all();
+                const { results: payments } = await db.prepare("SELECT * FROM payments WHERE student_id = ? ORDER BY created_at DESC LIMIT 10").bind(studentDbId).all();
                 
-                return { ...r, percentage, group };
-            });
+                // Fetch Exam Results with Rankings
+                const { results: rawResults } = await db.prepare(`
+                    SELECT 
+                        er.*, 
+                        e.title as exam_title, 
+                        e.max_marks,
+                        e.subject_name,
+                        (SELECT COUNT(*) + 1 FROM exam_results WHERE exam_id = er.exam_id AND marks_obtained > er.marks_obtained) as rank,
+                        (SELECT COUNT(*) FROM exam_results WHERE exam_id = er.exam_id) as total_students,
+                        (SELECT AVG(marks_obtained) FROM exam_results WHERE exam_id = er.exam_id) as average_marks,
+                        (SELECT MAX(marks_obtained) FROM exam_results WHERE exam_id = er.exam_id) as highest_marks
+                    FROM exam_results er
+                    LEFT JOIN exams e ON er.exam_id = e.id
+                    WHERE er.student_id = ?
+                    ORDER BY e.date DESC
+                `).bind(studentDbId).all();
 
-            // Fetch Tutes
-            const { results: allTutes } = await db.prepare("SELECT * FROM tutes WHERE grade = ?").bind(student.grade).all();
-            const { results: studentTuteHistory } = await db.prepare("SELECT tute_id FROM student_tutes WHERE student_id = ?").bind(studentDbId).all();
-            
-            const tutes = (allTutes || []).filter(t => 
-                student.subjects && student.subjects.includes(t.subject_name)
-            );
-            const receivedTuteIds = (studentTuteHistory || []).map(h => h.tute_id);
+                const examResults = (rawResults || []).map(r => {
+                    const percentage = (r.marks_obtained / (r.max_marks || 100)) * 100;
+                    let group = 'red';
+                    if (percentage >= 75) group = 'green';
+                    else if (percentage >= 65) group = 'yellow';
+                    else if (percentage >= 55) group = 'blue';
+                    return { ...r, percentage, group };
+                });
 
-            return json({ 
-                student, 
-                attendance, 
-                payments, 
-                examResults,
-                tutes,
-                receivedTuteIds
-            });
+                // Fetch Tutes
+                const { results: allTutes } = await db.prepare("SELECT * FROM tutes WHERE grade = ?").bind(student.grade).all();
+                const { results: studentTuteHistory } = await db.prepare("SELECT tute_id FROM student_tutes WHERE student_id = ?").bind(studentDbId).all();
+                
+                const tutes = (allTutes || []).filter(t => 
+                    student.subjects && student.subjects.includes(t.subject_name)
+                );
+                const receivedTuteIds = (studentTuteHistory || []).map(h => h.tute_id);
+
+                return json({ 
+                    student, 
+                    attendance, 
+                    payments, 
+                    examResults,
+                    tutes,
+                    receivedTuteIds
+                });
+            } catch (e) {
+                console.error('Public Portal API Error:', e);
+                return json({ error: "Public Portal Data Sync Error", details: e.message }, 500);
+            }
         }
 
         // --- PROTECTED ---
