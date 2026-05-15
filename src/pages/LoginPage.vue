@@ -56,6 +56,11 @@
                   </template>
                </q-input>
 
+                <div class="row items-center justify-between q-mt-sm">
+                   <q-checkbox v-model="rememberMe" label="Remember me" dark color="white" dense />
+                   <q-btn flat no-caps label="Forgot Password?" color="grey-5" dense size="sm" />
+                </div>
+
 
                <div class="q-mt-lg flex flex-center">
                  <VueTurnstile site-key="0x4AAAAAADHUUksPvPEHMfdp" v-model="turnstileToken" />
@@ -105,8 +110,16 @@ const password = ref('')
 const loading = ref(false)
 const errorMessage = ref('')
 const turnstileToken = ref('')
+const rememberMe = ref(false)
 
 onMounted(() => {
+  // Load remembered email
+  const savedEmail = localStorage.getItem('remembered_email')
+  if (savedEmail) {
+    email.value = savedEmail
+    rememberMe.value = true
+  }
+
   try {
     const storage = window.localStorage;
     if (storage) {
@@ -145,6 +158,13 @@ const onSubmit = async () => {
     await auth.login(email.value, password.value, turnstileToken.value)
 
     console.log('Login successful, notifying user...')
+    
+    if (rememberMe.value) {
+      localStorage.setItem('remembered_email', email.value)
+    } else {
+      localStorage.removeItem('remembered_email')
+    }
+
     $q.notify({
       type: 'positive',
       message: 'Successfully logged in!',

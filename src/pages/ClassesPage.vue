@@ -440,7 +440,7 @@ const form = ref({
     class_date: '',
     start_time: '08:00',
     end_time: '10:00',
-    fee: 3500,
+    fee: 5000,
     status: 'Active',
     image_url: '',
     color_theme: null,
@@ -511,7 +511,7 @@ const fetchClasses = async () => {
 
 const openAddDialog = () => {
     isEdit.value = false
-    form.value = { id: null, class_name: '', subject: '', tutor: '', grade: '', day: 'Sunday', class_date: '', start_time: '08:00', end_time: '10:00', fee: 3500, status: 'Active' }
+    form.value = { id: null, class_name: '', subject: '', tutor: '', grade: '', day: 'Sunday', class_date: '', start_time: '08:00', end_time: '10:00', fee: 5000, status: 'Active' }
     showDialog.value = true
 }
 

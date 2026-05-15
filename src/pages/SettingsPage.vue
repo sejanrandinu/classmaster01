@@ -39,6 +39,19 @@
                   <q-toggle v-model="settings.notifications" color="primary" @update:model-value="toggleNotifications" />
                 </q-item-section>
               </q-item>
+
+              <q-item>
+                <q-item-section avatar>
+                  <q-icon name="fa-brands fa-whatsapp" color="green" />
+                </q-item-section>
+                <q-item-section>
+                  <q-item-label class="text-weight-medium">{{ t.whatsappNotifications }}</q-item-label>
+                  <q-item-label caption>{{ t.whatsappNotificationsCaption }}</q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <q-toggle v-model="settings.whatsapp" color="green" @update:model-value="toggleWhatsapp" />
+                </q-item-section>
+              </q-item>
             </q-list>
           </q-card-section>
         </q-card>
@@ -105,8 +118,40 @@
                         </div>
                     </div>
 
-                    <div class="row q-col-gutter-md">
-                        <div class="col-12">
+                    <div class="row q-col-gutter-lg">
+          <!-- Profile Card -->
+          <div class="col-12 col-md-4">
+            <q-card flat class="glass-modern h-full">
+              <q-card-section class="text-center q-pa-xl">
+                <div class="relative-position inline-block">
+                    <q-avatar size="120px" class="q-mb-md profile-avatar-glow">
+                        <img :src="profile.profile_image_url || 'https://cdn.quasar.dev/img/boy-avatar.png'">
+                    </q-avatar>
+                    <q-btn 
+                        round 
+                        color="primary" 
+                        icon="camera_alt" 
+                        size="sm" 
+                        class="absolute-bottom-right"
+                        @click="$refs.profileFileInput.pickFiles()"
+                    />
+                    <q-file
+                        ref="profileFileInput"
+                        v-model="pickedProfileFile"
+                        style="display: none"
+                        accept="image/*"
+                        @update:model-value="onProfileFilePicked"
+                    />
+                </div>
+                <div class="text-h5 text-weight-bold text-white">{{ userName }}</div>
+                <div class="text-caption text-indigo-2">{{ userEmail }}</div>
+                <q-badge color="primary" class="q-mt-sm">{{ userRoleLabel }}</q-badge>
+              </q-card-section>
+            </q-card>
+          </div>
+
+          <!-- Security & Access -->
+          <div class="col-12 col-md-8">
                             <q-input outlined v-model="profile.card_theme_color" :label="t.themeColor" dense>
                                 <template v-slot:append>
                                     <q-icon name="colorize" class="cursor-pointer">
@@ -163,6 +208,43 @@
             </div>
           </q-card-section>
         </q-card>
+
+        <!-- Data Management -->
+        <q-card flat class="glass-modern q-mt-lg">
+          <q-card-section class="q-pa-lg">
+            <div class="text-h6 text-weight-bold q-mb-md row items-center">
+                <q-icon name="storage" color="red-7" class="q-mr-sm" />
+                {{ t.dataManagementTitle }}
+            </div>
+            
+            <div class="row q-col-gutter-md">
+                <div class="col-12 col-sm-6">
+                    <q-btn 
+                        outline 
+                        color="orange-8" 
+                        icon="account_balance_wallet" 
+                        :label="t.resetFinancial" 
+                        class="full-width premium-btn" 
+                        @click="confirmReset('financial')"
+                    />
+                </div>
+                <div class="col-12 col-sm-6">
+                    <q-btn 
+                        outline 
+                        color="red-7" 
+                        icon="delete_sweep" 
+                        :label="t.resetAll" 
+                        class="full-width premium-btn" 
+                        @click="confirmReset('all')"
+                    />
+                </div>
+            </div>
+            <div class="q-mt-md text-caption text-grey-6">
+                <q-icon name="warning" color="orange" class="q-mr-xs" /> 
+                {{ t.dataManagementWarning }}
+            </div>
+          </q-card-section>
+        </q-card>
       </div>
     </div>
   </q-page>
@@ -180,15 +262,89 @@ const appStore = useAppStore()
 
 const saving = ref(false)
 const profile = ref({
+    profile_image_url: '',
     card_background_url: '',
     card_theme_color: '#0d124d',
     card_layout_type: 'standard',
     card_show_visuals: 1
 })
 const pickedFile = ref(null)
+const pickedProfileFile = ref(null)
+
+const userEmail = ref('')
+const userName = ref('')
+const userRole = ref('')
+
+const userRoleLabel = computed(() => {
+    if (userEmail.value?.trim().toLowerCase() === 'sejanrandinu01@gmail.com') return 'Super Admin'
+    if (userRole.value === 'trial') return 'Trial Member'
+    return profile.value.is_approved ? 'Active Member' : 'Pending Member'
+})
+
+onMounted(async () => {
+    const data = await auth.getUser()
+    if (data) {
+        userEmail.value = data.email
+        userName.value = data.account_holder_name
+        userRole.value = data.role
+        profile.value = { ...profile.value, ...data }
+    }
+})
+
+const onProfileFilePicked = async (file) => {
+    if (!file) return
+    
+    const compressImage = (file) => {
+        return new Promise((resolve) => {
+            const reader = new FileReader()
+            reader.readAsDataURL(file)
+            reader.onload = (event) => {
+                const img = new Image()
+                img.src = event.target.result
+                img.onload = () => {
+                    const canvas = document.createElement('canvas')
+                    const MAX_WIDTH = 400
+                    const MAX_HEIGHT = 400
+                    let width = img.width
+                    let height = img.height
+                    if (width > height) {
+                        if (width > MAX_WIDTH) {
+                            height *= MAX_WIDTH / width
+                            width = MAX_WIDTH
+                        }
+                    } else {
+                        if (height > MAX_HEIGHT) {
+                            width *= MAX_HEIGHT / height
+                            height = MAX_HEIGHT
+                        }
+                    }
+                    canvas.width = width
+                    canvas.height = height
+                    const ctx = canvas.getContext('2d')
+                    ctx.drawImage(img, 0, 0, width, height)
+                    resolve(canvas.toDataURL('image/jpeg', 0.7))
+                }
+            }
+        })
+    }
+
+    try {
+        $q.loading.show({ message: 'Uploading profile picture...' })
+        const base64 = await compressImage(file)
+        await client.post('me', { profile_image_url: base64 })
+        profile.value.profile_image_url = base64
+        $q.notify({ type: 'positive', message: 'Profile picture updated!' })
+    } catch (e) {
+        console.error('Upload error:', e)
+        $q.notify({ type: 'negative', message: 'Failed to update profile picture' })
+    } finally {
+        $q.loading.hide()
+    }
+}
 
 const settings = reactive({
-  notifications: true
+  notifications: true,
+  whatsapp: appStore.whatsappEnabled
 })
 
 // Translation Dictionary
@@ -200,6 +356,12 @@ const translations = {
     resetPasswordCaption: 'Set a new password for your account',
     notifications: 'System Notifications',
     notificationsCaption: 'Receive alerts about class attendance and fees',
+    whatsappNotifications: 'WhatsApp Notifications',
+    whatsappNotificationsCaption: 'Automatically open WhatsApp to notify parents/students',
+    dataManagementTitle: 'Data Management',
+    resetFinancial: 'Reset Financial Data',
+    resetAll: 'Reset All Data (Full Reset)',
+    dataManagementWarning: 'Careful! These actions are permanent and cannot be undone.',
     preferencesTitle: 'App Preferences',
     language: 'Language',
     languageCaption: 'Choose your preferred language',
@@ -220,6 +382,12 @@ const translations = {
     resetPasswordCaption: 'ඔබගේ ගිණුම සඳහා නව මුරපදයක් ඇතුළත් කරන්න',
     notifications: 'පද්ධති නිවේදන',
     notificationsCaption: 'පැමිණීම සහ ගාස්තු පිළිබඳ දැනුම්දීම් ලබා ගන්න',
+    whatsappNotifications: 'WhatsApp නිවේදන',
+    whatsappNotificationsCaption: 'දෙමාපියන්ට/සිසුන්ට WhatsApp හරහා දැනුම්දීම් යවන්න',
+    dataManagementTitle: 'දත්ත කළමනාකරණය',
+    resetFinancial: 'මූල්‍ය දත්ත මකන්න',
+    resetAll: 'සියලුම දත්ත මකන්න (Reset)',
+    dataManagementWarning: 'පරෙස්සම් වන්න! මෙම ක්‍රියා ස්ථිර වන අතර නැවත ලබා ගත නොහැක.',
     preferencesTitle: 'පද්ධති මනාපයන්',
     language: 'භාෂාව',
     languageCaption: 'ඔබ කැමති භාෂාව තෝරන්න',
@@ -249,6 +417,7 @@ onMounted(async () => {
             profile.value.card_theme_color = data.card_theme_color || '#0d124d'
             profile.value.card_layout_type = data.card_layout_type || 'standard'
             profile.value.card_show_visuals = data.card_show_visuals ?? 1
+            settings.whatsapp = data.whatsapp_enabled ?? true
         }
     } catch (e) {
         console.error('Failed to load profile:', e)
@@ -367,6 +536,43 @@ const toggleNotifications = async (val) => {
       $q.notify({ type: 'positive', message: 'Notifications enabled!' })
     }
   }
+}
+
+const toggleWhatsapp = async (val) => {
+    try {
+        await client.post('me', { whatsapp_enabled: val })
+        appStore.setWhatsappEnabled(val)
+        $q.notify({ 
+            type: val ? 'positive' : 'warning', 
+            message: `WhatsApp notifications ${val ? 'enabled' : 'disabled'}`,
+            icon: val ? 'check' : 'block'
+        })
+    } catch {
+        $q.notify({ type: 'negative', message: 'Failed to update WhatsApp settings' })
+        settings.whatsapp = !val
+    }
+}
+
+const confirmReset = (type) => {
+    const isAll = type === 'all'
+    $q.dialog({
+        title: `Confirm ${isAll ? 'Full' : 'Financial'} Reset`,
+        message: `Are you absolutely sure you want to delete ${isAll ? 'ALL your data (students, classes, payments, etc.)' : 'all your financial records (payments, salaries, etc.)'}? This action is permanent.`,
+        cancel: true,
+        persistent: true,
+        ok: { color: 'red-7', flat: true, label: 'Yes, Delete Permanently' }
+    }).onOk(async () => {
+        try {
+            await client.post('maintenance/reset', { type })
+            $q.notify({ type: 'positive', message: 'Data reset successfully' })
+            if (isAll) {
+                // Refresh or redirect to dashboard after full reset
+                window.location.reload()
+            }
+        } catch (e) {
+            $q.notify({ type: 'negative', message: 'Reset failed' })
+        }
+    })
 }
 
 const testNotification = async () => {

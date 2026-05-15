@@ -261,8 +261,8 @@ export async function onRequest(context) {
                 const percentage = (r.marks_obtained / r.max_marks) * 100;
                 let group = 'red';
                 if (percentage >= 75) group = 'green';
-                else if (percentage >= 65) group = 'blue';
-                else if (percentage >= 45) group = 'yellow';
+                else if (percentage >= 65) group = 'yellow';
+                else if (percentage >= 55) group = 'blue';
                 
                 return { ...r, percentage, group };
             });
@@ -537,7 +537,28 @@ export async function onRequest(context) {
 
         // PAYMENTS
         if (path === 'payments') {
-            // ... (rest of the existing payments code)
+            if (method === 'GET') {
+                const limit = url.searchParams.get('limit');
+                const sid = url.searchParams.get('student_id');
+                let q = `
+                    SELECT 
+                        p.*, 
+                        s.name as student_name, 
+                        s.student_id as student_id_str, 
+                        c.name as class_name 
+                    FROM payments p
+                    LEFT JOIN students s ON p.student_id = s.id
+                    LEFT JOIN classes c ON p.class_id = c.id
+                    WHERE p.user_id = ?
+                `;
+                const p = [userId];
+                if (sid) { q += " AND p.student_id = ?"; p.push(sid); }
+                q += " ORDER BY p.payment_date DESC, p.created_at DESC";
+                if (limit) { q += " LIMIT ?"; p.push(Number(limit)); }
+                
+                const { results } = await db.prepare(q).bind(...p).all();
+                return json(results || []);
+            }
 
             if (method === 'POST') {
                 try {
@@ -877,6 +898,34 @@ export async function onRequest(context) {
                 }
                 return json({ message: "Saved" });
             }
+        }
+
+        // MAINTENANCE
+        if (path === 'maintenance' && subPath === 'reset' && method === 'POST') {
+            const { type } = await request.json();
+            
+            if (type === 'financial') {
+                await db.prepare("DELETE FROM payments WHERE user_id = ?").bind(userId).run();
+                await db.prepare("DELETE FROM salary_payments WHERE user_id = ?").bind(userId).run();
+                return json({ message: "Financial data reset successfully" });
+            } else if (type === 'all') {
+                // Delete everything for this user except the profile
+                const tables = [
+                    'students', 'classes', 'tutors', 'payments', 'attendance', 
+                    'exams', 'exam_results', 'staff', 'salary_payments', 
+                    'subjects', 'roles', 'messages', 'tutes', 'student_tutes'
+                ];
+                
+                for (const table of tables) {
+                    try {
+                        await db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).bind(userId).run();
+                    } catch (e) {
+                        console.error(`Reset error on table ${table}:`, e);
+                    }
+                }
+                return json({ message: "All data reset successfully" });
+            }
+            return json({ error: "Invalid reset type" }, 400);
         }
 
         return json({ error: "Route not found", path, subPath }, 404);

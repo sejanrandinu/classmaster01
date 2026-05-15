@@ -31,7 +31,7 @@
             
             <q-btn flat no-caps class="text-grey-8">
                 <q-avatar size="32px" class="q-mr-sm">
-                    <img src="https://cdn.quasar.dev/img/boy-avatar.png">
+                    <img :src="userProfilePic">
                 </q-avatar>
                 <div class="text-left gt-xs">
                     <div class="text-weight-bold text-body2">{{ userDisplayName }}</div>
@@ -349,6 +349,8 @@ const userRoleLabel = computed(() => {
     return dbApproved.value ? 'Active Member' : 'Pending Member'
 })
 
+const userProfilePic = ref('https://cdn.quasar.dev/img/boy-avatar.png')
+
 const showWhatsAppDialog = ref(false)
 const whatsappNumber = ref('')
 const whatsappLoading = ref(false)
@@ -400,7 +402,9 @@ const fetchProfile = async () => {
             userName.value = data.account_holder_name || '' // Use account_holder_name as fallback name
             dbApproved.value = data.is_approved
             userRole.value = data.role
-
+            if (data.profile_image_url) {
+                userProfilePic.value = data.profile_image_url
+            }
             if (!data.whatsapp_number && !isSuperAdmin.value) {
                 showWhatsAppDialog.value = true
             }

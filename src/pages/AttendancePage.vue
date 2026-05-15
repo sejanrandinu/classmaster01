@@ -163,10 +163,12 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import { useQuasar } from 'quasar'
 import { client } from 'src/api'
+import { useQuasar } from 'quasar'
+import { useAppStore } from 'src/store/app'
 
 const $q = useQuasar()
+const appStore = useAppStore()
 const loading = ref(false)
 const selectedClass = ref(null)
 const selectedDate = ref(new Date().toISOString().split('T')[0])
@@ -283,11 +285,14 @@ const notifyAllPresent = () => {
 
 const sendWA = (student) => {
     if (!student.contact) return
+    if (!appStore.whatsappEnabled) return
+    
     let phone = student.contact
     if (phone.startsWith('0')) phone = '94' + phone.substring(1)
     phone = phone.replace(/\D/g, '')
 
-    const message = `Halo ${student.name}, අද පන්තියට පැමිණි බව අපි සටහන් කර ගත්තා. ස්තූතියි!`
+    const portalLink = `${window.location.origin}/#/student-portal?id=${student.student_id}`
+    const message = `ආයුබෝවන් ${student.name}, අද පන්තියට පැමිණි බව අපි සටහන් කර ගත්තා. ඔබේ පැමිණීම සහ වාර්තා මෙතැනින් බලන්න: ${portalLink}`
     const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
     window.open(url, '_blank')
 }

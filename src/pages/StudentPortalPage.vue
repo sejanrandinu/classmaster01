@@ -94,8 +94,48 @@
                             <div class="text-caption" :class="`text-${stat.color}-3`">{{ stat.desc }}</div>
                         </q-card-section>
                     </q-card>
-                </div>
             </div>
+        </div>
+    </div>
+
+        <!-- Recent Exam Results -->
+        <div class="col-12">
+            <q-card flat class="glass-modern">
+                <q-card-section class="row items-center justify-between">
+                    <div class="text-h6 text-white text-weight-bold">Recent Exam Results</div>
+                    <q-badge color="indigo-7">Performance Breakdown</q-badge>
+                </q-card-section>
+                <q-card-section class="q-pa-none">
+                    <q-table
+                        flat
+                        dark
+                        :rows="examResultsList"
+                        :columns="resultColumns"
+                        row-key="id"
+                        hide-bottom
+                        class="bg-transparent"
+                    >
+                        <template v-slot:body-cell-status="props">
+                            <q-td :props="props" class="text-center">
+                                <q-chip 
+                                    :color="getStatusColor(props.row.group, true)" 
+                                    :text-color="getStatusColor(props.row.group, false)"
+                                    size="sm"
+                                    class="text-weight-bold"
+                                >
+                                    {{ getGroupName(props.row.group) }}
+                                </q-chip>
+                            </q-td>
+                        </template>
+                        <template v-slot:body-cell-marks="props">
+                            <q-td :props="props">
+                                <div class="text-weight-bold text-white">{{ props.row.marks_obtained }} / {{ props.row.max_marks }}</div>
+                                <q-linear-progress :value="props.row.percentage / 100" :color="getStatusColor(props.row.group, false)" class="q-mt-xs" />
+                            </q-td>
+                        </template>
+                    </q-table>
+                </q-card-section>
+            </q-card>
         </div>
 
         <!-- Performance Analytics Section -->
@@ -366,6 +406,34 @@ const comparisonChartOptions = {
 
 const isReceived = (id) => receivedTuteIds.value.includes(id)
 const formatDate = (dateStr) => new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+
+const resultColumns = [
+    { name: 'exam', align: 'left', label: 'Exam Title', field: 'exam_title' },
+    { name: 'marks', align: 'left', label: 'Marks', field: 'marks_obtained' },
+    { name: 'rank', align: 'center', label: 'Rank', field: 'rank' },
+    { name: 'status', align: 'center', label: 'Status', field: 'group' }
+]
+
+const getStatusColor = (group, isBg) => {
+    const colors = {
+        green: { bg: 'green-9', text: 'green-2' },
+        yellow: { bg: 'yellow-9', text: 'yellow-2' },
+        blue: { bg: 'blue-9', text: 'blue-2' },
+        red: { bg: 'red-9', text: 'red-2' }
+    }
+    const c = colors[group] || colors.red
+    return isBg ? c.bg : c.text
+}
+
+const getGroupName = (group) => {
+    const names = {
+        green: 'Elite',
+        yellow: 'Good',
+        blue: 'Average',
+        red: 'Needs Focus'
+    }
+    return names[group] || 'Unknown'
+}
 
 </script>
 

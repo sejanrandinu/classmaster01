@@ -427,7 +427,7 @@ const sendAttendanceWA = (student) => {
     phone = phone.replace(/\D/g, '')
 
     const portalLink = `${window.location.origin}/#/student-portal?id=${student.student_id}`
-    const message = `Halo ${student.name}, අද පන්තියට පැමිණි බව අපි සටහන් කර ගත්තා. ඔබේ පැමිණීම සහ ගෙවීම් මෙතැනින් පරීක්ෂා කරන්න: ${portalLink}`
+    const message = `ආයුබෝවන් ${student.name}, අද පන්තියට පැමිණි බව අපි සටහන් කර ගත්තා. ඔබේ පැමිණීම සහ ගෙවීම් මෙතැනින් පරීක්ෂා කරන්න: ${portalLink}`
     const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
     
     // Attempt to open WhatsApp

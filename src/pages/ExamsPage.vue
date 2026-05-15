@@ -185,6 +185,23 @@
                                         <q-input dense borderless v-model="props.row.remarks" placeholder="Add remark..." />
                                     </q-td>
                                 </template>
+
+                                <template v-slot:body-cell-notify="props">
+                                    <q-td :props="props" class="text-center">
+                                        <q-btn 
+                                            v-if="props.row.marks_obtained !== null"
+                                            flat 
+                                            round 
+                                            color="green-7" 
+                                            icon="fa-brands fa-whatsapp" 
+                                            size="sm"
+                                            @click="sendMarksWA(props.row)"
+                                        >
+                                            <q-tooltip>Notify Results via WhatsApp</q-tooltip>
+                                        </q-btn>
+                                        <div v-else class="text-grey-4">-</div>
+                                    </q-td>
+                                </template>
                             </q-table>
                         </q-card>
                     </div>
@@ -229,7 +246,8 @@ const marksColumns = [
     { name: 'name', label: 'Student Name', field: 'student_name', align: 'left', sortable: true },
     { name: 'marks', label: 'Marks Obtained', field: 'marks_obtained', align: 'center' },
     { name: 'group', label: 'Group', align: 'center' },
-    { name: 'remarks', label: 'Remarks', field: 'remarks', align: 'left' }
+    { name: 'remarks', label: 'Remarks', field: 'remarks', align: 'left' },
+    { name: 'notify', label: 'Notify', align: 'center' }
 ]
 
 onMounted(() => {
@@ -318,6 +336,7 @@ const enterMarks = async (exam) => {
                 student_id: s.id,
                 student_name: s.name,
                 student_id_str: s.student_id,
+                contact: s.contact,
                 marks_obtained: mark ? mark.marks_obtained : null,
                 remarks: mark ? mark.remarks : ''
             }
@@ -350,12 +369,37 @@ const saveMarks = async () => {
     }
 }
 
+const sendMarksWA = async (row) => {
+    if (!row.contact) {
+        $q.notify({ type: 'warning', message: 'Student contact not found' })
+        return
+    }
+
+    let phone = row.contact
+    if (phone.startsWith('0')) phone = '94' + phone.substring(1)
+    phone = phone.replace(/\D/g, '')
+
+    const portalLink = `${window.location.origin}/#/student-portal?id=${row.student_id_str}`
+    const group = getGroupName(row.marks_obtained, activeExam.value.max_marks)
+    const message = `ආයුබෝවන් ${row.student_name}, ${activeExam.value.title} විභාගයේ ප්‍රතිඵල නිකුත් කර ඇත.
+
+Marks: ${row.marks_obtained}/${activeExam.value.max_marks}
+Status: ${group}
+
+ඔබේ සියලුම ප්‍රතිඵල සහ වාර්තා මෙතැනින් බලන්න: ${portalLink}
+
+ස්තූතියි!`
+
+    const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
+    window.open(url, '_blank')
+}
+
 const getGroupColor = (marks, maxMarks, isBg = false) => {
     if (marks === null || marks === undefined) return isBg ? 'white' : 'grey'
     const percentage = (marks / maxMarks) * 100
     if (percentage >= 75) return isBg ? 'green-1' : 'green-7'
-    if (percentage >= 65) return isBg ? 'blue-1' : 'blue-7'
-    if (percentage >= 45) return isBg ? 'yellow-1' : 'yellow-8'
+    if (percentage >= 65) return isBg ? 'yellow-1' : 'yellow-8'
+    if (percentage >= 55) return isBg ? 'blue-1' : 'blue-7'
     return isBg ? 'red-1' : 'red-7'
 }
 
@@ -363,8 +407,8 @@ const getGroupName = (marks, maxMarks) => {
     if (marks === null || marks === undefined) return 'N/A'
     const percentage = (marks / maxMarks) * 100
     if (percentage >= 75) return 'Green (Elite)'
-    if (percentage >= 65) return 'Blue (Advanced)'
-    if (percentage >= 45) return 'Yellow (Average)'
+    if (percentage >= 65) return 'Yellow (Good)'
+    if (percentage >= 55) return 'Blue (Average)'
     return 'Red (Needs Focus)'
 }
 </script>
