@@ -215,6 +215,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useQuasar } from 'quasar'
 import { exams, examResults, client } from 'src/api'
 import { notificationService } from 'src/utils/notifications'
 import { useAppStore } from 'src/store/app'
