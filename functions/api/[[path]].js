@@ -305,13 +305,29 @@ export async function onRequest(context) {
                 );
                 const receivedTuteIds = (studentTuteHistory || []).map(h => h.tute_id);
 
+                // Fetch Leaderboard for the latest exam
+                let leaderboard = [];
+                if (examResults && examResults.length > 0) {
+                    const latestExamId = examResults[0].exam_id;
+                    const { results: topStudents } = await db.prepare(`
+                        SELECT s.name, er.marks_obtained, s.image_url
+                        FROM exam_results er
+                        JOIN students s ON er.student_id = s.id
+                        WHERE er.exam_id = ?
+                        ORDER BY er.marks_obtained DESC
+                        LIMIT 5
+                    `).bind(latestExamId).all();
+                    leaderboard = topStudents || [];
+                }
+
                 return json({ 
                     student, 
                     attendance, 
                     payments, 
                     examResults,
                     tutes,
-                    receivedTuteIds
+                    receivedTuteIds,
+                    leaderboard
                 });
             } catch (e) {
                 console.error('Public Portal API Error:', e);

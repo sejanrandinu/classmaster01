@@ -108,13 +108,25 @@
                 <q-card-section class="q-pa-none">
                     <q-table
                         flat
-                        dark
                         :rows="examResultsList"
                         :columns="resultColumns"
                         row-key="id"
                         hide-bottom
-                        class="bg-transparent"
+                        class="bg-transparent text-white"
+                        card-class="bg-transparent text-white"
+                        table-header-class="text-indigo-2"
+                        dark
                     >
+                        <template v-slot:body-cell-exam="props">
+                            <q-td :props="props">
+                                <div class="text-white">{{ props.row.exam_title }}</div>
+                            </q-td>
+                        </template>
+                        <template v-slot:body-cell-rank="props">
+                            <q-td :props="props" class="text-center">
+                                <div class="text-white">{{ props.row.rank }}</div>
+                            </q-td>
+                        </template>
                         <template v-slot:body-cell-status="props">
                             <q-td :props="props" class="text-center">
                                 <q-chip 
@@ -134,6 +146,34 @@
                             </q-td>
                         </template>
                     </q-table>
+                </q-card-section>
+            </q-card>
+        </div>
+
+        <!-- Leaderboard -->
+        <div class="col-12">
+            <q-card flat class="glass-modern">
+                <q-card-section class="row items-center justify-between">
+                    <div class="text-h6 text-white text-weight-bold">Latest Exam Leaderboard</div>
+                    <q-badge color="amber-7" text-color="black" class="text-weight-bold">Top 5 Performers</q-badge>
+                </q-card-section>
+                <q-card-section class="q-pa-md">
+                    <div v-if="leaderboard.length === 0" class="text-center text-indigo-2 q-py-xl">
+                        No leaderboard data available for the recent exam.
+                    </div>
+                    <div v-else class="row q-col-gutter-md justify-center">
+                        <div class="col-12 col-sm-6 col-md-2 text-center relative-position" v-for="(student, index) in leaderboard" :key="index">
+                            <q-avatar size="80px" class="q-mb-sm shadow-5" :class="{'border-gold': index === 0, 'border-silver': index === 1, 'border-bronze': index === 2}">
+                                <img :src="student.image_url || `https://ui-avatars.com/api/?name=${student.name}&background=random&color=fff`" />
+                                <q-badge floating rounded :color="index === 0 ? 'amber-5' : (index === 1 ? 'grey-4' : (index === 2 ? 'orange-4' : 'indigo-5'))" 
+                                         :text-color="index < 3 ? 'black' : 'white'" class="text-weight-bold shadow-2">
+                                    #{{ index + 1 }}
+                                </q-badge>
+                            </q-avatar>
+                            <div class="text-white text-weight-bold ellipsis" style="max-width: 100%;">{{ student.name }}</div>
+                            <div class="text-indigo-2 text-caption font-weight-bold">{{ student.marks_obtained }} Marks</div>
+                        </div>
+                    </div>
                 </q-card-section>
             </q-card>
         </div>
@@ -274,6 +314,7 @@ const payments = ref([])
 const tutesList = ref([])
 const receivedTuteIds = ref([])
 const examResultsList = ref([])
+const leaderboard = ref([])
 
 const chartTab = ref('marks')
 
@@ -299,6 +340,7 @@ const fetchStudentStatus = async () => {
         examResultsList.value = (data.examResults || []).reverse() 
         tutesList.value = data.tutes || []
         receivedTuteIds.value = data.receivedTuteIds || []
+        leaderboard.value = data.leaderboard || []
 
     } catch (err) {
         $q.notify({ 
@@ -530,4 +572,8 @@ const getGroupName = (group) => {
     .profile-banner .q-avatar { margin: 0 0 20px 0; }
     .stat-mini-card { margin-bottom: 10px; }
 }
+
+.border-gold { border: 3px solid #ffd700; }
+.border-silver { border: 3px solid #c0c0c0; }
+.border-bronze { border: 3px solid #cd7f32; }
 </style>

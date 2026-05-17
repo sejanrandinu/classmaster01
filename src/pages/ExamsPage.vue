@@ -129,7 +129,7 @@
                                     <div class="text-subtitle2 text-grey-6">{{ activeExam?.class_name }} | Max Marks: {{ activeExam?.max_marks }}</div>
                                 </div>
                                 <div class="row q-gutter-sm">
-                                    <q-btn outline color="primary" icon="download" label="Export Template" no-caps />
+                                    <q-btn outline color="primary" icon="download" label="Export Marks" no-caps @click="exportMarks" />
                                     <q-btn color="green-7" icon="save" label="Save All Marks" unelevated no-caps @click="saveMarks" :loading="savingMarks" />
                                 </div>
                             </div>
@@ -219,6 +219,7 @@ import { useQuasar } from 'quasar'
 import { exams, examResults, client } from 'src/api'
 import { notificationService } from 'src/utils/notifications'
 import { useAppStore } from 'src/store/app'
+import { exportToCSV } from 'src/utils/export'
 
 const $q = useQuasar()
 const appStore = useAppStore()
@@ -369,6 +370,27 @@ const saveMarks = async () => {
     } finally {
         savingMarks.value = false
     }
+}
+
+const exportMarks = () => {
+    if (!activeExam.value || !marksRows.value || marksRows.value.length === 0) {
+        $q.notify({ type: 'warning', message: 'No data to export' });
+        return;
+    }
+
+    const columnsToExport = [
+        { label: 'Student ID', field: 'student_id_str' },
+        { label: 'Student Name', field: 'student_name' },
+        { label: 'Marks Obtained', field: 'marks_obtained' },
+        { 
+            label: 'Status', 
+            field: row => getGroupName(row.marks_obtained, activeExam.value.max_marks) 
+        },
+        { label: 'Remarks', field: 'remarks' }
+    ];
+
+    const filename = `Exam_Marks_${activeExam.value.title.replace(/\s+/g, '_')}`;
+    exportToCSV(marksRows.value, filename, columnsToExport);
 }
 
 const sendMarksWA = async (row) => {
