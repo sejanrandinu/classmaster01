@@ -153,6 +153,24 @@ export async function onRequest(context) {
             const isValid = await verifyTurnstile(turnstileToken, turnstileSecret);
             if (!isValid) return json({ error: "Invalid Turnstile token. Please verify you are human." }, 400);
 
+            // QuickEmailVerification Integration
+            if (env.QEV_API_KEY) {
+                try {
+                    const qevUrl = `https://api.quickemailverification.com/v1/verify?email=${encodeURIComponent(email)}&apikey=${env.QEV_API_KEY}`;
+                    const qevRes = await fetch(qevUrl);
+                    if (qevRes.ok) {
+                        const qevData = await qevRes.json();
+                        if (qevData.result === 'invalid') {
+                            return json({ error: "Invalid or undeliverable email address. Please use a valid email." }, 400);
+                        }
+                    } else {
+                        console.error('QuickEmailVerification API error:', await qevRes.text());
+                    }
+                } catch (e) {
+                    console.error('QuickEmailVerification Fetch Error:', e);
+                }
+            }
+
             const id = crypto.randomUUID();
             const password_hash = await hashString(password + JWT_SECRET);
             const isSuperAdmin = email.trim().toLowerCase() === 'sejanrandinu01@gmail.com';
