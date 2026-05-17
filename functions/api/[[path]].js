@@ -65,6 +65,29 @@ async function verifyTurnstile(token, secretKey) {
     }
 }
 
+// Helper: Free Email Domain Verification (Checks if domain has MX records)
+async function verifyEmailDomain(email) {
+    try {
+        const domain = email.split('@')[1];
+        if (!domain) return false;
+        
+        // Use Cloudflare DNS over HTTPS to check MX records
+        const res = await fetch(`https://cloudflare-dns.com/dns-query?name=${domain}&type=MX`, {
+            headers: { 'accept': 'application/dns-json' }
+        });
+        const data = await res.json();
+        
+        // Status 0 means NOERROR, and Answer contains the MX records
+        if (data.Status === 0 && data.Answer && data.Answer.length > 0) {
+            return true;
+        }
+        return false;
+    } catch (e) {
+        console.error('DNS MX Check Error:', e);
+        return true; // Fallback to true if network error so we don't block users
+    }
+}
+
 // Helper: Send Email (Supports Resend API or Fallback to MailChannels)
 async function sendEmail(toEmail, subject, htmlContent, env) {
     // 1. Try Resend if API Key exists
@@ -153,22 +176,10 @@ export async function onRequest(context) {
             const isValid = await verifyTurnstile(turnstileToken, turnstileSecret);
             if (!isValid) return json({ error: "Invalid Turnstile token. Please verify you are human." }, 400);
 
-            // QuickEmailVerification Integration
-            if (env.QEV_API_KEY) {
-                try {
-                    const qevUrl = `https://api.quickemailverification.com/v1/verify?email=${encodeURIComponent(email)}&apikey=${env.QEV_API_KEY}`;
-                    const qevRes = await fetch(qevUrl);
-                    if (qevRes.ok) {
-                        const qevData = await qevRes.json();
-                        if (qevData.result === 'invalid') {
-                            return json({ error: "Invalid or undeliverable email address. Please use a valid email." }, 400);
-                        }
-                    } else {
-                        console.error('QuickEmailVerification API error:', await qevRes.text());
-                    }
-                } catch (e) {
-                    console.error('QuickEmailVerification Fetch Error:', e);
-                }
+            // Free Email Verification (Domain MX Check)
+            const isEmailDomainValid = await verifyEmailDomain(email);
+            if (!isEmailDomainValid) {
+                return json({ error: "The email domain does not exist or cannot receive emails. Please use a valid email." }, 400);
             }
 
             const id = crypto.randomUUID();
