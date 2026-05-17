@@ -292,7 +292,7 @@ const sendWA = (student) => {
     if (phone.startsWith('0')) phone = '94' + phone.substring(1)
     phone = phone.replace(/\D/g, '')
 
-    const portalLink = `${window.location.origin}/#/student-portal?id=${student.student_id}`
+    const portalLink = `${window.location.origin}/student-portal?id=${student.student_id}`
     const message = `ආයුබෝවන් ${student.name}, අද පන්තියට පැමිණි බව අපි සටහන් කර ගත්තා. ඔබේ පැමිණීම සහ වාර්තා මෙතැනින් බලන්න: ${portalLink}`
     const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
     window.open(url, '_blank')

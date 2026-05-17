@@ -382,7 +382,7 @@ const sendMarksWA = async (row) => {
     if (phone.startsWith('0')) phone = '94' + phone.substring(1)
     phone = phone.replace(/\D/g, '')
 
-    const portalLink = `${window.location.origin}/#/student-portal?id=${row.student_id_str}`
+    const portalLink = `${window.location.origin}/student-portal?id=${row.student_id_str}`
     const group = getGroupName(row.marks_obtained, activeExam.value.max_marks)
     const message = `ආයුබෝවන් ${row.student_name}, ${activeExam.value.title} විභාගයේ ප්‍රතිඵල නිකුත් කර ඇත.
 

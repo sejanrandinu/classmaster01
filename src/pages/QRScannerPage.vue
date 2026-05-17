@@ -347,7 +347,7 @@ const handleScannedStudent = async (scannedText) => {
     
     let studentId = scannedText.trim()
     
-    // Handle Student Portal URLs (e.g. https://.../#/student-portal?id=ST001)
+    // Handle Student Portal URLs (e.g. https://.../student-portal?id=ST001)
     if (studentId.includes('?id=')) {
         try {
             // Simple extraction to avoid URL parsing issues with hash routes
@@ -450,7 +450,7 @@ const sendAttendanceWA = (student) => {
     // Clean all non-numeric characters
     phone = phone.replace(/\D/g, '')
 
-    const portalLink = `${window.location.origin}/#/student-portal?id=${student.student_id}`
+    const portalLink = `${window.location.origin}/student-portal?id=${student.student_id}`
     const message = `ආයුබෝවන් ${student.name}, අද පන්තියට පැමිණි බව අපි සටහන් කර ගත්තා. ඔබේ පැමිණීම සහ ගෙවීම් මෙතැනින් පරීක්ෂා කරන්න: ${portalLink}`
     const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
     

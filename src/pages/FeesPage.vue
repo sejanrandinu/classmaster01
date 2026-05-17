@@ -333,7 +333,7 @@ const sendWhatsAppReceipt = (student, amount, month, receiptNo) => {
     if (phone.startsWith('0')) phone = '94' + phone.substring(1)
     phone = phone.replace(/\D/g, '')
 
-    const portalLink = `${window.location.origin}/#/student-portal?id=${fullStudent.student_id}`
+    const portalLink = `${window.location.origin}/student-portal?id=${fullStudent.student_id}`
     const message = `ආයුබෝවන් ${fullStudent.name}, ${month} මාසය සඳහා රු. ${amount.toLocaleString()} පන්ති ගාස්තු ගෙවීම සාර්ථකව සටහන් කර ගත්තා.
 
 ලැබීම් අංකය: ${receiptNo}
