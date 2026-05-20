@@ -310,7 +310,7 @@ export async function onRequest(context) {
         if (path === 'students' && subPath === 'public-portal' && method === 'GET') {
             try {
                 const sid = pathParts[2];
-                const student = await db.prepare("SELECT id, user_id, student_id, name, grade, subjects_json FROM students WHERE student_id = ?").bind(sid).first();
+                const student = await db.prepare("SELECT id, user_id, student_id, name, grade, subjects_json, status FROM students WHERE student_id = ?").bind(sid).first();
                 if (!student) return json(null);
 
                 const studentDbId = student.id;
@@ -327,12 +327,14 @@ export async function onRequest(context) {
                         e.title as exam_title, 
                         e.max_marks,
                         e.subject_name,
+                        c.tutor_name,
                         (SELECT COUNT(*) + 1 FROM exam_results WHERE exam_id = er.exam_id AND marks_obtained > er.marks_obtained) as rank,
                         (SELECT COUNT(*) FROM exam_results WHERE exam_id = er.exam_id) as total_students,
                         (SELECT AVG(marks_obtained) FROM exam_results WHERE exam_id = er.exam_id) as average_marks,
                         (SELECT MAX(marks_obtained) FROM exam_results WHERE exam_id = er.exam_id) as highest_marks
                     FROM exam_results er
                     LEFT JOIN exams e ON er.exam_id = e.id
+                    LEFT JOIN classes c ON e.class_id = c.id
                     WHERE er.student_id = ?
                     ORDER BY e.date DESC
                 `).bind(studentDbId).all();

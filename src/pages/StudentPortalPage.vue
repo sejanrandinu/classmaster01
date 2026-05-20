@@ -86,8 +86,13 @@
                     <div class="col">
                         <div class="row items-center">
                             <h2 class="text-h3 text-weight-bolder text-white no-margin">{{ studentData.name }}</h2>
-                            <q-badge color="green-4" text-color="black" class="q-ml-md text-weight-bold">
-                              {{ appStore.language === 'English' ? 'ACTIVE STUDENT' : 'සක්‍රීය සිසුවෙක්' }}
+                            <q-badge :color="studentData.status !== 'Inactive' ? 'green-4' : 'red-5'" :text-color="studentData.status !== 'Inactive' ? 'black' : 'white'" class="q-ml-md text-weight-bold">
+                              <span v-if="studentData.status !== 'Inactive'">
+                                {{ appStore.language === 'English' ? 'ACTIVE STUDENT' : 'සක්‍රීය සිසුවෙක්' }}
+                              </span>
+                              <span v-else>
+                                {{ appStore.language === 'English' ? 'INACTIVE STUDENT' : 'අක්‍රීය සිසුවෙක්' }}
+                              </span>
                             </q-badge>
                         </div>
                         <div class="text-h6 text-indigo-2 q-mt-xs">{{ studentData.student_id }} | {{ studentData.grade }} | {{ studentData.school }}</div>
@@ -519,7 +524,7 @@
                 <!-- Signature Row -->
                 <div class="row justify-between items-center q-mt-xl q-px-lg">
                   <div class="text-center">
-                    <div class="signature-text">Dr. A.B. Sejan</div>
+                    <div class="signature-text">{{ selectedExamForCertificate?.tutor_name || 'Dr. A.B. Sejan' }}</div>
                     <div class="signature-block">
                       {{ appStore.language === 'English' ? 'Director of Academics' : 'අධ්‍යයන අධ්‍යක්ෂ' }}
                     </div>

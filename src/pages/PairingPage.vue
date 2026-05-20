@@ -306,7 +306,7 @@ const generatePairings = async () => {
   
   try {
     // 1. Fetch students in selected class
-    const students = await client.get(`students?class_id=${selectedClass.value.id}`)
+    const students = await client.get(`students?class_id=${selectedClass.value.id}&status=Active`)
     if (students.length === 0) {
       $q.notify({
         type: 'warning',
