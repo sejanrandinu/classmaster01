@@ -610,13 +610,49 @@
                   <span class="text-weight-bolder text-indigo-10 font-mono">[{{ studentData?.student_id }}]</span>
                   {{ appStore.language === 'English' ? 'under the curriculum of our academic institute.' : 'යටතේ අධ්‍යයන කටයුතු හදාරන බවත්,' }}
                   <br />
-                  <span class="text-weight-bold q-my-md block" style="color: #2c3e50; font-size: 1.05rem;">
+                  <span class="text-weight-bold q-my-sm block" style="color: #2c3e50; font-size: 0.95rem; line-height:1.4;">
                     {{ appStore.language === 'English' 
                        ? 'Throughout the academic tenure, the student has maintained a highly exemplary discipline record, showing excellent obedience, academic dedication, and distinguished civic conduct.'
                        : 'සිය අධ්‍යයන කාලය තුළදී ආයතන නීති රීතිවලට එකඟව, ඉතා ආදර්ශමත් හැසිරීමක්, උසස් විනයගරුක බවක් සහ විශිෂ්ට චරිත ස්වභාවයක් පෙන්නුම් කර ඇති බවත් මෙයින් සාක්ෂි දරමු.' 
                     }}
                   </span>
-                  <span class="text-caption text-grey-7 block q-mt-sm">
+
+                  <!-- Disciplinary summary ledger: excellences and violations -->
+                  <div class="conduct-summary-grid q-my-md row q-col-gutter-md text-left">
+                    <!-- Excellences Column -->
+                    <div class="col-6">
+                      <div class="conduct-column-header text-teal-9 text-weight-bold flex items-center">
+                        <q-icon name="stars" size="16px" class="q-mr-xs" />
+                        {{ appStore.language === 'English' ? 'Accolades & Achievements' : 'විශිෂ්ට ජයග්‍රහණ සහ ඇගයීම්' }}
+                      </div>
+                      <ul class="conduct-list" v-if="excellences.length > 0">
+                        <li v-for="rec in excellences" :key="rec.id" class="text-indigo-9">
+                          <strong>{{ rec.category }}:</strong> {{ rec.description }} <span class="font-mono text-grey-6" style="font-size: 9px;">({{ rec.date }})</span>
+                        </li>
+                      </ul>
+                      <div class="conduct-empty text-teal-8" v-else>
+                        ✓ {{ appStore.language === 'English' ? 'Consistent Academic Excellence' : 'නිරන්තර ආදර්ශමත් සහභාගීත්වය' }}
+                      </div>
+                    </div>
+
+                    <!-- Violations Column -->
+                    <div class="col-6" style="border-left: 1px dashed rgba(49, 151, 149, 0.2);">
+                      <div class="conduct-column-header text-red-9 text-weight-bold flex items-center">
+                        <q-icon name="report" size="16px" class="q-mr-xs" />
+                        {{ appStore.language === 'English' ? 'Warnings & Infractions' : 'වාර්තා වූ විනය උල්ලංඝනයන්' }}
+                      </div>
+                      <ul class="conduct-list text-red-9" v-if="violations.length > 0">
+                        <li v-for="rec in violations" :key="rec.id">
+                          <strong>[{{ rec.type }}] {{ rec.category }}:</strong> {{ rec.description }} <span class="font-mono text-grey-6" style="font-size: 9px;">({{ rec.date }})</span>
+                        </li>
+                      </ul>
+                      <div class="conduct-empty text-green-9" v-else>
+                        ✓ {{ appStore.language === 'English' ? 'No Disciplinary Actions (100% Clean)' : 'විනය කඩකිරීම් කිසිවක් නැත (100% පිරිසිදු)' }}
+                      </div>
+                    </div>
+                  </div>
+
+                  <span class="text-caption text-grey-7 block q-mt-xs">
                     {{ appStore.language === 'English' ? 'Generated officially based on system discipline audits.' : 'විනය පාලක මණ්ඩලයේ විධිමත් පිරික්සුම් මත පදනම්ව නිකුත් කරන ලදී.' }}
                   </span>
                 </div>
@@ -797,6 +833,14 @@ const myStudyPairs = computed(() => {
     })
     
     return myPairs
+})
+
+const excellences = computed(() => {
+    return disciplineRecords.value.filter(r => r.type === 'Achievement')
+})
+
+const violations = computed(() => {
+    return disciplineRecords.value.filter(r => r.type !== 'Achievement')
 })
 
 // Charts Options & Series
@@ -1119,6 +1163,43 @@ const startCall = (pair) => {
   animation: pulse 2s infinite ease-in-out;
 }
 
+/* Elegant ledger styles for discipline history on character certificate */
+.conduct-summary-grid {
+    border: 1px dashed rgba(49, 151, 149, 0.35);
+    background: rgba(255, 255, 255, 0.45);
+    border-radius: 6px;
+    padding: 10px;
+    font-size: 0.82rem;
+}
+
+.conduct-column-header {
+    border-bottom: 1px solid rgba(49, 151, 149, 0.25);
+    padding-bottom: 4px;
+    margin-bottom: 6px;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.conduct-list {
+    margin: 0;
+    padding-left: 14px;
+    list-style-type: square;
+    max-height: 100px;
+    overflow-y: auto;
+}
+
+.conduct-list li {
+    margin-bottom: 3px;
+    line-height: 1.25;
+}
+
+.conduct-empty {
+    font-style: italic;
+    font-size: 0.8rem;
+    padding: 8px 0;
+}
+
 /* Elegant Certificate Aesthetics */
 .certificate-card {
     background: #fff9f2;
@@ -1308,13 +1389,14 @@ const startCall = (pair) => {
     }
     
     .certificate-print-area {
-        position: fixed !important;
+        position: absolute !important;
         left: 0 !important;
         top: 0 !important;
         width: 100vw !important;
-        height: 100vh !important;
+        min-height: 100vh !important;
+        height: auto !important;
         margin: 0 !important;
-        padding: 60px !important;
+        padding: 40px !important;
         box-shadow: none !important;
         border: 20px double #c5a880 !important;
         background: #fff9f2 !important;
@@ -1325,6 +1407,7 @@ const startCall = (pair) => {
         justify-content: center !important;
         align-items: center !important;
         box-sizing: border-box !important;
+        overflow: visible !important;
     }
     
     .character-certificate-card {
