@@ -1343,7 +1343,11 @@ const startCall = (pair) => {
     .stat-mini-card { margin-bottom: 10px; }
 }
 
-/* Print CSS Stylesheet */
+
+/* Print CSS Stylesheet (Global) */
+</style>
+
+<style lang="scss">
 @media print {
     @page {
         size: landscape;
@@ -1352,6 +1356,9 @@ const startCall = (pair) => {
     
     body {
         background: #fff9f2 !important;
+        color: #2c2c2c !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
     }
 
     #q-app {
@@ -1363,16 +1370,33 @@ const startCall = (pair) => {
     }
     
     .q-dialog {
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        min-height: 100vh !important;
         background: transparent !important;
         box-shadow: none !important;
+        display: block !important;
+        overflow: visible !important;
     }
     
     .q-dialog__inner {
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        min-height: 100vh !important;
         padding: 0 !important;
+        margin: 0 !important;
         background: transparent !important;
         box-shadow: none !important;
         overflow: visible !important;
         display: block !important;
+        max-height: none !important;
+        max-width: none !important;
     }
     
     .no-print, .no-print * {
@@ -1380,12 +1404,27 @@ const startCall = (pair) => {
     }
     
     .q-dialog .q-card {
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        min-height: 100vh !important;
         background: transparent !important;
         box-shadow: none !important;
         padding: 0 !important;
         border-radius: 0 !important;
-        max-width: 100% !important;
-        width: 100% !important;
+        max-width: none !important;
+        overflow: visible !important;
+    }
+    
+    .q-dialog .q-card__section {
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        display: block !important;
+        overflow: visible !important;
     }
     
     .certificate-print-area {
@@ -1393,26 +1432,101 @@ const startCall = (pair) => {
         left: 0 !important;
         top: 0 !important;
         width: 100vw !important;
+        height: 100vh !important;
         min-height: 100vh !important;
-        height: auto !important;
         margin: 0 !important;
-        padding: 40px !important;
+        padding: 50px !important;
+        box-sizing: border-box !important;
         box-shadow: none !important;
-        border: 20px double #c5a880 !important;
+        border: 24px double #c5a880 !important;
         background: #fff9f2 !important;
+        color: #2c2c2c !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
         display: flex !important;
         flex-direction: column !important;
         justify-content: center !important;
         align-items: center !important;
-        box-sizing: border-box !important;
-        overflow: visible !important;
+        overflow: hidden !important;
     }
     
     .character-certificate-card {
-        border: 20px double #319795 !important;
+        border: 24px double #319795 !important;
         background: #f4fbfb !important;
+        color: #2c3e50 !important;
+    }
+    
+    /* Ensure all text inside the print area is visible and correctly colored */
+    .certificate-print-area * {
+        color: inherit !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    
+    .certificate-print-area .recipient-name {
+        color: #1e1b4b !important;
+        border-bottom: 2px solid rgba(197, 168, 128, 0.6) !important;
+    }
+    
+    .certificate-print-area.character-certificate-card .recipient-name {
+        color: #1a365d !important;
+        border-bottom: 2px solid rgba(49, 151, 149, 0.6) !important;
+    }
+    
+    .certificate-print-area .certificate-title {
+        color: #8c6d3f !important;
+    }
+    
+    .certificate-print-area.character-certificate-card .character-title {
+        color: #1f4e5b !important;
+    }
+    
+    .certificate-print-area .certificate-text {
+        color: #333333 !important;
+    }
+    
+    .certificate-print-area .signature-text {
+        color: #444444 !important;
+    }
+    
+    .certificate-print-area .signature-block {
+        color: #555555 !important;
+        border-top: 1px solid #aaaaaa !important;
+    }
+    
+    /* Disciplinary summary ledger print styles */
+    .certificate-print-area .conduct-summary-grid {
+        background: rgba(255, 255, 255, 0.85) !important;
+        border: 1px dashed rgba(49, 151, 149, 0.6) !important;
+        color: #2c3e50 !important;
+    }
+    
+    .certificate-print-area .conduct-column-header {
+        border-bottom: 1px solid rgba(49, 151, 149, 0.4) !important;
+    }
+    
+    .certificate-print-area .text-teal-9 {
+        color: #0d5a58 !important;
+    }
+    
+    .certificate-print-area .text-red-9 {
+        color: #9b2c2c !important;
+    }
+    
+    .certificate-print-area .text-green-9 {
+        color: #22543d !important;
+    }
+    
+    .certificate-print-area .text-teal-8 {
+        color: #137775 !important;
+    }
+    
+    .certificate-print-area .conduct-empty {
+        color: inherit !important;
+    }
+
+    .certificate-print-area .conduct-list li {
+        color: inherit !important;
     }
     
     /* Hide all other portals to be absolutely safe */
