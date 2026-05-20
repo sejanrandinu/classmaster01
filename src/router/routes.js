@@ -20,6 +20,9 @@ const routes = [
     children: [
       { path: '', component: () => import('pages/DashboardPage.vue'), meta: { requiresAuth: true } },
       { path: 'students', component: () => import('pages/users/StudentsPage.vue'), meta: { requiresAuth: true } },
+      { path: 'inactive-students', component: () => import('pages/users/InactiveStudentsPage.vue'), meta: { requiresAuth: true } },
+      { path: 'discipline', component: () => import('pages/DisciplinePage.vue'), meta: { requiresAuth: true } },
+      { path: 'pairing', component: () => import('pages/PairingPage.vue'), meta: { requiresAuth: true } },
       { path: 'tutors', component: () => import('pages/users/TutorsPage.vue'), meta: { requiresAuth: true } },
       { path: 'subjects', component: () => import('pages/SubjectsPage.vue'), meta: { requiresAuth: true } },
       { path: 'classes', component: () => import('pages/ClassesPage.vue'), meta: { requiresAuth: true } },

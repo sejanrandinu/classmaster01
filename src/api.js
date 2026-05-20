@@ -154,3 +154,48 @@ export const examResults = {
     getStudentResults: (studentId) => client.get(`exam-results/student/${studentId}`),
     getExamAnalytics: (examId) => client.get(`exam-results/analytics/${examId}`)
 }
+
+export const discipline = {
+    getAll(params = {}) {
+        let path = 'discipline';
+        const search = new URLSearchParams(params).toString();
+        if (search) path += `?${search}`;
+        return client.get(path);
+    },
+    create(data) {
+        return client.post('discipline', data);
+    },
+    update(id, data) {
+        return client.put(`discipline/${id}`, data);
+    },
+    delete(id) {
+        return client.delete(`discipline/${id}`);
+    }
+};
+
+export const pairings = {
+    getAll(params = {}) {
+        let path = 'pairings';
+        const search = new URLSearchParams(params).toString();
+        if (search) path += `?${search}`;
+        return client.get(path);
+    },
+    create(data) {
+        return client.post('pairings', data);
+    },
+    update(id, data) {
+        return client.put(`pairings/${id}`, data);
+    },
+    delete(id) {
+        return client.delete(`pairings/${id}`);
+    }
+};
+
+export const studentsBulk = {
+    async bulkReactivate(ids) {
+        return await client.post('students/bulk-status', { ids, status: 'Active' });
+    },
+    async bulkDelete(ids) {
+        return await client.post('students/bulk-delete', { ids });
+    }
+};

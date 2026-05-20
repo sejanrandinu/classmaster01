@@ -417,7 +417,7 @@ onMounted(async () => {
             profile.value.card_theme_color = data.card_theme_color || '#0d124d'
             profile.value.card_layout_type = data.card_layout_type || 'standard'
             profile.value.card_show_visuals = data.card_show_visuals ?? 1
-            settings.whatsapp = data.whatsapp_enabled ?? true
+            settings.whatsapp = data.whatsapp_enabled === undefined ? true : (data.whatsapp_enabled === 1 || data.whatsapp_enabled === true || data.whatsapp_enabled === '1')
         }
     } catch (e) {
         console.error('Failed to load profile:', e)

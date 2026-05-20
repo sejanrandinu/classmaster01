@@ -104,6 +104,13 @@
                     <q-item-section class="text-weight-medium">{{ t.students }}</q-item-section>
                 </q-item>
 
+                <q-item clickable v-ripple to="/dashboard/inactive-students" active-class="bg-primary text-white">
+                    <q-item-section avatar>
+                        <q-icon name="person_off" />
+                    </q-item-section>
+                    <q-item-section class="text-weight-medium">{{ t.inactiveStudents }}</q-item-section>
+                </q-item>
+
                 <q-item clickable v-ripple to="/dashboard/tutors" active-class="bg-primary text-white">
                     <q-item-section avatar>
                         <q-icon name="supervisor_account" />
@@ -190,6 +197,20 @@
                         <q-icon name="admin_panel_settings" />
                     </q-item-section>
                     <q-item-section class="text-weight-medium">{{ t.staffRoles }}</q-item-section>
+                </q-item>
+
+                <q-item clickable v-ripple to="/dashboard/discipline" active-class="bg-primary text-white">
+                    <q-item-section avatar>
+                        <q-icon name="gavel" />
+                    </q-item-section>
+                    <q-item-section class="text-weight-medium">{{ t.discipline }}</q-item-section>
+                </q-item>
+
+                <q-item clickable v-ripple to="/dashboard/pairing" active-class="bg-primary text-white">
+                    <q-item-section avatar>
+                        <q-icon name="hub" />
+                    </q-item-section>
+                    <q-item-section class="text-weight-medium">{{ t.pairing }}</q-item-section>
                 </q-item>
 
                 <template v-if="isSuperAdmin">
@@ -404,6 +425,10 @@ const fetchProfile = async () => {
             userRole.value = data.role
             if (data.profile_image_url) {
                 userProfilePic.value = data.profile_image_url
+            }
+            if (data.whatsapp_enabled !== undefined) {
+                const isWhatsappEnabled = data.whatsapp_enabled === 1 || data.whatsapp_enabled === true || data.whatsapp_enabled === '1';
+                appStore.setWhatsappEnabled(isWhatsappEnabled);
             }
             if (!data.whatsapp_number && !isSuperAdmin.value) {
                 showWhatsAppDialog.value = true

@@ -34,7 +34,10 @@ const translations = {
     name: 'Your Name',
     email: 'Your Email',
     message: 'Message',
-    backHome: 'Back to Home'
+    backHome: 'Back to Home',
+    inactiveStudents: 'Inactive Students',
+    discipline: 'Discipline Manager',
+    pairing: 'Pairing Tool'
   },
   Sinhala: {
     dashboard: 'දර්ශක පුවරුව',
@@ -70,7 +73,10 @@ const translations = {
     name: 'ඔබේ නම',
     email: 'විද්‍යුත් තැපෑල',
     message: 'පණිවිඩය',
-    backHome: 'මුල් පිටුවට'
+    backHome: 'මුල් පිටුවට',
+    inactiveStudents: 'අක්‍රිය සිසුන්',
+    discipline: 'විනය කළමනාකරණය',
+    pairing: 'යුගල කිරීමේ මෙවලම'
   }
 }
 

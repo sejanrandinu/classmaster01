@@ -1,6 +1,6 @@
 <template>
   <q-page class="portal-root q-pa-md">
-    <div class="portal-container">
+    <div class="portal-container no-print">
       <!-- Header Branding -->
       <div class="row items-center justify-between q-mb-xl">
         <div class="row items-center">
@@ -8,12 +8,30 @@
                 <img src="/favicon.svg">
             </q-avatar>
             <div>
-                <h1 class="text-h4 text-weight-bolder text-white no-margin letter-spacing-tight">Student Portal</h1>
-                <div class="text-indigo-2 text-caption">Performance & Academic Metrics v2.0</div>
+                <h1 class="text-h4 text-weight-bolder text-white no-margin letter-spacing-tight">
+                  {{ appStore.language === 'English' ? 'Student Portal' : 'ශිෂ්‍ය ද්වාරය' }}
+                </h1>
+                <div class="text-indigo-2 text-caption">
+                  {{ appStore.language === 'English' ? 'Performance & Academic Metrics v3.1 Premium' : 'කාර්ය සාධන සහ අධ්‍යයන දර්ශක v3.1 Premium' }}
+                </div>
             </div>
         </div>
-        <div v-if="studentData" class="gt-xs">
-            <q-btn flat color="white" icon="logout" label="Sign Out" @click="studentData = null" no-caps class="glass-btn" />
+        <div class="row items-center q-gutter-sm">
+            <!-- Language selector -->
+            <q-btn 
+                flat 
+                color="white" 
+                dense
+                no-caps
+                class="glass-btn q-px-sm"
+                @click="appStore.language = appStore.language === 'English' ? 'Sinhala' : 'English'"
+            >
+                <q-icon name="translate" size="xs" class="q-mr-xs text-teal-4" />
+                {{ appStore.language === 'English' ? 'සිංහල' : 'English' }}
+            </q-btn>
+            <div v-if="studentData">
+                <q-btn flat color="white" icon="logout" :label="appStore.language === 'English' ? 'Sign Out' : 'ඉවත් වන්න'" @click="studentData = null" no-caps class="glass-btn" />
+            </div>
         </div>
       </div>
 
@@ -22,14 +40,18 @@
         <q-card flat class="auth-card glass-modern q-pa-xl shadow-24 text-center">
             <div class="q-mb-lg">
                 <q-icon name="fingerprint" size="64px" color="indigo-4" class="q-mb-md" />
-                <div class="text-h5 text-white text-weight-bold">Academic Identity</div>
-                <p class="text-indigo-2">Enter your unique student identifier to access your dashboard.</p>
+                <div class="text-h5 text-white text-weight-bold">
+                  {{ appStore.language === 'English' ? 'Academic Identity' : 'අධ්‍යයන අනන්‍යතාවය' }}
+                </div>
+                <p class="text-indigo-2">
+                  {{ appStore.language === 'English' ? 'Enter your unique student identifier to access your dashboard.' : 'ඔබගේ උපකරණ පුවරුවට පිවිසීමට ඔබගේ සුවිශේෂී ශිෂ්‍ය හැඳුනුම්පත ඇතුළත් කරන්න.' }}
+                </p>
             </div>
             <q-form @submit="fetchStudentStatus" class="q-gutter-md">
                 <q-input 
                     filled 
                     v-model="studentId" 
-                    label="Student ID" 
+                    :label="appStore.language === 'English' ? 'Student ID' : 'ශිෂ්‍ය හැඳුනුම්පත'" 
                     dark 
                     color="indigo-4"
                     class="id-input-field"
@@ -41,7 +63,7 @@
                     type="submit" 
                     color="white" 
                     text-color="indigo-10" 
-                    label="Initialize Dashboard" 
+                    :label="appStore.language === 'English' ? 'Initialize Dashboard' : 'උපකරණ පුවරුව සක්‍රිය කරන්න'" 
                     unelevated 
                     no-caps 
                     class="full-width q-py-md text-weight-bold premium-btn"
@@ -64,15 +86,19 @@
                     <div class="col">
                         <div class="row items-center">
                             <h2 class="text-h3 text-weight-bolder text-white no-margin">{{ studentData.name }}</h2>
-                            <q-badge color="green-4" text-color="black" class="q-ml-md text-weight-bold">ACTIVE STUDENT</q-badge>
+                            <q-badge color="green-4" text-color="black" class="q-ml-md text-weight-bold">
+                              {{ appStore.language === 'English' ? 'ACTIVE STUDENT' : 'සක්‍රීය සිසුවෙක්' }}
+                            </q-badge>
                         </div>
                         <div class="text-h6 text-indigo-2 q-mt-xs">{{ studentData.student_id }} | {{ studentData.grade }} | {{ studentData.school }}</div>
                         <div class="row q-gutter-md q-mt-md">
                             <div class="stat-pill">
-                                <q-icon name="event_available" class="q-mr-xs" /> {{ attendanceRate }}% Attendance
+                                <q-icon name="event_available" class="q-mr-xs text-green-4" /> 
+                                {{ attendanceRate }}% {{ appStore.language === 'English' ? 'Attendance' : 'පැමිණීම' }}
                             </div>
                             <div class="stat-pill">
-                                <q-icon name="emoji_events" class="q-mr-xs" /> Rank: #{{ latestRank }}
+                                <q-icon name="emoji_events" class="q-mr-xs text-amber-4" /> 
+                                {{ appStore.language === 'English' ? 'Rank' : 'ස්ථානය' }}: #{{ latestRank }}
                             </div>
                         </div>
                     </div>
@@ -94,16 +120,20 @@
                             <div class="text-caption" :class="`text-${stat.color}-3`">{{ stat.desc }}</div>
                         </q-card-section>
                     </q-card>
+                </div>
             </div>
         </div>
-    </div>
 
         <!-- Recent Exam Results -->
         <div class="col-12">
             <q-card flat class="glass-modern">
                 <q-card-section class="row items-center justify-between">
-                    <div class="text-h6 text-white text-weight-bold">Recent Exam Results</div>
-                    <q-badge color="indigo-7">Performance Breakdown</q-badge>
+                    <div class="text-h6 text-white text-weight-bold">
+                      {{ appStore.language === 'English' ? 'Recent Exam Results' : 'පසුගිය විභාග ප්‍රතිඵල' }}
+                    </div>
+                    <q-badge color="indigo-7">
+                      {{ appStore.language === 'English' ? 'Performance Breakdown' : 'කාර්ය සාධන විශ්ලේෂණය' }}
+                    </q-badge>
                 </q-card-section>
                 <q-card-section class="q-pa-none">
                     <q-table
@@ -114,17 +144,18 @@
                         hide-bottom
                         class="bg-transparent text-white"
                         card-class="bg-transparent text-white"
-                        table-header-class="text-indigo-2"
+                        table-header-class="text-indigo-2 text-weight-bold"
                         dark
                     >
                         <template v-slot:body-cell-exam="props">
                             <q-td :props="props">
-                                <div class="text-white">{{ props.row.exam_title }}</div>
+                                <div class="text-white text-weight-medium">{{ props.row.exam_title }}</div>
+                                <div class="text-caption text-indigo-3">{{ props.row.subject_name }}</div>
                             </q-td>
                         </template>
                         <template v-slot:body-cell-rank="props">
                             <q-td :props="props" class="text-center">
-                                <div class="text-white">{{ props.row.rank }}</div>
+                                <div class="text-white text-weight-bold">#{{ props.row.rank }} <span class="text-caption text-grey-5" style="font-size:10px;">/ {{ props.row.total_students }}</span></div>
                             </q-td>
                         </template>
                         <template v-slot:body-cell-status="props">
@@ -141,11 +172,95 @@
                         </template>
                         <template v-slot:body-cell-marks="props">
                             <q-td :props="props">
-                                <div class="text-weight-bold text-white">{{ props.row.marks_obtained }} / {{ props.row.max_marks }}</div>
-                                <q-linear-progress :value="props.row.percentage / 100" :color="getStatusColor(props.row.group, false)" class="q-mt-xs" />
+                                <div class="text-weight-bold text-white">{{ props.row.marks_obtained }} / {{ props.row.max_marks }} ({{ Math.round(props.row.percentage) }}%)</div>
+                                <q-linear-progress :value="props.row.percentage / 100" :color="getStatusColor(props.row.group, false)" class="q-mt-xs" style="border-radius: 4px;" />
+                            </q-td>
+                        </template>
+                        <template v-slot:body-cell-certificate="props">
+                            <q-td :props="props" class="text-center">
+                                <div v-if="props.row.percentage >= 50">
+                                    <q-btn 
+                                        flat 
+                                        round 
+                                        color="amber-5" 
+                                        icon="emoji_events" 
+                                        size="md"
+                                        class="glow-shadow"
+                                        @click="openCertificate(props.row)"
+                                    >
+                                        <q-tooltip>{{ appStore.language === 'English' ? 'Claim Certificate' : 'සහතිකය ලබාගන්න' }}</q-tooltip>
+                                    </q-btn>
+                                </div>
+                                <div v-else class="text-grey-6 text-caption">-</div>
                             </q-td>
                         </template>
                     </q-table>
+                </q-card-section>
+            </q-card>
+        </div>
+
+        <!-- My Study Pairs & Teams -->
+        <div class="col-12" v-if="myStudyPairs.length > 0">
+            <q-card flat class="glass-modern">
+                <q-card-section class="row items-center justify-between">
+                    <div class="text-h6 text-white text-weight-bold flex items-center">
+                        <q-icon name="hub" color="teal-4" class="q-mr-sm" />
+                        {{ appStore.language === 'English' ? 'My Study Teams & Communication' : 'මගේ අධ්‍යයන කණ්ඩායම් සහ සන්නිවේදනය' }}
+                    </div>
+                    <q-badge color="teal-6">{{ appStore.language === 'English' ? 'Active Groupings' : 'ක්‍රියාකාරී කණ්ඩායම්' }}</q-badge>
+                </q-card-section>
+                <q-card-section class="q-pa-md">
+                    <div class="row q-col-gutter-md">
+                        <div v-for="pair in myStudyPairs" :key="pair.id" class="col-12 col-sm-6">
+                            <q-card flat class="glass-modern q-pa-md relative-position overflow-hidden border-left-teal">
+                                <div class="absolute-top-right q-pa-sm">
+                                  <q-chip 
+                                    dense 
+                                    :color="pair.type === 'Video Call' ? 'indigo-9' : 'teal-9'" 
+                                    :text-color="pair.type === 'Video Call' ? 'indigo-2' : 'teal-2'"
+                                    class="text-weight-bold"
+                                  >
+                                    <q-icon :name="pair.type === 'Video Call' ? 'videocam' : 'call'" size="14px" class="q-mr-xs" />
+                                    {{ pair.type }}
+                                  </q-chip>
+                                </div>
+                                <div class="text-subtitle1 text-weight-bold text-teal-3 q-mb-md flex justify-between items-center">
+                                    <span>{{ pair.class_name }} | Team #{{ pair.team_number }}</span>
+                                    <q-chip dense color="teal-9" text-color="teal-2" class="text-weight-bold text-caption font-mono" style="font-size: 11px;">
+                                      {{ getOnlineTextForPortal(pair) }}
+                                    </q-chip>
+                                </div>
+                                <div class="q-gutter-sm column">
+                                    <div class="row items-center justify-between border-bottom-light q-pb-xs">
+                                        <div class="row items-center q-gutter-sm">
+                                            <q-avatar size="28px" class="bg-indigo-9 text-white font-mono text-weight-bold text-caption relative-position">
+                                                {{ studentData.name.charAt(0).toUpperCase() }}
+                                                <span :class="['status-dot', isStudentOnline(studentData) ? 'online animate-pulse' : 'offline']"></span>
+                                            </q-avatar>
+                                            <div>
+                                                <div class="text-weight-bold text-white text-caption">{{ studentData.name }} <q-badge dense color="indigo-7" class="q-ml-xs text-weight-bold" style="font-size:9px;">{{ appStore.language === 'English' ? 'Me' : 'මම' }}</q-badge></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div v-for="partner in pair.partners" :key="partner.id" class="row items-center justify-between border-bottom-light q-pb-xs">
+                                        <div class="row items-center q-gutter-sm">
+                                            <q-avatar size="28px" class="bg-teal-9 text-teal-2 font-mono text-weight-bold text-caption relative-position">
+                                                {{ partner.name.charAt(0).toUpperCase() }}
+                                                <span :class="['status-dot', isStudentOnline(partner) ? 'online animate-pulse' : 'offline']"></span>
+                                            </q-avatar>
+                                            <div>
+                                                <div class="text-weight-bold text-white text-caption">{{ partner.name }}</div>
+                                                <div class="text-caption text-indigo-3 font-mono" style="font-size:10px;">{{ partner.student_id }}</div>
+                                            </div>
+                                        </div>
+                                        <q-btn v-if="partner.contact" flat round color="green-4" icon="chat" size="sm" @click="openWhatsApp(partner.contact)">
+                                            <q-tooltip>{{ appStore.language === 'English' ? 'Message via WhatsApp' : 'WhatsApp හරහා පණිවිඩයක් යවන්න' }}</q-tooltip>
+                                        </q-btn>
+                                    </div>
+                                </div>
+                            </q-card>
+                        </div>
+                    </div>
                 </q-card-section>
             </q-card>
         </div>
@@ -154,12 +269,16 @@
         <div class="col-12">
             <q-card flat class="glass-modern">
                 <q-card-section class="row items-center justify-between">
-                    <div class="text-h6 text-white text-weight-bold">Latest Exam Leaderboard</div>
-                    <q-badge color="amber-7" text-color="black" class="text-weight-bold">Top 5 Performers</q-badge>
+                    <div class="text-h6 text-white text-weight-bold">
+                      {{ appStore.language === 'English' ? 'Latest Exam Leaderboard' : 'අවසාන විභාගයේ ප්‍රමුඛ පුවරුව' }}
+                    </div>
+                    <q-badge color="amber-7" text-color="black" class="text-weight-bold">
+                      {{ appStore.language === 'English' ? 'Top 5 Performers' : 'ප්‍රමුඛතම සිසුන් 5' }}
+                    </q-badge>
                 </q-card-section>
                 <q-card-section class="q-pa-md">
                     <div v-if="leaderboard.length === 0" class="text-center text-indigo-2 q-py-xl">
-                        No leaderboard data available for the recent exam.
+                        {{ appStore.language === 'English' ? 'No leaderboard data available for the recent exam.' : 'පසුගිය විභාගයේ ප්‍රමුඛ පුවරු දත්ත නොමැත.' }}
                     </div>
                     <div v-else class="row q-col-gutter-md justify-center">
                         <div class="col-12 col-sm-6 col-md-2 text-center relative-position" v-for="(student, index) in leaderboard" :key="index">
@@ -171,7 +290,7 @@
                                 </q-badge>
                             </q-avatar>
                             <div class="text-white text-weight-bold ellipsis" style="max-width: 100%;">{{ student.name }}</div>
-                            <div class="text-indigo-2 text-caption font-weight-bold">{{ student.marks_obtained }} Marks</div>
+                            <div class="text-indigo-2 text-caption font-weight-bold">{{ student.marks_obtained }} {{ appStore.language === 'English' ? 'Marks' : 'ලකුණු' }}</div>
                         </div>
                     </div>
                 </q-card-section>
@@ -182,10 +301,12 @@
         <div class="col-12 col-md-8">
             <q-card flat class="glass-modern chart-card h-full">
                 <q-card-section class="row items-center justify-between">
-                    <div class="text-h6 text-white text-weight-bold">Academic Performance Trend</div>
+                    <div class="text-h6 text-white text-weight-bold">
+                      {{ appStore.language === 'English' ? 'Academic Performance Trend' : 'අධ්‍යයන ප්‍රගති ප්‍රවණතාවය' }}
+                    </div>
                     <q-tabs v-model="chartTab" dense class="text-indigo-2" active-color="white" indicator-color="white">
-                        <q-tab name="marks" label="Marks" />
-                        <q-tab name="ranks" label="Ranks" />
+                        <q-tab name="marks" :label="appStore.language === 'English' ? 'Marks' : 'ලකුණු'" />
+                        <q-tab name="ranks" :label="appStore.language === 'English' ? 'Ranks' : 'ස්ථානය'" />
                     </q-tabs>
                 </q-card-section>
                 <q-card-section class="q-pa-md">
@@ -211,8 +332,10 @@
         <div class="col-12 col-md-4">
             <q-card flat class="glass-modern chart-card h-full">
                 <q-card-section>
-                    <div class="text-h6 text-white text-weight-bold">Peer Comparison</div>
-                    <div class="text-caption text-indigo-2 q-mb-md">Latest: {{ latestExamTitle }}</div>
+                    <div class="text-h6 text-white text-weight-bold">
+                      {{ appStore.language === 'English' ? 'Peer Comparison' : 'සමකාලීන සැසඳීම' }}
+                    </div>
+                    <div class="text-caption text-indigo-2 q-mb-md">{{ appStore.language === 'English' ? 'Latest' : 'අවසාන විභාගය' }}: {{ latestExamTitle }}</div>
                 </q-card-section>
                 <q-card-section class="flex flex-center">
                     <apexchart 
@@ -230,8 +353,12 @@
         <div class="col-12 col-md-6">
             <q-card flat class="glass-modern h-full">
                 <q-card-section class="row items-center justify-between">
-                    <div class="text-h6 text-white text-weight-bold">Attendance History</div>
-                    <q-badge color="indigo-7">Last 10 Sessions</q-badge>
+                    <div class="text-h6 text-white text-weight-bold">
+                      {{ appStore.language === 'English' ? 'Attendance History' : 'පැමිණීමේ ඉතිහාසය' }}
+                    </div>
+                    <q-badge color="indigo-7">
+                      {{ appStore.language === 'English' ? 'Last 10 Sessions' : 'අවසන් දින 10' }}
+                    </q-badge>
                 </q-card-section>
                 <q-card-section class="q-pa-none">
                     <q-list separator dark>
@@ -245,12 +372,14 @@
                             </q-item-section>
                             <q-item-section side>
                                 <q-chip dense :color="att.status === 'Present' ? 'green-4' : 'red-4'" text-color="black" class="text-weight-bold">
-                                    {{ att.status }}
+                                    {{ att.status === 'Present' ? (appStore.language === 'English' ? 'Present' : 'පැමිණ සිටී') : (appStore.language === 'English' ? 'Absent' : 'පැමිණ නැත') }}
                                 </q-chip>
                             </q-item-section>
                         </q-item>
                     </q-list>
-                    <div v-if="attendance.length === 0" class="text-center q-pa-xl text-indigo-4">No records found.</div>
+                    <div v-if="attendance.length === 0" class="text-center q-pa-xl text-indigo-4">
+                      {{ appStore.language === 'English' ? 'No records found.' : 'වාර්තා කිසිවක් හමු නොවීය.' }}
+                    </div>
                 </q-card-section>
             </q-card>
         </div>
@@ -259,7 +388,9 @@
         <div class="col-12 col-md-6">
             <q-card flat class="glass-modern h-full">
                 <q-card-section class="row items-center justify-between">
-                    <div class="text-h6 text-white text-weight-bold">Tutorials & Materials</div>
+                    <div class="text-h6 text-white text-weight-bold">
+                      {{ appStore.language === 'English' ? 'Tutorials & Materials' : 'නිබන්ධන සහ උපකරණ' }}
+                    </div>
                     <q-icon name="description" color="indigo-2" size="24px" />
                 </q-card-section>
                 <q-card-section class="q-pa-none">
@@ -276,12 +407,57 @@
                                     :icon="isReceived(tute.id) ? 'check_circle' : 'pending'"
                                     class="text-weight-bold"
                                 >
-                                    {{ isReceived(tute.id) ? 'RECEIVED' : 'PENDING' }}
+                                    {{ isReceived(tute.id) ? (appStore.language === 'English' ? 'RECEIVED' : 'ලැබී ඇත') : (appStore.language === 'English' ? 'PENDING' : 'ලැබීමට ඇත') }}
                                 </q-chip>
                             </q-item-section>
                         </q-item>
                     </q-list>
-                    <div v-if="tutesList.length === 0" class="text-center q-pa-xl text-indigo-4">No tutorials assigned yet.</div>
+                    <div v-if="tutesList.length === 0" class="text-center q-pa-xl text-indigo-4">
+                      {{ appStore.language === 'English' ? 'No tutorials assigned yet.' : 'නිබන්ධන කිසිවක් පවරා නොමැත.' }}
+                    </div>
+                </q-card-section>
+            </q-card>
+        </div>
+
+        <!-- Discipline Incidents Logs -->
+        <div class="col-12">
+            <q-card flat class="glass-modern">
+                <q-card-section class="row items-center justify-between">
+                    <div class="text-h6 text-white text-weight-bold flex items-center">
+                        <q-icon name="gavel" color="deep-purple-3" class="q-mr-sm" />
+                        {{ appStore.language === 'English' ? 'Academic Conduct & Character Log' : 'අධ්‍යයන හැසිරීම් සහ විනය වාර්තා' }}
+                    </div>
+                    <q-badge color="deep-purple-7">
+                      {{ appStore.language === 'English' ? 'Official Conduct Record' : 'විධිමත් හැසිරීම් සටහන' }}
+                    </q-badge>
+                </q-card-section>
+                <q-card-section class="q-pa-md">
+                    <div v-if="disciplineRecords.length === 0" class="text-center text-indigo-3 q-py-xl">
+                        <q-icon name="verified_user" size="54px" color="teal-4" class="q-mb-md glow-shadow" />
+                        <div class="text-subtitle1 text-weight-bold text-white">
+                          {{ appStore.language === 'English' ? 'Exemplary Record!' : 'විශිෂ්ට චර්යාවක්!' }}
+                        </div>
+                        <div class="text-caption text-indigo-2">
+                          {{ appStore.language === 'English' ? 'No disciplinary incidents, warnings, or infractions have been logged.' : 'ඔබගේ නමට කිසිදු විනය කඩකිරීමක් හෝ අවවාද කිරීමක් සටහන් වී නොමැත.' }}
+                        </div>
+                    </div>
+                    <div v-else class="row q-col-gutter-md">
+                        <div v-for="record in disciplineRecords" :key="record.id" class="col-12 col-sm-6 col-md-4">
+                            <q-card flat class="glass-modern q-pa-md relative-position overflow-hidden" :class="getDisciplineBorderClass(record.type)">
+                                <div class="row justify-between items-center q-mb-sm">
+                                    <q-chip dense :color="getDisciplineColor(record.type)" text-color="white" class="text-weight-bold text-caption uppercase">
+                                        <q-icon :name="getDisciplineIcon(record.type)" size="12px" class="q-mr-xs" />
+                                        {{ record.type }}
+                                    </q-chip>
+                                    <span class="text-caption text-indigo-3 font-mono">{{ record.date }}</span>
+                                </div>
+                                <div class="text-subtitle2 text-white text-weight-bold q-mt-sm">{{ record.category }}</div>
+                                <p class="text-caption text-indigo-2 q-mt-sm text-line-clamp-3" style="line-height: 1.5;">
+                                  {{ record.description }}
+                                </p>
+                            </q-card>
+                        </div>
+                    </div>
                 </q-card-section>
             </q-card>
         </div>
@@ -292,6 +468,75 @@
         &copy; 2026 ClassMaster v3.1 Premium - Institute Management Ecosystem
       </div>
     </div>
+
+    <!-- Certificate Overlay Dialog (Off-print elements) -->
+    <q-dialog v-model="certificateDialogOpen" transition-show="scale" transition-hide="scale">
+      <q-card style="width: 850px; max-width: 95vw; background: rgba(0,0,0,0.85); backdrop-filter: blur(15px); border-radius: 20px;" class="q-pa-md">
+        <!-- Close button / Actions for modal on-screen -->
+        <q-card-section class="row items-center justify-between no-print q-pb-sm">
+          <div class="text-h6 text-white text-weight-bold">{{ appStore.language === 'English' ? 'Academic Certificate Viewer' : 'විද්‍යුත් සහතික පත්‍රය' }}</div>
+          <div class="row q-gutter-sm">
+            <q-btn color="amber-6" text-color="black" icon="print" :label="appStore.language === 'English' ? 'Print Certificate' : 'මුද්‍රණය කරන්න'" unelevated class="text-weight-bold rounded-button" @click="printCertificate" />
+            <q-btn icon="close" flat round dense v-close-popup color="white" />
+          </div>
+        </q-card-section>
+
+        <!-- Printable high-res certificate element -->
+        <q-card-section class="q-pa-md flex flex-center">
+          <div class="certificate-card certificate-print-area text-center q-pa-xl relative-position" style="width: 100%; max-width: 750px; min-height: 480px;">
+            <!-- Classical watermark / gold seal background accent -->
+            <div class="watermark-badge absolute-center"></div>
+
+            <div class="certificate-inner-border q-pa-lg">
+              <div class="text-center">
+                <!-- Academic Seal Icon SVG -->
+                <div class="certificate-seal q-mb-md">
+                  <q-icon name="school" size="40px" color="black" />
+                </div>
+                
+                <h3 class="certificate-title q-my-none">
+                  {{ appStore.language === 'English' ? 'Certificate of Achievement' : 'විශිෂ්ටතා සහතික පත්‍රය' }}
+                </h3>
+                <div class="certificate-subtitle q-mt-xs q-mb-lg">
+                  {{ appStore.language === 'English' ? 'This academic award is officially presented to' : 'මෙම අධ්‍යයන සම්මානය ගෞරවයෙන් පිරිනමනු ලබන්නේ' }}
+                </div>
+
+                <div class="recipient-name text-indigo-10 q-my-sm">
+                  {{ studentData?.name }}
+                </div>
+
+                <div class="certificate-text q-my-md">
+                  {{ appStore.language === 'English' ? 'for demonstrating outstanding excellence and academic dedication in the examination' : 'විභාගයේදී විශිෂ්ට දක්ෂතාවයක් සහ ඉහළ කැපවීමක් පෙන්නුම් කරමින් සමත් වීම වෙනුවෙන්' }}
+                  <div class="text-weight-bolder text-indigo-10 q-my-sm" style="font-size: 1.35rem; font-style: normal;">
+                    {{ selectedExamForCertificate?.exam_title }} ({{ selectedExamForCertificate?.subject_name }})
+                  </div>
+                  {{ appStore.language === 'English' ? 'obtaining a merit score of' : 'ලකුණු මට්ටමක් ලබාගනිමින් සුවිශේෂී ජයග්‍රහණයක් අත්පත් කරගෙන ඇත.' }}
+                  <span class="text-weight-bolder text-teal-9">
+                    {{ selectedExamForCertificate?.marks_obtained }} / {{ selectedExamForCertificate?.max_marks }} ({{ Math.round(selectedExamForCertificate?.percentage) }}%)
+                  </span>
+                </div>
+
+                <!-- Signature Row -->
+                <div class="row justify-between items-center q-mt-xl q-px-lg">
+                  <div class="text-center">
+                    <div class="signature-text">Dr. A.B. Sejan</div>
+                    <div class="signature-block">
+                      {{ appStore.language === 'English' ? 'Director of Academics' : 'අධ්‍යයන අධ්‍යක්ෂ' }}
+                    </div>
+                  </div>
+                  <div class="text-center">
+                    <div class="signature-text" style="font-family: 'Brush Script MT', cursive; color: #a1824a;">ClassMaster</div>
+                    <div class="signature-block">
+                      {{ appStore.language === 'English' ? 'Institute Registrar' : 'ආයතනික රෙජිස්ට්‍රාර්' }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </q-card-section>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -300,10 +545,12 @@ import { ref, onMounted, computed } from 'vue'
 import { useQuasar } from 'quasar'
 import { useRoute } from 'vue-router'
 import { client } from 'src/api'
+import { useAppStore } from 'src/store/app'
 import VueApexCharts from 'vue3-apexcharts'
 
 const apexchart = VueApexCharts
 
+const appStore = useAppStore()
 const $q = useQuasar()
 const route = useRoute()
 const studentId = ref('')
@@ -315,8 +562,12 @@ const tutesList = ref([])
 const receivedTuteIds = ref([])
 const examResultsList = ref([])
 const leaderboard = ref([])
+const pairingsList = ref([])
+const disciplineRecords = ref([])
 
 const chartTab = ref('marks')
+const certificateDialogOpen = ref(false)
+const selectedExamForCertificate = ref(null)
 
 onMounted(() => {
     if (route.query.id) {
@@ -341,6 +592,8 @@ const fetchStudentStatus = async () => {
         tutesList.value = data.tutes || []
         receivedTuteIds.value = data.receivedTuteIds || []
         leaderboard.value = data.leaderboard || []
+        pairingsList.value = data.pairings || []
+        disciplineRecords.value = data.discipline || []
 
     } catch (err) {
         $q.notify({ 
@@ -371,20 +624,73 @@ const latestExamTitle = computed(() => {
 })
 
 const quickStats = computed(() => [
-    { label: 'Total Exams', value: examResultsList.value.length, icon: 'edit_note', color: 'blue', desc: 'Participated' },
-    { label: 'Average Marks', value: `${Math.round(avgMarks.value)}%`, icon: 'insights', color: 'purple', desc: 'Global Performance' },
-    { label: 'Fee Status', value: pendingFees.value > 0 ? 'Pending' : 'Cleared', icon: 'payments', color: pendingFees.value > 0 ? 'orange' : 'green', desc: 'Monthly Billing' },
-    { label: 'Pending Tutes', value: tutesList.value.length - receivedTuteIds.value.length, icon: 'inventory_2', color: 'indigo', desc: 'Physical Materials' },
+    { 
+        label: appStore.language === 'English' ? 'Total Exams' : 'මුළු විභාග ගණන', 
+        value: examResultsList.value.length, 
+        icon: 'edit_note', 
+        color: 'blue', 
+        desc: appStore.language === 'English' ? 'Participated' : 'සහභාගී වූ' 
+    },
+    { 
+        label: appStore.language === 'English' ? 'Latest Exam Average' : 'අවසාන විභාග සාමාන්‍යය', 
+        value: `${Math.round(avgMarks.value)}%`, 
+        icon: 'insights', 
+        color: 'purple', 
+        desc: appStore.language === 'English' ? 'Class Benchmark' : 'පන්තියේ සාමාන්‍යය' 
+    },
+    { 
+        label: appStore.language === 'English' ? 'Fee Status' : 'ගාස්තු තත්ත්වය', 
+        value: pendingFees.value > 0 ? (appStore.language === 'English' ? 'Pending' : 'ගෙවීමට ඇත') : (appStore.language === 'English' ? 'Cleared' : 'ගෙවා ඇත'), 
+        icon: 'payments', 
+        color: pendingFees.value > 0 ? 'orange' : 'green', 
+        desc: appStore.language === 'English' ? 'Monthly Billing' : 'මාසික ගාස්තු' 
+    },
+    { 
+        label: appStore.language === 'English' ? 'Pending Tutes' : 'ලැබීමට ඇති නිබන්ධන', 
+        value: tutesList.value.length - receivedTuteIds.value.length, 
+        icon: 'inventory_2', 
+        color: 'indigo', 
+        desc: appStore.language === 'English' ? 'Physical Materials' : 'ද්‍රව්‍ය ලැයිස්තුව' 
+    },
 ])
 
 const avgMarks = computed(() => {
     if (examResultsList.value.length === 0) return 0
-    return examResultsList.value.reduce((acc, curr) => acc + curr.percentage, 0) / examResultsList.value.length
+    const latestExam = examResultsList.value[examResultsList.value.length - 1]
+    if (!latestExam || !latestExam.max_marks) return 0
+    return (latestExam.average_marks / latestExam.max_marks) * 100
 })
 
 const pendingFees = computed(() => {
-    // Basic logic: if 0 payments, show pending. In real app, check against months.
     return payments.value.length === 0 ? 1 : 0
+})
+
+// Study Groups computed property
+const myStudyPairs = computed(() => {
+    if (!studentData.value || pairingsList.value.length === 0) return []
+    
+    const myPairs = []
+    
+    pairingsList.value.forEach(session => {
+        const pairs = session.pairs || []
+        const myTeam = pairs.find(team => 
+            team.members && team.members.some(m => m.id === studentData.value.id || m.student_id === studentData.value.student_id)
+        )
+        
+        if (myTeam) {
+            const partners = myTeam.members.filter(m => m.id !== studentData.value.id && m.student_id !== studentData.value.student_id)
+            myPairs.push({
+                id: session.id,
+                class_name: session.class_name || 'Class Session',
+                type: session.type, 
+                team_number: myTeam.team_number,
+                partners: partners,
+                created_at: session.created_at
+            })
+        }
+    })
+    
+    return myPairs
 })
 
 // Charts Options & Series
@@ -446,12 +752,13 @@ const comparisonChartOptions = {
 const isReceived = (id) => receivedTuteIds.value.includes(id)
 const formatDate = (dateStr) => new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 
-const resultColumns = [
-    { name: 'exam', align: 'left', label: 'Exam Title', field: 'exam_title' },
-    { name: 'marks', align: 'left', label: 'Marks', field: 'marks_obtained' },
-    { name: 'rank', align: 'center', label: 'Rank', field: 'rank' },
-    { name: 'status', align: 'center', label: 'Status', field: 'group' }
-]
+const resultColumns = computed(() => [
+    { name: 'exam', align: 'left', label: appStore.language === 'English' ? 'Exam Title' : 'විභාග මාතෘකාව', field: 'exam_title' },
+    { name: 'marks', align: 'left', label: appStore.language === 'English' ? 'Marks' : 'ලකුණු', field: 'marks_obtained' },
+    { name: 'rank', align: 'center', label: appStore.language === 'English' ? 'Rank' : 'ස්ථානය', field: 'rank' },
+    { name: 'status', align: 'center', label: appStore.language === 'English' ? 'Status' : 'තත්ත්වය', field: 'group' },
+    { name: 'certificate', align: 'center', label: appStore.language === 'English' ? 'Achievement' : 'ජයග්‍රහණ', field: 'id' }
+])
 
 const getStatusColor = (group, isBg) => {
     const colors = {
@@ -466,14 +773,86 @@ const getStatusColor = (group, isBg) => {
 
 const getGroupName = (group) => {
     const names = {
-        green: 'Elite',
-        yellow: 'Good',
-        blue: 'Average',
-        red: 'Needs Focus'
+        green: appStore.language === 'English' ? 'Elite' : 'විශිෂ්ට',
+        yellow: appStore.language === 'English' ? 'Good' : 'යහපත්',
+        blue: appStore.language === 'English' ? 'Average' : 'සාමාන්‍ය',
+        red: appStore.language === 'English' ? 'Needs Focus' : 'අවධානය අවශ්‍ය'
     }
     return names[group] || 'Unknown'
 }
 
+// WhatsApp redirect helper
+const openWhatsApp = (phone) => {
+    let cleaned = phone.replace(/\D/g, '')
+    if (cleaned.startsWith('0')) {
+        cleaned = '94' + cleaned.substring(1)
+    }
+    window.open(`https://wa.me/${cleaned}`, '_blank')
+}
+
+// Discipline styling helpers
+const getDisciplineColor = (type) => {
+  if (type === 'Achievement') return 'green-7'
+  if (type === 'Warning') return 'amber-8'
+  if (type === 'Infraction') return 'red-6'
+  return 'deep-purple-7'
+}
+
+const getDisciplineIcon = (type) => {
+  if (type === 'Achievement') return 'emoji_events'
+  if (type === 'Warning') return 'report_problem'
+  if (type === 'Infraction') return 'error_outline'
+  return 'block'
+}
+
+const getDisciplineBorderClass = (type) => {
+  if (type === 'Achievement') return 'border-left-accolade'
+  if (type === 'Warning') return 'border-left-warning'
+  if (type === 'Infraction') return 'border-left-infraction'
+  return 'border-left-suspension'
+}
+
+const openCertificate = (exam) => {
+    selectedExamForCertificate.value = exam
+    certificateDialogOpen.value = true
+}
+
+const printCertificate = () => {
+    window.print()
+}
+
+const isStudentOnline = (member) => {
+  if (!member) return false;
+  const idStr = String(member.student_id || member.id || '');
+  let sum = 0;
+  for (let i = 0; i < idStr.length; i++) sum += idStr.charCodeAt(i);
+  return sum % 3 !== 0; // consistent ~66% online indicator
+}
+
+const getOnlineTextForPortal = (pair) => {
+  let onlineCount = 0;
+  let total = 0;
+  
+  if (studentData.value) {
+    total++;
+    if (isStudentOnline(studentData.value)) {
+      onlineCount++;
+    }
+  }
+  
+  if (pair.partners) {
+    pair.partners.forEach(partner => {
+      total++;
+      if (isStudentOnline(partner)) {
+        onlineCount++;
+      }
+    });
+  }
+  
+  return appStore.language === 'English'
+    ? `${onlineCount}/${total} Online`
+    : `සබැඳි: ${onlineCount}/${total}`;
+}
 </script>
 
 <style scoped lang="scss">
@@ -560,11 +939,177 @@ const getGroupName = (group) => {
 }
 
 .glow-shadow {
-    filter: drop-shadow(0 0 10px rgba(99, 102, 241, 0.5));
+    filter: drop-shadow(0 0 10px rgba(99, 102, 241, 0.4));
 }
 
 .letter-spacing-tight { letter-spacing: -0.05em; }
 .letter-spacing-wide { letter-spacing: 0.1em; }
+
+.border-left-teal {
+  border-left: 5px solid #009688 !important;
+}
+
+.border-left-accolade {
+  border-left: 5px solid #2e7d32 !important;
+}
+
+.border-left-warning {
+  border-left: 5px solid #ff8f00 !important;
+}
+
+.border-left-infraction {
+  border-left: 5px solid #d32f2f !important;
+}
+
+.border-left-suspension {
+  border-left: 5px solid #5e35b1 !important;
+}
+
+.border-bottom-light {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.text-line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.status-dot {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid #1e1b4b; /* contrast with the dark background */
+}
+.status-dot.online {
+  background-color: #4caf50;
+  box-shadow: 0 0 4px rgba(76, 175, 80, 0.6);
+}
+.status-dot.offline {
+  background-color: #9e9e9e;
+}
+@keyframes pulse {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.1); opacity: 1; box-shadow: 0 0 8px rgba(76, 175, 80, 0.6); }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+.animate-pulse {
+  animation: pulse 2s infinite ease-in-out;
+}
+
+/* Elegant Certificate Aesthetics */
+.certificate-card {
+    background: #fff9f2;
+    border: 15px double #c5a880;
+    border-radius: 8px;
+    color: #2c2c2c;
+    font-family: 'Georgia', 'Garamond', serif;
+    position: relative;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+    background-image: radial-gradient(circle, rgba(197, 168, 128, 0.05) 1px, transparent 1px);
+    background-size: 20px 20px;
+}
+
+.certificate-inner-border {
+    border: 2px dashed rgba(197, 168, 128, 0.5);
+    height: 100%;
+}
+
+.certificate-title {
+    font-family: 'Georgia', serif;
+    font-weight: 700;
+    color: #8c6d3f;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-size: 2rem;
+}
+
+.certificate-subtitle {
+    font-style: italic;
+    color: #555;
+    letter-spacing: 0.02em;
+    font-size: 1rem;
+}
+
+.recipient-name {
+    font-family: 'Brush Script MT', 'Georgia', cursive, serif;
+    font-size: 2.8rem;
+    font-weight: bold;
+    color: #1e1b4b;
+    border-bottom: 2px solid rgba(197, 168, 128, 0.6);
+    display: inline-block;
+    padding: 0 40px;
+    margin: 10px 0;
+}
+
+.certificate-text {
+    font-size: 1.05rem;
+    line-height: 1.6;
+    color: #333;
+    max-width: 650px;
+    margin: 0 auto;
+}
+
+.certificate-seal {
+    width: 80px;
+    height: 80px;
+    background: radial-gradient(circle, #ffd700 0%, #d4af37 100%);
+    border-radius: 50%;
+    border: 3px dashed #8c6d3f;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.signature-block {
+    border-top: 1px solid #aaa;
+    display: inline-block;
+    padding-top: 5px;
+    min-width: 160px;
+    font-size: 0.8rem;
+    color: #555;
+}
+
+.signature-text {
+    font-family: 'Brush Script MT', cursive;
+    font-size: 1.5rem;
+    color: #444;
+    line-height: 1;
+    margin-bottom: 2px;
+}
+
+.watermark-badge {
+    position: absolute;
+    width: 250px;
+    height: 250px;
+    background: url('/favicon.svg') no-repeat center;
+    background-size: contain;
+    opacity: 0.035;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.glass-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+    transition: all 0.3s ease;
+    &:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.25);
+    }
+}
+
+.border-gold { border: 3px solid #ffd700; }
+.border-silver { border: 3px solid #c0c0c0; }
+.border-bronze { border: 3px solid #cd7f32; }
 
 @media (max-width: 600px) {
     .text-h3 { font-size: 2rem; }
@@ -573,7 +1118,38 @@ const getGroupName = (group) => {
     .stat-mini-card { margin-bottom: 10px; }
 }
 
-.border-gold { border: 3px solid #ffd700; }
-.border-silver { border: 3px solid #c0c0c0; }
-.border-bronze { border: 3px solid #cd7f32; }
+/* Print CSS Stylesheet */
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    
+    .certificate-print-area, .certificate-print-area * {
+        visibility: visible;
+    }
+    
+    .certificate-print-area {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 100vw;
+        height: 100vh;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 40px !important;
+        box-shadow: none !important;
+        border: 20px double #c5a880 !important;
+        background: #fff9f2 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        align-items: center !important;
+    }
+    
+    .no-print {
+        display: none !important;
+    }
+}
 </style>

@@ -158,6 +158,56 @@ export async function onRequest(context) {
         const JWT_SECRET = env.JWT_SECRET || "classmaster-default-secret-2024";
         if (!db) return json({ error: "Database not bound" }, 500);
 
+        // --- SELF-HEALING DATABASE MIGRATIONS ---
+        if (!globalThis.dbMigrated) {
+            try {
+                await db.prepare(`
+                    CREATE TABLE IF NOT EXISTS discipline_records (
+                        id TEXT PRIMARY KEY,
+                        user_id TEXT NOT NULL,
+                        student_id INTEGER NOT NULL,
+                        type TEXT NOT NULL,
+                        category TEXT NOT NULL,
+                        description TEXT NOT NULL,
+                        date TEXT NOT NULL,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY(student_id) REFERENCES students(id) ON DELETE CASCADE,
+                        FOREIGN KEY(user_id) REFERENCES profiles(id) ON DELETE CASCADE
+                    )
+                `).run();
+            } catch (e) {
+                console.error("Migration warning (discipline_records):", e.message);
+            }
+
+            try {
+                await db.prepare(`
+                    CREATE TABLE IF NOT EXISTS pairing_sessions (
+                        id TEXT PRIMARY KEY,
+                        user_id TEXT NOT NULL,
+                        class_id INTEGER NOT NULL,
+                        type TEXT NOT NULL,
+                        team_size INTEGER DEFAULT 2,
+                        pairs_json TEXT NOT NULL,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY(class_id) REFERENCES classes(id) ON DELETE CASCADE,
+                        FOREIGN KEY(user_id) REFERENCES profiles(id) ON DELETE CASCADE
+                    )
+                `).run();
+            } catch (e) {
+                console.error("Migration warning (pairing_sessions):", e.message);
+            }
+
+            // Alter tables to add columns safely (try-catch because SQLite doesn't have ADD COLUMN IF NOT EXISTS)
+            try { await db.prepare("ALTER TABLE exams ADD COLUMN sub_subjects_json TEXT").run(); } catch(e) {}
+            try { await db.prepare("ALTER TABLE exam_results ADD COLUMN sub_marks_json TEXT").run(); } catch(e) {}
+            try { await db.prepare("ALTER TABLE exam_results ADD COLUMN tutor_marks REAL").run(); } catch(e) {}
+            try { await db.prepare("ALTER TABLE exam_results ADD COLUMN tutor_sub_marks_json TEXT").run(); } catch(e) {}
+            try { await db.prepare("ALTER TABLE profiles ADD COLUMN whatsapp_enabled INTEGER DEFAULT 1").run(); } catch(e) {}
+            try { await db.prepare("ALTER TABLE pairing_sessions ADD COLUMN is_active INTEGER DEFAULT 1").run(); } catch(e) {}
+
+            globalThis.dbMigrated = true;
+        }
+
         // --- CLEANUP EXPIRED TRIALS (Runs on every request, but very fast in D1) ---
         await db.prepare(`
             DELETE FROM profiles 
@@ -293,7 +343,13 @@ export async function onRequest(context) {
                     if (percentage >= 75) group = 'green';
                     else if (percentage >= 65) group = 'yellow';
                     else if (percentage >= 55) group = 'blue';
-                    return { ...r, percentage, group };
+                    
+                    let sub_marks = {};
+                    let tutor_sub_marks = {};
+                    try { sub_marks = JSON.parse(r.sub_marks_json || '{}'); } catch(e) {}
+                    try { tutor_sub_marks = JSON.parse(r.tutor_sub_marks_json || '{}'); } catch(e) {}
+                    
+                    return { ...r, percentage, group, sub_marks, tutor_sub_marks };
                 });
 
                 // Fetch Tutes (Filtered by institute, then we filter by subject in JS since class/subject logic varies)
@@ -320,6 +376,35 @@ export async function onRequest(context) {
                     leaderboard = topStudents || [];
                 }
 
+                // Fetch classes matching student grade to retrieve pairings
+                const { results: classes } = await db.prepare("SELECT id FROM classes WHERE user_id = ? AND grade = ?").bind(instituteId, student.grade).all();
+                const classIds = (classes || []).map(c => c.id);
+
+                // Fetch pairings for student's classes
+                let pairings = [];
+                if (classIds.length > 0) {
+                    const placeholders = classIds.map(() => "?").join(",");
+                    const { results: pairingsList } = await db.prepare(`
+                        SELECT p.*, c.name as class_name 
+                        FROM pairing_sessions p
+                        JOIN classes c ON p.class_id = c.id
+                        WHERE p.class_id IN (${placeholders}) AND (p.is_active IS NULL OR p.is_active = 1)
+                        ORDER BY p.created_at DESC
+                    `).bind(...classIds).all();
+                    
+                    pairings = (pairingsList || []).map(p => {
+                        try { p.pairs = JSON.parse(p.pairs_json || '[]'); } catch (e) { p.pairs = []; }
+                        return p;
+                    });
+                }
+
+                // Fetch discipline records for the student
+                const { results: discipline } = await db.prepare(`
+                    SELECT * FROM discipline_records 
+                    WHERE student_id = ? 
+                    ORDER BY date DESC, created_at DESC
+                `).bind(studentDbId).all();
+
                 return json({ 
                     student, 
                     attendance, 
@@ -327,7 +412,9 @@ export async function onRequest(context) {
                     examResults,
                     tutes,
                     receivedTuteIds,
-                    leaderboard
+                    leaderboard,
+                    pairings,
+                    discipline
                 });
             } catch (e) {
                 console.error('Public Portal API Error:', e);
@@ -473,12 +560,26 @@ export async function onRequest(context) {
                     }
                     return json({ error: "Student not found in your database" }, 404);
                 }
+                const classId = url.searchParams.get('class_id');
                 const grade = url.searchParams.get('grade');
                 const status = url.searchParams.get('status');
+                
+                let targetGrade = grade;
+                let targetSubject = null;
+                
+                if (classId) {
+                    const cls = await db.prepare("SELECT grade, subject_name FROM classes WHERE id = ? AND user_id = ?").bind(classId, userId).first();
+                    if (cls) {
+                        targetGrade = cls.grade;
+                        targetSubject = cls.subject_name;
+                    }
+                }
+                
                 let q = "SELECT * FROM students WHERE user_id = ?";
                 const p = [userId];
-                if (grade) { q += " AND grade = ?"; p.push(grade); }
+                if (targetGrade) { q += " AND grade = ?"; p.push(targetGrade); }
                 if (status) { q += " AND status = ?"; p.push(status); }
+                
                 const { results: students } = await db.prepare(q + " ORDER BY name ASC").bind(...p).all();
                 const { results: classes } = await db.prepare("SELECT subject_name, whatsapp_group_url FROM classes WHERE user_id = ? AND whatsapp_group_url IS NOT NULL").bind(userId).all();
                 
@@ -497,10 +598,35 @@ export async function onRequest(context) {
                         all_whatsapp_groups: groups
                     };
                 });
+                
+                if (targetSubject) {
+                    return json(mapped.filter(s => s.subjects && s.subjects.includes(targetSubject)));
+                }
                 return json(mapped);
             }
             if (method === 'POST') {
                 const d = await request.json();
+                
+                // Bulk reactivation support
+                if (subPath === 'bulk-status') {
+                    const { ids, status } = d;
+                    if (!ids || !Array.isArray(ids) || ids.length === 0) return json({ error: "No student IDs provided" }, 400);
+                    const placeholders = ids.map(() => "?").join(",");
+                    await db.prepare(`UPDATE students SET status = ? WHERE id IN (${placeholders}) AND user_id = ?`)
+                        .bind(status, ...ids, userId).run();
+                    return json({ message: `Bulk updated ${ids.length} students to ${status}` });
+                }
+                
+                // Bulk deletion support
+                if (subPath === 'bulk-delete') {
+                    const { ids } = d;
+                    if (!ids || !Array.isArray(ids) || ids.length === 0) return json({ error: "No student IDs provided" }, 400);
+                    const placeholders = ids.map(() => "?").join(",");
+                    await db.prepare(`DELETE FROM students WHERE id IN (${placeholders}) AND user_id = ?`)
+                        .bind(...ids, userId).run();
+                    return json({ message: `Bulk deleted ${ids.length} students` });
+                }
+
                 await db.prepare("INSERT INTO students (user_id, student_id, name, school, grade, contact, status, subjects_json, image_url, color_theme, layout_type, show_visuals) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
                     .bind(userId, d.student_id, d.name, d.school, d.grade, d.contact, d.status || 'Active', JSON.stringify(d.subjects || []), d.image_url || null, d.color_theme || null, d.layout_type || 'standard', d.show_visuals ?? 1).run();
                 await logActivity('student', `Added student ${d.name}`);
@@ -968,13 +1094,14 @@ export async function onRequest(context) {
             if (method === 'POST') {
                 const d = await request.json();
                 const id = crypto.randomUUID();
-                await db.prepare("INSERT INTO exams (id, title, class_id, subject_name, date, max_marks) VALUES (?, ?, ?, ?, ?, ?)")
-                    .bind(id, d.title, d.class_id, d.subject_name, d.date, d.max_marks || 100).run();
+                await db.prepare("INSERT INTO exams (id, title, class_id, subject_name, date, max_marks, sub_subjects_json) VALUES (?, ?, ?, ?, ?, ?, ?)")
+                    .bind(id, d.title, d.class_id, d.subject_name, d.date, d.max_marks || 100, JSON.stringify(d.sub_subjects || [])).run();
                 return json({ message: "Created", id });
             }
             if (method === 'PUT' && subPath) {
                 const d = await request.json();
-                await db.prepare("UPDATE exams SET title = ?, subject_name = ?, date = ?, max_marks = ? WHERE id = ?").bind(d.title, d.subject_name, d.date, d.max_marks, subPath).run();
+                await db.prepare("UPDATE exams SET title = ?, subject_name = ?, date = ?, max_marks = ?, sub_subjects_json = ? WHERE id = ?")
+                    .bind(d.title, d.subject_name, d.date, d.max_marks, JSON.stringify(d.sub_subjects || []), subPath).run();
                 return json({ message: "Updated" });
             }
             if (method === 'DELETE' && subPath) {
@@ -989,13 +1116,68 @@ export async function onRequest(context) {
             if (method === 'GET') {
                 const examId = url.searchParams.get('exam_id');
                 const { results } = await db.prepare("SELECT er.*, s.name as student_name, s.student_id as student_id_str FROM exam_results er JOIN students s ON er.student_id = s.id WHERE er.exam_id = ?").bind(examId).all();
-                return json(results || []);
+                
+                const mappedResults = (results || []).map(r => {
+                    let sub_marks = {};
+                    let tutor_sub_marks = {};
+                    try { sub_marks = JSON.parse(r.sub_marks_json || '{}'); } catch (e) { sub_marks = {}; }
+                    try { tutor_sub_marks = JSON.parse(r.tutor_sub_marks_json || '{}'); } catch (e) { tutor_sub_marks = {}; }
+                    return {
+                        ...r,
+                        sub_marks,
+                        tutor_sub_marks
+                    };
+                });
+                return json(mappedResults);
             }
             if (subPath === 'upsert' && method === 'POST') {
                 const { exam_id, results } = await request.json();
+                const isTeacher = currentUser.role === 'teacher';
+                
                 for (const r of results) {
-                    await db.prepare("INSERT INTO exam_results (id, exam_id, student_id, marks_obtained, remarks) VALUES (?, ?, ?, ?, ?) ON CONFLICT(exam_id, student_id) DO UPDATE SET marks_obtained = excluded.marks_obtained, remarks = excluded.remarks")
-                        .bind(crypto.randomUUID(), exam_id, r.student_id, Number(r.marks_obtained), r.remarks || '').run();
+                    if (isTeacher) {
+                        // Tutor/Teacher logs a draft
+                        await db.prepare(`
+                            INSERT INTO exam_results (id, exam_id, student_id, marks_obtained, sub_marks_json, tutor_marks, tutor_sub_marks_json, remarks)
+                            VALUES (?, ?, ?, 0, '{}', ?, ?, ?)
+                            ON CONFLICT(exam_id, student_id) 
+                            DO UPDATE SET 
+                                tutor_marks = excluded.tutor_marks, 
+                                tutor_sub_marks_json = excluded.tutor_sub_marks_json,
+                                remarks = CASE WHEN excluded.remarks != '' THEN excluded.remarks ELSE exam_results.remarks END
+                        `)
+                        .bind(
+                            crypto.randomUUID(), 
+                            exam_id, 
+                            r.student_id, 
+                            Number(r.tutor_marks || r.marks_obtained || 0), 
+                            JSON.stringify(r.tutor_sub_marks || r.sub_marks || {}), 
+                            r.remarks || ''
+                        ).run();
+                    } else {
+                        // Admin/Clerk saves official results
+                        await db.prepare(`
+                            INSERT INTO exam_results (id, exam_id, student_id, marks_obtained, sub_marks_json, tutor_marks, tutor_sub_marks_json, remarks)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                            ON CONFLICT(exam_id, student_id) 
+                            DO UPDATE SET 
+                                marks_obtained = excluded.marks_obtained, 
+                                sub_marks_json = excluded.sub_marks_json,
+                                tutor_marks = CASE WHEN excluded.tutor_marks IS NOT NULL AND excluded.tutor_marks > 0 THEN excluded.tutor_marks ELSE exam_results.tutor_marks END,
+                                tutor_sub_marks_json = CASE WHEN excluded.tutor_sub_marks_json IS NOT NULL THEN excluded.tutor_sub_marks_json ELSE exam_results.tutor_sub_marks_json END,
+                                remarks = excluded.remarks
+                        `)
+                        .bind(
+                            crypto.randomUUID(), 
+                            exam_id, 
+                            r.student_id, 
+                            Number(r.marks_obtained || 0), 
+                            JSON.stringify(r.sub_marks || {}),
+                            r.tutor_marks ? Number(r.tutor_marks) : null,
+                            r.tutor_sub_marks_json || JSON.stringify(r.tutor_sub_marks || {}),
+                            r.remarks || ''
+                        ).run();
+                    }
                 }
                 return json({ message: "Saved" });
             }
@@ -1027,6 +1209,103 @@ export async function onRequest(context) {
                 return json({ message: "All data reset successfully" });
             }
             return json({ error: "Invalid reset type" }, 400);
+        }
+
+        // --- DISCIPLINE MANAGEMENT CRUD ---
+        if (path === 'discipline') {
+            if (method === 'GET') {
+                const studentId = url.searchParams.get('student_id');
+                let q = `
+                    SELECT d.*, s.name as student_name, s.student_id as student_id_str, s.grade as student_grade 
+                    FROM discipline_records d
+                    JOIN students s ON d.student_id = s.id
+                    WHERE d.user_id = ?
+                `;
+                const p = [userId];
+                if (studentId) {
+                    q += " AND d.student_id = ?";
+                    p.push(Number(studentId));
+                }
+                q += " ORDER BY d.date DESC, d.created_at DESC";
+                const { results } = await db.prepare(q).bind(...p).all();
+                return json(results || []);
+            }
+            if (method === 'POST') {
+                const d = await request.json();
+                const id = crypto.randomUUID();
+                await db.prepare(`
+                    INSERT INTO discipline_records (id, user_id, student_id, type, category, description, date)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                `)
+                .bind(id, userId, Number(d.student_id), d.type, d.category, d.description, d.date || new Date().toISOString().split('T')[0])
+                .run();
+                return json({ message: "Discipline record logged", id });
+            }
+            if (method === 'PUT' && subPath) {
+                const d = await request.json();
+                await db.prepare(`
+                    UPDATE discipline_records 
+                    SET student_id = ?, type = ?, category = ?, description = ?, date = ?
+                    WHERE id = ? AND user_id = ?
+                `)
+                .bind(Number(d.student_id), d.type, d.category, d.description, d.date, subPath, userId)
+                .run();
+                return json({ message: "Discipline record updated" });
+            }
+            if (method === 'DELETE' && subPath) {
+                await db.prepare("DELETE FROM discipline_records WHERE id = ? AND user_id = ?").bind(subPath, userId).run();
+                return json({ message: "Discipline record deleted" });
+            }
+        }
+
+        // --- PAIRINGS SHUFFLER CRUD ---
+        if (path === 'pairings') {
+            if (method === 'GET') {
+                const classId = url.searchParams.get('class_id');
+                let q = `
+                    SELECT p.*, c.name as class_name, c.grade as class_grade 
+                    FROM pairing_sessions p
+                    JOIN classes c ON p.class_id = c.id
+                    WHERE p.user_id = ?
+                `;
+                const p = [userId];
+                if (classId) {
+                    q += " AND p.class_id = ?";
+                    p.push(Number(classId));
+                }
+                q += " ORDER BY p.created_at DESC";
+                const { results } = await db.prepare(q).bind(...p).all();
+                
+                const mappedPairings = (results || []).map(p => {
+                    let pairs = [];
+                    try { pairs = JSON.parse(p.pairs_json || '[]'); } catch(e) {}
+                    return { ...p, pairs };
+                });
+                return json(mappedPairings);
+            }
+            if (method === 'POST') {
+                const d = await request.json();
+                const id = crypto.randomUUID();
+                await db.prepare(`
+                    INSERT INTO pairing_sessions (id, user_id, class_id, type, team_size, pairs_json)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                `)
+                .bind(id, userId, Number(d.class_id), d.type, Number(d.team_size || 2), JSON.stringify(d.pairs))
+                .run();
+                return json({ message: "Pairing session saved", id });
+            }
+            if (method === 'PUT' && subPath) {
+                const d = await request.json();
+                const isActiveVal = d.is_active === true || d.is_active === 1 ? 1 : 0;
+                await db.prepare("UPDATE pairing_sessions SET is_active = ? WHERE id = ? AND user_id = ?")
+                    .bind(isActiveVal, subPath, userId)
+                    .run();
+                return json({ message: "Pairing session updated" });
+            }
+            if (method === 'DELETE' && subPath) {
+                await db.prepare("DELETE FROM pairing_sessions WHERE id = ? AND user_id = ?").bind(subPath, userId).run();
+                return json({ message: "Pairing session deleted" });
+            }
         }
 
         return json({ error: "Route not found", path, subPath }, 404);
