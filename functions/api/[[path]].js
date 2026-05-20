@@ -317,6 +317,48 @@ export async function onRequest(context) {
                 const instituteId = student.user_id;
                 try { student.subjects = JSON.parse(student.subjects_json || '[]'); } catch (e) { student.subjects = []; }
 
+                // Fetch tutor name matching student's grade and subjects
+                let studentTutor = 'Dr. A.B. Sejan';
+                try {
+                    let matchingClass = null;
+                    if (student.subjects && student.subjects.length > 0) {
+                        const placeholders = student.subjects.map(() => "?").join(",");
+                        matchingClass = await db.prepare(`
+                            SELECT tutor_name FROM classes 
+                            WHERE user_id = ? AND grade = ? AND subject_name IN (${placeholders}) 
+                            LIMIT 1
+                        `).bind(instituteId, student.grade, ...student.subjects).first();
+                    }
+                    if (!matchingClass) {
+                        // Fallback 1: Match any class of the same grade
+                        matchingClass = await db.prepare(`
+                            SELECT tutor_name FROM classes 
+                            WHERE user_id = ? AND grade = ?
+                            LIMIT 1
+                        `).bind(instituteId, student.grade).first();
+                    }
+                    if (matchingClass && matchingClass.tutor_name) {
+                        studentTutor = matchingClass.tutor_name;
+                    } else {
+                        // Fallback 2: Check if student has exam results and get latest tutor
+                        const latestResult = await db.prepare(`
+                            SELECT c.tutor_name 
+                            FROM exam_results er
+                            JOIN exams e ON er.exam_id = e.id
+                            JOIN classes c ON e.class_id = c.id
+                            WHERE er.student_id = ?
+                            ORDER BY e.date DESC
+                            LIMIT 1
+                        `).bind(studentDbId).first();
+                        if (latestResult && latestResult.tutor_name) {
+                            studentTutor = latestResult.tutor_name;
+                        }
+                    }
+                } catch(e) {
+                    console.error("Failed to determine tutor name:", e);
+                }
+                student.tutor_name = studentTutor;
+
                 const { results: attendance } = await db.prepare("SELECT a.*, c.name as class_name FROM attendance a LEFT JOIN classes c ON a.class_id = c.id WHERE a.student_id = ? ORDER BY a.date DESC LIMIT 10").bind(studentDbId).all();
                 const { results: payments } = await db.prepare("SELECT * FROM payments WHERE student_id = ? ORDER BY created_at DESC LIMIT 10").bind(studentDbId).all();
                 

@@ -552,7 +552,7 @@
                   <div class="text-center">
                     <div class="signature-text">{{ selectedExamForCertificate?.tutor_name || 'Dr. A.B. Sejan' }}</div>
                     <div class="signature-block">
-                      {{ appStore.language === 'English' ? 'Director of Academics' : 'අධ්‍යයන අධ්‍යක්ෂ' }}
+                      {{ appStore.language === 'English' ? 'Course Tutor' : 'විෂය භාර ගුරුතුමා' }}
                     </div>
                   </div>
                   <div class="text-center">
@@ -660,9 +660,9 @@
                 <!-- Signature Row -->
                 <div class="row justify-between items-center q-mt-xl q-px-lg">
                   <div class="text-center">
-                    <div class="signature-text">Dr. A.B. Sejan</div>
+                    <div class="signature-text">{{ studentData?.tutor_name || 'Dr. A.B. Sejan' }}</div>
                     <div class="signature-block">
-                      {{ appStore.language === 'English' ? 'Director of Academics' : 'අධ්‍යයන අධ්‍යක්ෂ' }}
+                      {{ appStore.language === 'English' ? 'Class Tutor' : 'පන්ති භාර ගුරුතුමා' }}
                     </div>
                   </div>
                   <div class="text-center">
@@ -1276,11 +1276,15 @@ const startCall = (pair) => {
 }
 
 .signature-text {
-    font-family: 'Brush Script MT', cursive;
+    font-family: 'Brush Script MT', 'Dancing Script', 'Playball', 'Great Vibes', cursive;
     font-size: 1.5rem;
     color: #444;
     line-height: 1;
     margin-bottom: 2px;
+}
+
+.character-certificate-card .certificate-inner-border {
+    border: 2px dashed rgba(49, 151, 149, 0.5) !important;
 }
 
 .watermark-badge {
@@ -1354,7 +1358,12 @@ const startCall = (pair) => {
         margin: 0;
     }
     
-    body {
+    html, body {
+        width: 100% !important;
+        height: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
         background: #fff9f2 !important;
         color: #2c2c2c !important;
         -webkit-print-color-adjust: exact !important;
@@ -1435,7 +1444,7 @@ const startCall = (pair) => {
         height: 100vh !important;
         min-height: 100vh !important;
         margin: 0 !important;
-        padding: 50px !important;
+        padding: 40px !important;
         box-sizing: border-box !important;
         box-shadow: none !important;
         border: 24px double #c5a880 !important;
@@ -1448,6 +1457,22 @@ const startCall = (pair) => {
         justify-content: center !important;
         align-items: center !important;
         overflow: hidden !important;
+        page-break-inside: avoid !important;
+        page-break-after: avoid !important;
+    }
+    
+    .certificate-print-area .certificate-inner-border {
+        width: 100% !important;
+        height: 100% !important;
+        box-sizing: border-box !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        padding: 20px !important;
+    }
+    
+    .certificate-print-area.character-certificate-card .certificate-inner-border {
+        border: 2px dashed rgba(49, 151, 149, 0.6) !important;
     }
     
     .character-certificate-card {
