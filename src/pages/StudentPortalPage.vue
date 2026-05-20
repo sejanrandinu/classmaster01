@@ -507,14 +507,14 @@
         <q-card-section class="row items-center justify-between no-print q-pb-sm">
           <div class="text-h6 text-white text-weight-bold">{{ appStore.language === 'English' ? 'Academic Certificate Viewer' : 'විද්‍යුත් සහතික පත්‍රය' }}</div>
           <div class="row q-gutter-sm">
-            <q-btn color="amber-6" text-color="black" icon="print" :label="appStore.language === 'English' ? 'Print Certificate' : 'මුද්‍රණය කරන්න'" unelevated class="text-weight-bold rounded-button" @click="printCertificate" />
+            <q-btn color="amber-6" text-color="black" icon="download" :label="appStore.language === 'English' ? 'Download PDF' : 'බාගත කරන්න'" unelevated class="text-weight-bold rounded-button animate-pulse" :loading="downloading" @click="downloadAcademicCertificate" />
             <q-btn icon="close" flat round dense v-close-popup color="white" />
           </div>
         </q-card-section>
 
         <!-- Printable high-res certificate element -->
         <q-card-section class="q-pa-md flex flex-center">
-          <div class="certificate-card certificate-print-area text-center q-pa-xl relative-position" style="width: 100%; max-width: 750px; min-height: 480px;">
+          <div id="academic-certificate" class="certificate-card certificate-print-area text-center q-pa-xl relative-position" style="width: 100%; max-width: 750px; min-height: 480px;">
             <!-- Classical watermark / gold seal background accent -->
             <div class="watermark-badge absolute-center"></div>
 
@@ -576,14 +576,14 @@
         <q-card-section class="row items-center justify-between no-print q-pb-sm">
           <div class="text-h6 text-white text-weight-bold">{{ appStore.language === 'English' ? 'Character Certificate Viewer' : 'චරිත සහතික පත්‍ර පෙරදසුන' }}</div>
           <div class="row q-gutter-sm">
-            <q-btn color="teal-6" text-color="black" icon="print" :label="appStore.language === 'English' ? 'Print Certificate' : 'මුද්‍රණය කරන්න'" unelevated class="text-weight-bold rounded-button" @click="printCertificate" />
+            <q-btn color="teal-6" text-color="black" icon="download" :label="appStore.language === 'English' ? 'Download PDF' : 'බාගත කරන්න'" unelevated class="text-weight-bold rounded-button animate-pulse" :loading="downloading" @click="downloadCharacterCertificate" />
             <q-btn icon="close" flat round dense v-close-popup color="white" />
           </div>
         </q-card-section>
 
         <!-- Printable high-res character certificate element -->
         <q-card-section class="q-pa-md flex flex-center">
-          <div class="certificate-card character-certificate-card certificate-print-area text-center q-pa-xl relative-position" style="width: 100%; max-width: 750px; min-height: 480px;">
+          <div id="character-certificate" class="certificate-card character-certificate-card certificate-print-area text-center q-pa-xl relative-position" style="width: 100%; max-width: 750px; min-height: 480px;">
             <!-- Classical watermark / platinum seal background accent -->
             <div class="watermark-badge absolute-center"></div>
 
@@ -971,9 +971,7 @@ const openCharacterCertificate = () => {
     characterDialogOpen.value = true
 }
 
-const printCertificate = () => {
-    window.print()
-}
+// printCertificate removed to prefer direct high-res PDF download
 
 const isStudentOnline = (member) => {
   if (!member) return false;
@@ -1014,6 +1012,76 @@ const startCall = (pair) => {
   const baseUrl = `https://meet.jit.si/ClassMaster-${roomName}`;
   const url = pair.type === 'Video Call' ? baseUrl : `${baseUrl}#config.startWithVideoMuted=true`;
   window.open(url, '_blank');
+}
+
+// PREMIUM DIRECT PDF DOWNLOAD WORKFLOW
+const downloading = ref(false)
+
+const downloadPDF = async (elementId, defaultFileName) => {
+    downloading.value = true;
+    try {
+        const element = document.getElementById(elementId);
+        if (!element) return;
+        
+        // Dynamically load html2pdf.js bundle from Cloudflare cdnjs
+        if (!window.html2pdf) {
+            await new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+                script.integrity = 'sha512-GsLlZN/3F2ErC5IfS5QtgpiJtWd63OVRSGgy5IBWIEGlkVupgQs1E9W5sbQ37dVXRYe8c3c345nYj3jGmL7TLg==';
+                script.crossOrigin = 'anonymous';
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+        
+        // High resolution landscape PDF options matching the double border
+        const opt = {
+            margin:       [0.1, 0.1, 0.1, 0.1], // minimum margin to prevent clipping
+            filename:     defaultFileName,
+            image:        { type: 'jpeg', quality: 1.0 },
+            html2canvas:  { 
+                scale: 3, // Premium high-DPI scaling for sharp rendering
+                useCORS: true, 
+                letterRendering: true,
+                backgroundColor: elementId === 'character-certificate' ? '#f4fbfb' : '#fff9f2',
+                logging: false
+            },
+            jsPDF:        { unit: 'in', format: 'letter', orientation: 'landscape' }
+        };
+        
+        await window.html2pdf().set(opt).from(element).save();
+        
+        $q.notify({
+            type: 'positive',
+            message: appStore.language === 'English' ? 'Certificate downloaded successfully!' : 'සහතික පත්‍රය සාර්ථකව බාගත කරන ලදී!',
+            icon: 'check_circle',
+            color: 'teal-6'
+        });
+    } catch (e) {
+        console.error("PDF generation failed:", e);
+        $q.notify({
+            type: 'negative',
+            message: appStore.language === 'English' ? 'Direct download failed. Please use Print instead.' : 'ඍජු බාගැනීම අසාර්ථක විය. කරුණාකර මුද්‍රණ ක්‍රමය භාවිතා කරන්න.',
+            icon: 'error'
+        });
+    } finally {
+        downloading.value = false;
+    }
+}
+
+const downloadAcademicCertificate = () => {
+    const name = studentData.value?.name || 'student';
+    const exam = selectedExamForCertificate.value?.exam_title || 'achievement';
+    const fileName = `Achievement_Certificate_${name.replace(/\s+/g, '_')}_${exam.replace(/\s+/g, '_')}.pdf`;
+    downloadPDF('academic-certificate', fileName);
+}
+
+const downloadCharacterCertificate = () => {
+    const name = studentData.value?.name || 'student';
+    const fileName = `Character_Certificate_${name.replace(/\s+/g, '_')}.pdf`;
+    downloadPDF('character-certificate', fileName);
 }
 </script>
 
