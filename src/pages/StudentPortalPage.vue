@@ -688,6 +688,7 @@ import { useRoute } from 'vue-router'
 import { client } from 'src/api'
 import { useAppStore } from 'src/store/app'
 import VueApexCharts from 'vue3-apexcharts'
+import html2pdf from 'html2pdf.js'
 
 const apexchart = VueApexCharts
 
@@ -1021,20 +1022,7 @@ const downloadPDF = async (elementId, defaultFileName) => {
     downloading.value = true;
     try {
         const element = document.getElementById(elementId);
-        if (!element) return;
-        
-        // Dynamically load html2pdf.js bundle from Cloudflare cdnjs
-        if (!window.html2pdf) {
-            await new Promise((resolve, reject) => {
-                const script = document.createElement('script');
-                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-                script.integrity = 'sha512-GsLlZN/3F2ErC5IfS5QtgpiJtWd63OVRSGgy5IBWIEGlkVupgQs1E9W5sbQ37dVXRYe8c3c345nYj3jGmL7TLg==';
-                script.crossOrigin = 'anonymous';
-                script.onload = resolve;
-                script.onerror = reject;
-                document.head.appendChild(script);
-            });
-        }
+        if (!element) throw new Error("Certificate element not found in DOM.");
         
         // High resolution landscape PDF options matching the double border
         const opt = {
@@ -1042,7 +1030,7 @@ const downloadPDF = async (elementId, defaultFileName) => {
             filename:     defaultFileName,
             image:        { type: 'jpeg', quality: 1.0 },
             html2canvas:  { 
-                scale: 3, // Premium high-DPI scaling for sharp rendering
+                scale: 2.0, // High-DPI scaling (2.0 is extremely crisp and safe for standard canvas limits)
                 useCORS: true, 
                 letterRendering: true,
                 backgroundColor: elementId === 'character-certificate' ? '#f4fbfb' : '#fff9f2',
@@ -1051,7 +1039,7 @@ const downloadPDF = async (elementId, defaultFileName) => {
             jsPDF:        { unit: 'in', format: 'letter', orientation: 'landscape' }
         };
         
-        await window.html2pdf().set(opt).from(element).save();
+        await html2pdf().set(opt).from(element).save();
         
         $q.notify({
             type: 'positive',
@@ -1063,7 +1051,9 @@ const downloadPDF = async (elementId, defaultFileName) => {
         console.error("PDF generation failed:", e);
         $q.notify({
             type: 'negative',
-            message: appStore.language === 'English' ? 'Direct download failed. Please use Print instead.' : 'ඍජු බාගැනීම අසාර්ථක විය. කරුණාකර මුද්‍රණ ක්‍රමය භාවිතා කරන්න.',
+            message: appStore.language === 'English' 
+                ? `Direct download failed: ${e.message || e}` 
+                : `බාගැනීම අසාර්ථක විය: ${e.message || e}`,
             icon: 'error'
         });
     } finally {
