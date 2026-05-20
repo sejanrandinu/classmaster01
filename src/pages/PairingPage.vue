@@ -196,6 +196,18 @@
                     </q-btn>
                   </div>
                 </div>
+                <q-separator class="q-my-md opacity-50" />
+                <div class="row justify-center">
+                  <q-btn 
+                    unelevated 
+                    no-caps
+                    class="full-width text-weight-bold rounded-button q-py-sm"
+                    :color="pairingType === 'Video Call' ? 'indigo' : 'teal'"
+                    :icon="pairingType === 'Video Call' ? 'videocam' : 'call'"
+                    :label="appStore.language === 'English' ? `Join ${pairingType} Room` : `${pairingType === 'Video Call' ? 'වීඩියෝ' : 'ශ්‍රව්‍ය'} ඇමතුමට එක්වන්න`"
+                    @click="startCall({ id: 'preview', team_number: team.team_number, type: pairingType })"
+                  />
+                </div>
               </q-card>
             </div>
           </div>
@@ -235,6 +247,17 @@
                     </div>
                   </div>
                 </div>
+                <q-separator class="q-my-sm opacity-50" />
+                <q-btn 
+                  flat
+                  dense
+                  no-caps
+                  class="full-width text-weight-bold rounded-button text-caption"
+                  :color="detailSession?.type === 'Video Call' ? 'indigo' : 'teal'"
+                  :icon="detailSession?.type === 'Video Call' ? 'videocam' : 'call'"
+                  :label="appStore.language === 'English' ? 'Join Call' : 'ඇමතුමට එක්වන්න'"
+                  @click="startCall({ id: detailSession?.id, team_number: team.team_number, type: detailSession?.type })"
+                />
               </q-card>
             </div>
           </div>
@@ -491,6 +514,14 @@ const confirmDeleteSession = (session) => {
       });
     }
   });
+}
+
+const startCall = (pair) => {
+  const cleanId = String(pair.id || 'room').replace(/[^a-zA-Z0-9]/g, '-');
+  const roomName = `Session-${cleanId}-Team-${pair.team_number}`;
+  const baseUrl = `https://meet.jit.si/ClassMaster-${roomName}`;
+  const url = pair.type === 'Video Call' ? baseUrl : `${baseUrl}#config.startWithVideoMuted=true`;
+  window.open(url, '_blank');
 }
 </script>
 

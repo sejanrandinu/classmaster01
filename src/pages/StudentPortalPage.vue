@@ -263,6 +263,18 @@
                                         </q-btn>
                                     </div>
                                 </div>
+                                <q-separator dark class="q-my-md opacity-20" />
+                                <div class="row justify-center">
+                                    <q-btn 
+                                        unelevated 
+                                        no-caps
+                                        class="full-width text-weight-bold rounded-borders q-py-sm glow-shadow"
+                                        :color="pair.type === 'Video Call' ? 'indigo-7' : 'teal-7'"
+                                        :icon="pair.type === 'Video Call' ? 'videocam' : 'call'"
+                                        :label="appStore.language === 'English' ? `Join ${pair.type} Room` : `${pair.type === 'Video Call' ? 'වීඩියෝ' : 'ශ්‍රව්‍ය'} ඇමතුමට එක්වන්න`"
+                                        @click="startCall(pair)"
+                                    />
+                                </div>
                             </q-card>
                         </div>
                     </div>
@@ -432,9 +444,23 @@
                         <q-icon name="gavel" color="deep-purple-3" class="q-mr-sm" />
                         {{ appStore.language === 'English' ? 'Academic Conduct & Character Log' : 'අධ්‍යයන හැසිරීම් සහ විනය වාර්තා' }}
                     </div>
-                    <q-badge color="deep-purple-7">
-                      {{ appStore.language === 'English' ? 'Official Conduct Record' : 'විධිමත් හැසිරීම් සටහන' }}
-                    </q-badge>
+                    <div class="row q-gutter-sm items-center">
+                        <q-badge color="deep-purple-7">
+                          {{ appStore.language === 'English' ? 'Official Conduct Record' : 'විධිමත් හැසිරීම් සටහන' }}
+                        </q-badge>
+                        <q-btn 
+                            outline
+                            dense
+                            no-caps
+                            color="teal-4" 
+                            icon="card_membership" 
+                            :label="appStore.language === 'English' ? 'Character Certificate' : 'චරිත සහතිකය'"
+                            class="q-px-sm text-weight-bold rounded-borders glow-shadow"
+                            @click="openCharacterCertificate"
+                        >
+                            <q-tooltip>{{ appStore.language === 'English' ? 'Generate formal character and conduct certificate' : 'විධිමත් චරිත සහතික පත්‍රය ලබාගන්න' }}</q-tooltip>
+                        </q-btn>
+                    </div>
                 </q-card-section>
                 <q-card-section class="q-pa-md">
                     <div v-if="disciplineRecords.length === 0" class="text-center text-indigo-3 q-py-xl">
@@ -542,6 +568,80 @@
         </q-card-section>
       </q-card>
     </q-dialog>
+
+    <!-- Character Certificate Overlay Dialog -->
+    <q-dialog v-model="characterDialogOpen" transition-show="scale" transition-hide="scale">
+      <q-card style="width: 850px; max-width: 95vw; background: rgba(0,0,0,0.85); backdrop-filter: blur(15px); border-radius: 20px;" class="q-pa-md">
+        <!-- Close button / Actions for modal on-screen -->
+        <q-card-section class="row items-center justify-between no-print q-pb-sm">
+          <div class="text-h6 text-white text-weight-bold">{{ appStore.language === 'English' ? 'Character Certificate Viewer' : 'චරිත සහතික පත්‍ර පෙරදසුන' }}</div>
+          <div class="row q-gutter-sm">
+            <q-btn color="teal-6" text-color="black" icon="print" :label="appStore.language === 'English' ? 'Print Certificate' : 'මුද්‍රණය කරන්න'" unelevated class="text-weight-bold rounded-button" @click="printCertificate" />
+            <q-btn icon="close" flat round dense v-close-popup color="white" />
+          </div>
+        </q-card-section>
+
+        <!-- Printable high-res character certificate element -->
+        <q-card-section class="q-pa-md flex flex-center">
+          <div class="certificate-card character-certificate-card certificate-print-area text-center q-pa-xl relative-position" style="width: 100%; max-width: 750px; min-height: 480px;">
+            <!-- Classical watermark / platinum seal background accent -->
+            <div class="watermark-badge absolute-center"></div>
+
+            <div class="certificate-inner-border q-pa-lg">
+              <div class="text-center">
+                <!-- Academic Seal Icon SVG -->
+                <div class="character-certificate-seal q-mb-md">
+                  <q-icon name="verified" size="40px" color="black" />
+                </div>
+                
+                <h3 class="certificate-title character-title q-my-none">
+                  {{ appStore.language === 'English' ? 'Character & Conduct Certificate' : 'චරිත සහතික පත්‍රය' }}
+                </h3>
+                <div class="certificate-subtitle q-mt-xs q-mb-lg">
+                  {{ appStore.language === 'English' ? 'This is to officially certify the outstanding demeanor of' : 'මෙම චරිත සහතික පත්‍රය ගෞරවයෙන් පිරිනමනු ලබන්නේ' }}
+                </div>
+
+                <div class="recipient-name text-indigo-10 q-my-sm">
+                  {{ studentData?.name }}
+                </div>
+
+                <div class="certificate-text q-my-md">
+                  {{ appStore.language === 'English' ? 'who is a registered active student under Index ID' : 'යන සිසුවා ක්ලාස්මාස්ටර් ආයතනයෙහි ලියාපදිංචි අංක' }}
+                  <span class="text-weight-bolder text-indigo-10 font-mono">[{{ studentData?.student_id }}]</span>
+                  {{ appStore.language === 'English' ? 'under the curriculum of our academic institute.' : 'යටතේ අධ්‍යයන කටයුතු හදාරන බවත්,' }}
+                  <br />
+                  <span class="text-weight-bold q-my-md block" style="color: #2c3e50; font-size: 1.05rem;">
+                    {{ appStore.language === 'English' 
+                       ? 'Throughout the academic tenure, the student has maintained a highly exemplary discipline record, showing excellent obedience, academic dedication, and distinguished civic conduct.'
+                       : 'සිය අධ්‍යයන කාලය තුළදී ආයතන නීති රීතිවලට එකඟව, ඉතා ආදර්ශමත් හැසිරීමක්, උසස් විනයගරුක බවක් සහ විශිෂ්ට චරිත ස්වභාවයක් පෙන්නුම් කර ඇති බවත් මෙයින් සාක්ෂි දරමු.' 
+                    }}
+                  </span>
+                  <span class="text-caption text-grey-7 block q-mt-sm">
+                    {{ appStore.language === 'English' ? 'Generated officially based on system discipline audits.' : 'විනය පාලක මණ්ඩලයේ විධිමත් පිරික්සුම් මත පදනම්ව නිකුත් කරන ලදී.' }}
+                  </span>
+                </div>
+
+                <!-- Signature Row -->
+                <div class="row justify-between items-center q-mt-xl q-px-lg">
+                  <div class="text-center">
+                    <div class="signature-text">Dr. A.B. Sejan</div>
+                    <div class="signature-block">
+                      {{ appStore.language === 'English' ? 'Director of Academics' : 'අධ්‍යයන අධ්‍යක්ෂ' }}
+                    </div>
+                  </div>
+                  <div class="text-center">
+                    <div class="signature-text" style="font-family: 'Brush Script MT', cursive; color: #3a8080;">ClassMaster</div>
+                    <div class="signature-block">
+                      {{ appStore.language === 'English' ? 'Institute Registrar' : 'ආයතනික රෙජිස්ට්‍රාර්' }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </q-card-section>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -572,6 +672,7 @@ const disciplineRecords = ref([])
 
 const chartTab = ref('marks')
 const certificateDialogOpen = ref(false)
+const characterDialogOpen = ref(false)
 const selectedExamForCertificate = ref(null)
 
 onMounted(() => {
@@ -822,6 +923,10 @@ const openCertificate = (exam) => {
     certificateDialogOpen.value = true
 }
 
+const openCharacterCertificate = () => {
+    characterDialogOpen.value = true
+}
+
 const printCertificate = () => {
     window.print()
 }
@@ -857,6 +962,14 @@ const getOnlineTextForPortal = (pair) => {
   return appStore.language === 'English'
     ? `${onlineCount}/${total} Online`
     : `සබැඳි: ${onlineCount}/${total}`;
+}
+
+const startCall = (pair) => {
+  const cleanId = String(pair.id || 'room').replace(/[^a-zA-Z0-9]/g, '-');
+  const roomName = `Session-${cleanId}-Team-${pair.team_number}`;
+  const baseUrl = `https://meet.jit.si/ClassMaster-${roomName}`;
+  const url = pair.type === 'Video Call' ? baseUrl : `${baseUrl}#config.startWithVideoMuted=true`;
+  window.open(url, '_blank');
 }
 </script>
 
@@ -1100,6 +1213,32 @@ const getOnlineTextForPortal = (pair) => {
     z-index: 0;
 }
 
+/* Character Certificate Styling */
+.character-certificate-card {
+    background: #f4fbfb !important;
+    border: 15px double #319795 !important;
+    color: #2c3e50 !important;
+    background-image: radial-gradient(circle, rgba(49, 151, 149, 0.05) 1px, transparent 1px) !important;
+    background-size: 20px 20px !important;
+}
+
+.character-title {
+    color: #1f4e5b !important;
+}
+
+.character-certificate-seal {
+    width: 80px;
+    height: 80px;
+    background: radial-gradient(circle, #38b2ac 0%, #319795 100%) !important;
+    border-radius: 50% !important;
+    border: 3px dashed #1f4e5b !important;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15) !important;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 .glass-btn {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -1125,35 +1264,76 @@ const getOnlineTextForPortal = (pair) => {
 
 /* Print CSS Stylesheet */
 @media print {
-    body * {
-        visibility: hidden;
+    @page {
+        size: landscape;
+        margin: 0;
     }
     
-    .certificate-print-area, .certificate-print-area * {
-        visibility: visible;
+    body {
+        background: #fff9f2 !important;
+    }
+
+    #q-app {
+        display: none !important;
+    }
+    
+    .q-dialog__backdrop {
+        display: none !important;
+    }
+    
+    .q-dialog {
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+    
+    .q-dialog__inner {
+        padding: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        overflow: visible !important;
+        display: block !important;
+    }
+    
+    .no-print, .no-print * {
+        display: none !important;
+    }
+    
+    .q-dialog .q-card {
+        background: transparent !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        border-radius: 0 !important;
+        max-width: 100% !important;
+        width: 100% !important;
     }
     
     .certificate-print-area {
-        position: fixed;
-        left: 0;
-        top: 0;
-        width: 100vw;
-        height: 100vh;
-        max-width: 100% !important;
+        position: fixed !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
         margin: 0 !important;
-        padding: 40px !important;
+        padding: 60px !important;
         box-shadow: none !important;
         border: 20px double #c5a880 !important;
         background: #fff9f2 !important;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
         display: flex !important;
         flex-direction: column !important;
         justify-content: center !important;
         align-items: center !important;
+        box-sizing: border-box !important;
     }
     
-    .no-print {
+    .character-certificate-card {
+        border: 20px double #319795 !important;
+        background: #f4fbfb !important;
+    }
+    
+    /* Hide all other portals to be absolutely safe */
+    .q-portal:not(:has(.certificate-print-area)) {
         display: none !important;
     }
 }
