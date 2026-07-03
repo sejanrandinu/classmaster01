@@ -200,46 +200,28 @@ export const studentsBulk = {
     }
 };
 
+// Cloudinary config
+const CLOUDINARY_CLOUD_NAME = 'q7mpaptn';
+const CLOUDINARY_UPLOAD_PRESET = 'classmaster_unsigned';
+
 export const storage = {
     async upload(file) {
         const formData = new FormData();
         formData.append('file', file);
-        
-        const token = getAuthToken();
-        const headers = {};
-        if (token) {
-            headers['Authorization'] = `Bearer ${token}`;
-        }
-        
-        const response = await fetch(`${API_URL}/upload`, {
-            method: 'POST',
-            headers,
-            body: formData
-        });
-        
-        if (response.status === 401) {
-            localStorage.removeItem('classmaster-token');
-            if (!window.location.pathname.includes('/login')) {
-                window.location.href = '/login';
-            }
-        }
-        
-        let data = {};
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-            try {
-                data = await response.json();
-            } catch (e) {
-                console.error('JSON Parse Error:', e);
-            }
-        } else {
-            throw new Error(`Server returned ${response.status}: ${response.statusText}`);
-        }
-        
+        formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+
+        const response = await fetch(
+            `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+            { method: 'POST', body: formData }
+        );
+
         if (!response.ok) {
-            throw new Error(data.error || 'Upload failed');
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.error?.message || 'Cloudinary upload failed');
         }
-        
-        return data;
+
+        const data = await response.json();
+        // Return { url } so all callers (SettingsPage, TutesPage, etc.) work as-is
+        return { url: data.secure_url };
     }
 };

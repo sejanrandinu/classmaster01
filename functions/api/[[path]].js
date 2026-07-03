@@ -466,30 +466,6 @@ export async function onRequest(context) {
             }
         }
 
-        // --- PUBLIC FILES RETRIEVAL ---
-        if (path === 'files' && method === 'GET') {
-            const filename = subPath;
-            if (!filename) return new Response("Filename missing", { status: 400 });
-
-            const bucket = env.BUCKET;
-            if (!bucket) return new Response("R2 Bucket not bound", { status: 500 });
-
-            try {
-                const object = await bucket.get(filename);
-                if (!object) return new Response("File not found", { status: 404 });
-
-                const headers = new Headers();
-                object.writeHttpMetadata(headers);
-                headers.set('etag', object.httpEtag);
-                headers.set('Cache-Control', 'public, max-age=31536000');
-
-                return new Response(object.body, { headers });
-            } catch (e) {
-                console.error('Error fetching file from R2:', e);
-                return new Response("Error retrieving file", { status: 500 });
-            }
-        }
-
         // --- PROTECTED ---
         const authHeader = request.headers.get('Authorization');
         const tokenStr = authHeader?.split(' ')[1];
@@ -553,35 +529,6 @@ export async function onRequest(context) {
                 console.error('Log error:', e);
             }
         };
-
-        // UPLOAD TO R2
-        if (path === 'upload' && method === 'POST') {
-            const bucket = env.BUCKET;
-            if (!bucket) return json({ error: "R2 Bucket not bound" }, 500);
-
-            try {
-                const formData = await request.formData();
-                const file = formData.get('file');
-                if (!file) return json({ error: "No file provided" }, 400);
-
-                // Sanitize file name
-                const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-                const fileName = `${crypto.randomUUID()}-${safeName}`;
-                const fileBuffer = await file.arrayBuffer();
-
-                await bucket.put(fileName, fileBuffer, {
-                    httpMetadata: {
-                        contentType: file.type || 'application/octet-stream',
-                    }
-                });
-
-                const fileUrl = `/api/files/${fileName}`;
-                return json({ url: fileUrl, filename: fileName });
-            } catch (e) {
-                console.error('Upload error in R2 backend:', e);
-                return json({ error: `Upload failed: ${e.message}` }, 500);
-            }
-        }
 
         // ME
         if (path === 'me') {
