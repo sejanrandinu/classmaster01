@@ -106,7 +106,7 @@
                   <div class="q-pa-md rounded-borders bg-indigo-10 border-indigo">
                     <div class="text-caption text-indigo-3 text-uppercase text-weight-bold">Lifetime Deal</div>
                     <div class="text-h5 text-weight-bold text-white">
-                      <span class="text-grey-6 text-strike q-mr-xs text-subtitle1">Rs. 45,000</span> Rs. 40,000
+                      <span class="text-grey-6 text-strike q-mr-xs text-subtitle1">Rs. 140,000</span> Rs. 130,000
                     </div>
                   </div>
                 </div>

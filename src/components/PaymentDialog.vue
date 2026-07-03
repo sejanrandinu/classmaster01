@@ -13,7 +13,7 @@
         <div class="q-mb-sm">
           <div class="text-caption text-grey-5">Registration Fee (One-time)</div>
           <div class="text-h5 text-weight-bold text-white">
-            <span class="text-grey-6 text-strike q-mr-sm">Rs. 45,000</span> Rs. 40,000
+            <span class="text-grey-6 text-strike q-mr-sm">Rs. 140,000</span> Rs. 130,000
           </div>
         </div>
         <div class="q-mb-md">

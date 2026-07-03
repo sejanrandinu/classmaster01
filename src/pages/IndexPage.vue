@@ -95,7 +95,7 @@
               <div class="q-mb-md">
                 <div class="text-caption text-grey-5">Registration Fee (One-time)</div>
                 <div class="text-h5 text-weight-bold text-white">
-                  <span class="text-grey-6 text-strike q-mr-sm">Rs. 45,000</span> Rs. 40,000
+                  <span class="text-grey-6 text-strike q-mr-sm">Rs. 140,000</span> Rs. 130,000
                 </div>
               </div>
               <div class="q-mb-md">
@@ -249,8 +249,8 @@
                 </div>
                 <div class="text-h4 q-mb-md text-weight-bold">Enterprise Lifetime</div>
                 <h2 class="text-h2 q-mb-md text-weight-bolder">
-                   <span class="text-grey-7 text-strike text-h4 q-mr-sm">Rs. 45,000</span>
-                   Rs. 40,000
+                   <span class="text-grey-7 text-strike text-h4 q-mr-sm">Rs. 140,000</span>
+                   Rs. 130,000
                 </h2>
                 <p class="text-grey-5 q-mb-xl">One-time payment for perpetual access. Best for established institutes.</p>
                 <q-list dense class="q-gutter-y-md q-mb-xl full-width">
