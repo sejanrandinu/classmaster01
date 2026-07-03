@@ -64,9 +64,8 @@
                     outlined 
                     v-model="profile.whatsapp_number" 
                     label="WhatsApp Number" 
-                    mask="##########"
                     hint="Format: 0771234567"
-                    :rules="[val => !val || val.replace(/\D/g, '').length === 10 || 'අංක 10ක් ඇතුළත් කරන්න']"
+                    :rules="[val => !val || val.replace(/\D/g, '').length >= 9 || (appStore.language === 'English' ? 'Please enter a valid phone number' : 'කරුණාකර වලංගු දුරකථන අංකයක් ඇතුළත් කරන්න')]"
                   >
                     <template v-slot:prepend><q-icon name="fa-brands fa-whatsapp" color="green-7" /></template>
                   </q-input>
@@ -129,8 +128,10 @@
 import { ref, onMounted, computed } from 'vue'
 import { useQuasar } from 'quasar'
 import { auth, client } from 'src/api'
+import { useAppStore } from 'src/store/app'
 
 const $q = useQuasar()
+const appStore = useAppStore()
 const loading = ref(false)
 const profile = ref({
   email: '',

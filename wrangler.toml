@@ -20,3 +20,7 @@ database_id = "793c3274-ca23-4d2e-9e2e-d300429da083" # CHANGE THIS locally or us
 # Build output directory: dist/spa
 # Root directory: (leave blank)
 
+# Cloudflare R2 Bucket Binding
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "classmaster-assets"

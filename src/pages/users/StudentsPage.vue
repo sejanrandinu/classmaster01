@@ -150,7 +150,7 @@
             <q-card-section class="q-pt-lg">
                 <q-form @submit="saveStudent" class="q-gutter-md">
                     <q-input outlined v-model="form.name" label="Full Name" :rules="[val => !!val || 'Name is required']" />
-                    <q-input outlined v-model="form.contact" label="WhatsApp Number" placeholder="e.g. 0702838364" :rules="[val => (val && val.replace(/\D/g, '').length === 10) || 'අංක 10ක් ඇතුළත් කරන්න']" />
+                    <q-input outlined v-model="form.contact" label="WhatsApp Number" placeholder="e.g. 0702838364" :rules="[val => (val && val.replace(/\D/g, '').length >= 9) || (appStore.language === 'English' ? 'Please enter a valid phone number' : 'කරුණාකර වලංගු දුරකථන අංකයක් ඇතුළත් කරන්න')]" />
                     <q-input outlined v-model="form.school" label="Institute" hint="e.g. Royal Institute" />
                     <q-select outlined v-model="form.grade" :options="['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'Grade 13']" label="Grade" :rules="[val => !!val || 'Grade is required']" />
                     <div class="q-mb-md">
@@ -353,8 +353,10 @@ import { useQuasar } from 'quasar'
 import { client, tutes, studentTutes } from 'src/api'
 import QrcodeVue from 'qrcode.vue'
 import html2canvas from 'html2canvas'
+import { useAppStore } from 'src/store/app'
 
 const $q = useQuasar()
+const appStore = useAppStore()
 const filter = ref('')
 const showDialog = ref(false)
 const isEdit = ref(false)

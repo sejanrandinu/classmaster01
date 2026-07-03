@@ -81,7 +81,7 @@
               placeholder="e.g. 0702838364"
               class="custom-input q-mb-md"
               :rules="[ 
-                val => val && val.replace(/\D/g, '').length === 10 || 'අංක 10ක් ඇතුළත් කරන්න'
+                val => val && val.replace(/\D/g, '').length >= 9 || (appStore.language === 'English' ? 'Please enter a valid phone number' : 'කරුණාකර වලංගු දුරකථන අංකයක් ඇතුළත් කරන්න')
               ]"
             >
                <template v-slot:prepend>
@@ -187,9 +187,11 @@ import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { auth } from 'src/api'
 import VueTurnstile from 'vue-turnstile'
+import { useAppStore } from 'src/store/app'
 
 const router = useRouter()
 const $q = useQuasar()
+const appStore = useAppStore()
 
 const email = ref('')
 const password = ref('')

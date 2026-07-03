@@ -466,6 +466,30 @@ export async function onRequest(context) {
             }
         }
 
+        // --- PUBLIC FILES RETRIEVAL ---
+        if (path === 'files' && method === 'GET') {
+            const filename = subPath;
+            if (!filename) return new Response("Filename missing", { status: 400 });
+
+            const bucket = env.BUCKET;
+            if (!bucket) return new Response("R2 Bucket not bound", { status: 500 });
+
+            try {
+                const object = await bucket.get(filename);
+                if (!object) return new Response("File not found", { status: 404 });
+
+                const headers = new Headers();
+                object.writeHttpMetadata(headers);
+                headers.set('etag', object.httpEtag);
+                headers.set('Cache-Control', 'public, max-age=31536000');
+
+                return new Response(object.body, { headers });
+            } catch (e) {
+                console.error('Error fetching file from R2:', e);
+                return new Response("Error retrieving file", { status: 500 });
+            }
+        }
+
         // --- PROTECTED ---
         const authHeader = request.headers.get('Authorization');
         const tokenStr = authHeader?.split(' ')[1];
@@ -487,32 +511,38 @@ export async function onRequest(context) {
 
         // Trial & Approval Logic
         const isSuperAdmin = userEmail.trim().toLowerCase() === 'sejanrandinu01@gmail.com';
-        
         if (!isSuperAdmin) {
             const now = new Date();
             const trialEnd = currentUser.trial_ends_at ? new Date(currentUser.trial_ends_at) : null;
-            
+
             // 1. Handle Trial Expiration
             if (trialEnd && trialEnd < now && !currentUser.is_approved) {
                 // If trial expired and not yet permanently approved
                 if (currentUser.role !== 'pending') {
                     await db.prepare("UPDATE profiles SET role = 'pending', is_approved = 0 WHERE id = ?").bind(userId).run();
+                    currentUser.role = 'pending'; // Update in-memory so subsequent checks are accurate
                 }
-                
-                return json({ 
-                    error: "Trial Expired", 
-                    details: "Your 7-day free trial has expired. Please contact admin to activate your account.",
-                    isTrialExpired: true 
-                }, 403);
             }
 
             // 2. Allow Trial Users OR Approved Members
             const isTrialActive = currentUser.role === 'trial' && (trialEnd ? trialEnd > now : true);
-            if (!currentUser.is_approved && !isTrialActive) {
-                return json({ 
-                    error: "Access Denied", 
-                    details: "Your account is pending approval or your trial has ended." 
-                }, 403);
+            
+            // Bypass block ONLY for /api/me so user can fetch their profile status
+            if (path !== 'me') {
+                if (trialEnd && trialEnd < now && !currentUser.is_approved) {
+                    return json({ 
+                        error: "Trial Expired", 
+                        details: "Your 7-day free trial has expired. Please contact admin to activate your account.",
+                        isTrialExpired: true 
+                    }, 403);
+                }
+                
+                if (!currentUser.is_approved && !isTrialActive) {
+                    return json({ 
+                        error: "Access Denied", 
+                        details: "Your account is pending approval or your trial has ended." 
+                    }, 403);
+                }
             }
         }
 
@@ -523,6 +553,35 @@ export async function onRequest(context) {
                 console.error('Log error:', e);
             }
         };
+
+        // UPLOAD TO R2
+        if (path === 'upload' && method === 'POST') {
+            const bucket = env.BUCKET;
+            if (!bucket) return json({ error: "R2 Bucket not bound" }, 500);
+
+            try {
+                const formData = await request.formData();
+                const file = formData.get('file');
+                if (!file) return json({ error: "No file provided" }, 400);
+
+                // Sanitize file name
+                const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+                const fileName = `${crypto.randomUUID()}-${safeName}`;
+                const fileBuffer = await file.arrayBuffer();
+
+                await bucket.put(fileName, fileBuffer, {
+                    httpMetadata: {
+                        contentType: file.type || 'application/octet-stream',
+                    }
+                });
+
+                const fileUrl = `/api/files/${fileName}`;
+                return json({ url: fileUrl, filename: fileName });
+            } catch (e) {
+                console.error('Upload error in R2 backend:', e);
+                return json({ error: `Upload failed: ${e.message}` }, 500);
+            }
+        }
 
         // ME
         if (path === 'me') {

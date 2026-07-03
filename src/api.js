@@ -199,3 +199,47 @@ export const studentsBulk = {
         return await client.post('students/bulk-delete', { ids });
     }
 };
+
+export const storage = {
+    async upload(file) {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const token = getAuthToken();
+        const headers = {};
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+        
+        const response = await fetch(`${API_URL}/upload`, {
+            method: 'POST',
+            headers,
+            body: formData
+        });
+        
+        if (response.status === 401) {
+            localStorage.removeItem('classmaster-token');
+            if (!window.location.pathname.includes('/login')) {
+                window.location.href = '/login';
+            }
+        }
+        
+        let data = {};
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            try {
+                data = await response.json();
+            } catch (e) {
+                console.error('JSON Parse Error:', e);
+            }
+        } else {
+            throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+        }
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Upload failed');
+        }
+        
+        return data;
+    }
+};

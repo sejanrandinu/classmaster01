@@ -233,7 +233,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useQuasar } from 'quasar'
-import { tutes, client } from 'src/api'
+import { tutes, client, storage } from 'src/api'
 
 const $q = useQuasar()
 const loading = ref(false)
@@ -322,18 +322,25 @@ const formatDate = (dateStr) => {
   return date.toLocaleDateString()
 }
 
-const onFilePicked = (file) => {
+const onFilePicked = async (file) => {
   if (!file) return
-  // In a real app, you'd upload this to Supabase Storage or similar
-  // For now, we'll simulate by converting to base64 for small files or just showing a message
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    form.value.file_url = e.target.result
+  
+  $q.loading.show({ message: 'Uploading file to storage...' })
+  try {
+    const res = await storage.upload(file)
+    form.value.file_url = res.url
     if (file.type.includes('image')) form.value.file_type = 'image'
     else if (file.type.includes('pdf')) form.value.file_type = 'pdf'
+    else if (file.type.includes('video')) form.value.file_type = 'video'
     else form.value.file_type = 'doc'
+    
+    $q.notify({ type: 'positive', message: 'File uploaded successfully!' })
+  } catch (error) {
+    console.error('File upload failed:', error)
+    $q.notify({ type: 'negative', message: error.message || 'File upload failed' })
+  } finally {
+    $q.loading.hide()
   }
-  reader.readAsDataURL(file)
 }
 
 const openAddDialog = () => {

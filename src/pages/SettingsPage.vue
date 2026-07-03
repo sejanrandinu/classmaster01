@@ -253,7 +253,7 @@
 <script setup>
 import { reactive, computed, ref, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
-import { auth, client } from 'src/api'
+import { auth, client, storage } from 'src/api'
 import { useAppStore } from 'src/store/app'
 import { notificationService } from 'src/utils/notifications'
 
@@ -294,7 +294,7 @@ onMounted(async () => {
 const onProfileFilePicked = async (file) => {
     if (!file) return
     
-    const compressImage = (file) => {
+    const compressToBlob = (file) => {
         return new Promise((resolve) => {
             const reader = new FileReader()
             reader.readAsDataURL(file)
@@ -303,26 +303,18 @@ const onProfileFilePicked = async (file) => {
                 img.src = event.target.result
                 img.onload = () => {
                     const canvas = document.createElement('canvas')
-                    const MAX_WIDTH = 400
-                    const MAX_HEIGHT = 400
+                    const MAX = 400
                     let width = img.width
                     let height = img.height
                     if (width > height) {
-                        if (width > MAX_WIDTH) {
-                            height *= MAX_WIDTH / width
-                            width = MAX_WIDTH
-                        }
+                        if (width > MAX) { height *= MAX / width; width = MAX }
                     } else {
-                        if (height > MAX_HEIGHT) {
-                            width *= MAX_HEIGHT / height
-                            height = MAX_HEIGHT
-                        }
+                        if (height > MAX) { width *= MAX / height; height = MAX }
                     }
                     canvas.width = width
                     canvas.height = height
-                    const ctx = canvas.getContext('2d')
-                    ctx.drawImage(img, 0, 0, width, height)
-                    resolve(canvas.toDataURL('image/jpeg', 0.7))
+                    canvas.getContext('2d').drawImage(img, 0, 0, width, height)
+                    canvas.toBlob(resolve, 'image/jpeg', 0.7)
                 }
             }
         })
@@ -330,9 +322,12 @@ const onProfileFilePicked = async (file) => {
 
     try {
         $q.loading.show({ message: 'Uploading profile picture...' })
-        const base64 = await compressImage(file)
-        await client.post('me', { profile_image_url: base64 })
-        profile.value.profile_image_url = base64
+        const blob = await compressToBlob(file)
+        const uploadFile = new File([blob], `profile-${Date.now()}.jpg`, { type: 'image/jpeg' })
+        const result = await storage.upload(uploadFile)
+        const url = result.url
+        await client.post('me', { profile_image_url: url })
+        profile.value.profile_image_url = url
         $q.notify({ type: 'positive', message: 'Profile picture updated!' })
     } catch (e) {
         console.error('Upload error:', e)
@@ -427,7 +422,7 @@ onMounted(async () => {
 const onFilePicked = async (file) => {
     if (!file) return
     
-    const compressImage = (file) => {
+    const compressToBlob = (file) => {
         return new Promise((resolve) => {
             const reader = new FileReader()
             reader.readAsDataURL(file)
@@ -440,34 +435,30 @@ const onFilePicked = async (file) => {
                     const MAX_HEIGHT = 800
                     let width = img.width
                     let height = img.height
-
                     if (width > height) {
-                        if (width > MAX_WIDTH) {
-                            height *= MAX_WIDTH / width
-                            width = MAX_WIDTH
-                        }
+                        if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH }
                     } else {
-                        if (height > MAX_HEIGHT) {
-                            width *= MAX_HEIGHT / height
-                            height = MAX_HEIGHT
-                        }
+                        if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT }
                     }
                     canvas.width = width
                     canvas.height = height
-                    const ctx = canvas.getContext('2d')
-                    ctx.drawImage(img, 0, 0, width, height)
-                    resolve(canvas.toDataURL('image/jpeg', 0.7))
+                    canvas.getContext('2d').drawImage(img, 0, 0, width, height)
+                    canvas.toBlob(resolve, 'image/jpeg', 0.7)
                 }
             }
         })
     }
 
     try {
-        $q.loading.show({ message: 'Compressing image...' })
-        profile.value.card_background_url = await compressImage(file)
+        $q.loading.show({ message: 'Uploading background image...' })
+        const blob = await compressToBlob(file)
+        const uploadFile = new File([blob], `card-bg-${Date.now()}.jpg`, { type: 'image/jpeg' })
+        const result = await storage.upload(uploadFile)
+        profile.value.card_background_url = result.url
+        $q.notify({ type: 'positive', message: 'Background image uploaded!' })
     } catch (e) {
         console.error('Compression error:', e)
-        $q.notify({ type: 'negative', message: 'Failed to process image' })
+        $q.notify({ type: 'negative', message: 'Failed to upload background image' })
     } finally {
         $q.loading.hide()
     }

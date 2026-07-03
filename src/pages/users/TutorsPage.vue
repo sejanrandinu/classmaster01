@@ -126,7 +126,7 @@
                     </div>
 
                     <q-input outlined v-model="form.email" label="Email" type="email" class="q-mt-md" />
-                    <q-input outlined v-model="form.phone" label="Phone Number" mask="##########" hint="Format: 0771234567" :rules="[val => (val && val.replace(/\D/g, '').length === 10) || 'අංක 10ක් ඇතුළත් කරන්න']" />
+                    <q-input outlined v-model="form.phone" label="Phone Number" hint="Format: 0771234567" :rules="[val => (val && val.replace(/\D/g, '').length >= 9) || (appStore.language === 'English' ? 'Please enter a valid phone number' : 'කරුණාකර වලංගු දුරකථන අංකයක් ඇතුළත් කරන්න')]" />
                     
                     <q-separator class="q-my-md" />
                     <div class="text-subtitle2 text-grey-7 q-mb-sm">Bank Details (Optional - For Payments)</div>
@@ -150,8 +150,10 @@
 import { ref, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
 import { client } from 'src/api'
+import { useAppStore } from 'src/store/app'
 
 const $q = useQuasar()
+const appStore = useAppStore()
 const filter = ref('')
 const showDialog = ref(false)
 const isEdit = ref(false)
@@ -220,8 +222,8 @@ const fetchTutors = async () => {
     } catch {
         $q.notify({ 
             type: 'negative', 
-            message: 'ගුරුවරුන්ගේ ලැයිස්තුව ලබා ගැනීමට අපොහොසත් විය',
-            actions: [{ label: 'නැවත උත්සාහ කරන්න', color: 'white', handler: () => fetchTutors() }]
+            message: appStore.language === 'English' ? 'Failed to load tutors list' : 'ගුරුවරුන්ගේ ලැයිස්තුව ලබා ගැනීමට අපොහොසත් විය',
+            actions: [{ label: appStore.language === 'English' ? 'Retry' : 'නැවත උත්සාහ කරන්න', color: 'white', handler: () => fetchTutors() }]
         })
     } finally {
         loading.value = false

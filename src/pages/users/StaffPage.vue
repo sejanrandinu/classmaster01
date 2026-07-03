@@ -121,7 +121,7 @@
                         :rules="[val => !!val || 'Role is required']"
                     />
 
-                    <q-input outlined v-model="form.whatsapp_number" label="WhatsApp Number" mask="##########" hint="Format: 07xxxxxxxx" :rules="[val => (val && val.replace(/\D/g, '').length === 10) || 'අංක 10ක් ඇතුළත් කරන්න']" />
+                    <q-input outlined v-model="form.whatsapp_number" label="WhatsApp Number" hint="Format: 07xxxxxxxx" :rules="[val => (val && val.replace(/\D/g, '').length >= 9) || (appStore.language === 'English' ? 'Please enter a valid phone number' : 'කරුණාකර වලංගු දුරකථන අංකයක් ඇතුළත් කරන්න')]" />
                     
                     <q-input 
                         outlined 
@@ -212,8 +212,10 @@
 import { ref, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
 import { client } from 'src/api'
+import { useAppStore } from 'src/store/app'
 
 const $q = useQuasar()
+const appStore = useAppStore()
 const filter = ref('')
 const showDialog = ref(false)
 const showPayDialog = ref(false)
