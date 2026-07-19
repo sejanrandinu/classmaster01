@@ -574,6 +574,41 @@ export async function onRequest(context) {
                 }
                 return json({ message: "Updated" });
             }
+            // Extend trial by 2 days (once per day, for trial users only)
+            if (method === 'POST' && subPath === 'extend-trial') {
+                try {
+                    // Self-heal: add last_ad_claim_at column if missing
+                    try { await db.prepare("ALTER TABLE profiles ADD COLUMN last_ad_claim_at TEXT").run(); } catch(e) {}
+
+                    const profile = await db.prepare("SELECT role, trial_ends_at, last_ad_claim_at FROM profiles WHERE id = ?").bind(userId).first();
+                    
+                    if (!profile) return json({ error: "User not found" }, 404);
+                    if (profile.role !== 'trial') return json({ error: "Only trial users can extend their trial." }, 403);
+
+                    // Rate limit: once per 24 hours
+                    if (profile.last_ad_claim_at) {
+                        const lastClaim = new Date(profile.last_ad_claim_at);
+                        const hoursSince = (Date.now() - lastClaim.getTime()) / (1000 * 60 * 60);
+                        if (hoursSince < 24) {
+                            const hoursLeft = Math.ceil(24 - hoursSince);
+                            return json({ error: `You can claim again in ${hoursLeft} hour(s).`, hoursLeft }, 429);
+                        }
+                    }
+
+                    // Extend trial_ends_at by 2 days from current end (or from now if expired)
+                    const currentEnd = profile.trial_ends_at ? new Date(profile.trial_ends_at) : new Date();
+                    const base = currentEnd > new Date() ? currentEnd : new Date();
+                    const newEnd = new Date(base.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString();
+                    const now = new Date().toISOString();
+
+                    await db.prepare("UPDATE profiles SET trial_ends_at = ?, last_ad_claim_at = ? WHERE id = ?").bind(newEnd, now, userId).run();
+                    return json({ message: "Trial extended by 2 days!", trial_ends_at: newEnd });
+                } catch (e) {
+                    console.error("Extend trial error:", e);
+                    return json({ error: e.message }, 500);
+                }
+            }
+
             if (method === 'PUT' && subPath === 'password') {
                 const { password } = await request.json();
                 const password_hash = await hashString(password + JWT_SECRET);
