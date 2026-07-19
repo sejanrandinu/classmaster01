@@ -477,9 +477,17 @@ const watchAdForTrial = async () => {
         s.src = 'https://n6wxm.com/vignette.min.js'
         s.async = true
         document.head.appendChild(s)
-        setTimeout(() => { try { document.head.removeChild(s) } catch(e) {} }, 5000)
-    } catch (e) {
-        console.warn('Ad trigger error:', e)
+        setTimeout(() => {
+            try {
+                if (s.parentNode) {
+                    s.parentNode.removeChild(s)
+                }
+            } catch (err) {
+                console.warn('Error removing script:', err)
+            }
+        }, 5000)
+    } catch (err) {
+        console.warn('Ad trigger error:', err)
     }
 
     // 30-second countdown (simulate ad watching)
