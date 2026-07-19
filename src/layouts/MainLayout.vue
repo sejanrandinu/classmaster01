@@ -130,6 +130,15 @@ onMounted(async () => {
     if (userData) {
         user.value = JSON.parse(userData)
     }
+
+    // Inject Monetag ads for landing/public pages
+    try {
+        ;(function(s){s.dataset.zone='11348086',s.src='https://al5sm.com/tag.min.js'})([document.documentElement,document.body].filter(Boolean).pop().appendChild(document.createElement('script')))
+        ;(function(s){s.dataset.zone='11348093',s.src='https://n6wxm.com/vignette.min.js'})([document.documentElement,document.body].filter(Boolean).pop().appendChild(document.createElement('script')))
+        ;(function(s){s.dataset.zone='11348096',s.src='https://nap5k.com/tag.min.js'})([document.documentElement,document.body].filter(Boolean).pop().appendChild(document.createElement('script')))
+    } catch (err) {
+        console.warn('Monetag load error:', err)
+    }
 })
 
 const openWhatsapp = () => {

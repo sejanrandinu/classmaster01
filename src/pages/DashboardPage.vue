@@ -483,22 +483,12 @@ const handleQuickAction = (action) => {
 const watchAdForTrial = async () => {
     if (adCountdown.value > 0 || adLoading.value) return
 
-    // Trigger Monetag vignette (video popup) ad
+    // Trigger Monetag vignette (video popup) ad using the exact provided script
     try {
-        const s = document.createElement('script')
-        s.dataset.zone = '11348093'
-        s.src = 'https://n6wxm.com/vignette.min.js'
-        s.async = true
-        document.head.appendChild(s)
-        setTimeout(() => {
-            try {
-                if (s.parentNode) {
-                    s.parentNode.removeChild(s)
-                }
-            } catch (err) {
-                console.warn('Error removing script:', err)
-            }
-        }, 5000)
+        (function(s){
+            s.dataset.zone='11348093'
+            s.src='https://n6wxm.com/vignette.min.js'
+        })([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))
     } catch (err) {
         console.warn('Ad trigger error:', err)
     }
