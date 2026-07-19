@@ -16,10 +16,20 @@
      <div v-if="userProfile && isTrialActive" class="q-mb-md">
         <q-banner dense class="bg-blue-1 text-blue-9 rounded-borders shadow-1">
            <template v-slot:avatar><q-icon name="info" color="blue-9" /></template>
-           You are currently on a 7-day free trial. 
+           You are currently on a 7-day free trial.
            <strong>{{ trialDaysLeft }} days remaining</strong>.
            <template v-slot:action>
               <q-btn flat color="blue-9" label="Upgrade Now" @click="showPaymentDetails" no-caps />
+              <q-btn
+                flat
+                color="green-9"
+                :label="adCountdown > 0 ? `Watching... ${adCountdown}s` : 'Watch Ad → +2 Days'"
+                icon="play_circle"
+                no-caps
+                :loading="adLoading"
+                :disable="adCountdown > 0 || adLoading"
+                @click="watchAdForTrial"
+              />
            </template>
         </q-banner>
      </div>
@@ -308,6 +318,9 @@ const showPaymentDetails = () => {
     })
 }
 
+const adLoading = ref(false)
+const adCountdown = ref(0)
+
 onMounted(() => {
     fetchInitialData()
     fetchUserProfile()
@@ -451,6 +464,63 @@ const handleQuickAction = (action) => {
         case 'attendance': router.push('/dashboard/attendance'); break;
         case 'classes': router.push('/dashboard/classes'); break;
         case 'message': router.push('/dashboard/messages'); break;
+    }
+}
+
+const watchAdForTrial = async () => {
+    if (adCountdown.value > 0 || adLoading.value) return
+
+    // Trigger Monetag vignette (video popup) ad
+    try {
+        const s = document.createElement('script')
+        s.dataset.zone = '11348093'
+        s.src = 'https://n6wxm.com/vignette.min.js'
+        s.async = true
+        document.head.appendChild(s)
+        setTimeout(() => { try { document.head.removeChild(s) } catch(e) {} }, 5000)
+    } catch (e) {
+        console.warn('Ad trigger error:', e)
+    }
+
+    // 30-second countdown (simulate ad watching)
+    adCountdown.value = 30
+    const timer = setInterval(() => {
+        adCountdown.value--
+        if (adCountdown.value <= 0) {
+            clearInterval(timer)
+            claimTrialExtension()
+        }
+    }, 1000)
+}
+
+const claimTrialExtension = async () => {
+    adLoading.value = true
+    try {
+        const res = await client.post('me/extend-trial', {})
+        if (res.trial_ends_at) {
+            userProfile.value.trial_ends_at = res.trial_ends_at
+        }
+        $q.notify({
+            type: 'positive',
+            icon: 'celebration',
+            message: '🎉 Trial extended by 2 days!',
+            caption: 'Thank you for watching the ad.',
+            position: 'top',
+            timeout: 4000
+        })
+    } catch (e) {
+        const hoursLeft = e?.message?.match(/\d+/)?.[0]
+        $q.notify({
+            type: 'warning',
+            icon: 'schedule',
+            message: hoursLeft
+                ? `You can claim again in ${hoursLeft} hour(s).`
+                : (e.message || 'Could not extend trial. Try again later.'),
+            position: 'top',
+            timeout: 4000
+        })
+    } finally {
+        adLoading.value = false
     }
 }
 
