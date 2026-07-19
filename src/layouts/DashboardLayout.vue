@@ -316,7 +316,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, onUnmounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { auth, client } from 'src/api'
@@ -353,31 +353,6 @@ const isSuperAdmin = computed(() => {
     return userEmail.value?.trim().toLowerCase() === 'sejanrandinu01@gmail.com'
 })
 
-// Monetag ad zones — shown only to trial users in dashboard
-const MONETAG_ZONES = [
-    { zone: '11348086', src: 'https://al5sm.com/tag.min.js' },
-    { zone: '11348093', src: 'https://n6wxm.com/vignette.min.js' },
-    { zone: '11348096', src: 'https://nap5k.com/tag.min.js' },
-]
-const monetagScripts = []
-
-const injectMonetag = () => {
-    MONETAG_ZONES.forEach(({ zone, src }) => {
-        const s = document.createElement('script')
-        s.dataset.zone = zone
-        s.src = src
-        s.async = true
-        s.setAttribute('data-monetag-injected', 'trial')
-        document.head.appendChild(s)
-        monetagScripts.push(s)
-    })
-}
-
-const removeMonetag = () => {
-    monetagScripts.forEach(s => s.parentNode && s.parentNode.removeChild(s))
-    monetagScripts.length = 0
-}
-
 const isApproved = computed(() => {
     if (isSuperAdmin.value) return true
     // Allow access if permanently approved OR if currently in active trial
@@ -407,19 +382,10 @@ onMounted(async () => {
         fetchPendingCount()
     }
 
-    // Inject Monetag ads only for trial users
-    if (userRole.value === 'trial') {
-        injectMonetag()
-    }
-
     // Request notification permission for mobile
     setTimeout(() => {
         checkNotificationPermission()
     }, 2000)
-})
-
-onUnmounted(() => {
-    removeMonetag()
 })
 
 const checkNotificationPermission = async () => {

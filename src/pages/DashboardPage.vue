@@ -12,26 +12,39 @@
         </q-banner>
      </div>
 
-     <!-- Trial Banner -->
+     <!-- Trial Banner / Ads Section -->
      <div v-if="userProfile && isTrialActive" class="q-mb-md">
-        <q-banner dense class="bg-blue-1 text-blue-9 rounded-borders shadow-1">
-           <template v-slot:avatar><q-icon name="info" color="blue-9" /></template>
-           You are currently on a 7-day free trial.
-           <strong>{{ trialDaysLeft }} days remaining</strong>.
-           <template v-slot:action>
-              <q-btn flat color="blue-9" label="Upgrade Now" @click="showPaymentDetails" no-caps />
+        <q-card flat bordered class="bg-blue-50 text-blue-9 rounded-borders shadow-1">
+          <q-card-section class="row items-center q-py-md q-px-lg">
+            <div class="col-12 col-md row items-center q-col-gutter-md">
+              <div class="col-auto">
+                <q-avatar icon="info" color="blue-2" text-color="blue-9" />
+              </div>
+              <div class="col">
+                <div class="text-subtitle1 text-weight-bold text-blue-10">
+                  Free Trial: {{ trialDaysLeft }} Days Remaining
+                </div>
+                <div class="text-caption text-grey-8">
+                  ClassMaster runs on ad revenue to support our hosting costs. If you want to keep using the system for free, you can voluntarily watch a short video ad to instantly extend your free trial by <strong>2 additional days</strong>!
+                </div>
+              </div>
+            </div>
+            <div class="col-12 col-md-auto row q-gutter-sm justify-end q-mt-md q-mt-md-none">
+              <q-btn outline color="primary" label="Upgrade Now" @click="showPaymentDetails" no-caps class="q-px-md" />
               <q-btn
-                flat
-                color="green-9"
-                :label="adCountdown > 0 ? `Watching... ${adCountdown}s` : 'Watch Ad → +2 Days'"
+                unelevated
+                color="positive"
+                :label="adCountdown > 0 ? `Watching Ad (${adCountdown}s)...` : 'Watch Ad & Extend +2 Days'"
                 icon="play_circle"
                 no-caps
                 :loading="adLoading"
                 :disable="adCountdown > 0 || adLoading"
                 @click="watchAdForTrial"
+                class="q-px-md"
               />
-           </template>
-        </q-banner>
+            </div>
+          </q-card-section>
+        </q-card>
      </div>
 
     <!-- Header -->

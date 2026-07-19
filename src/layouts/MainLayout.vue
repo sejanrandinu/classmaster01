@@ -97,7 +97,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { auth } from 'src/api'
 import { useQuasar } from 'quasar'
@@ -124,44 +124,12 @@ const handleLogout = async () => {
     })
 }
 
-// Monetag ad zones for landing/public pages
-const MONETAG_ZONES = [
-    { zone: '11348086', src: 'https://al5sm.com/tag.min.js' },
-    { zone: '11348093', src: 'https://n6wxm.com/vignette.min.js' },
-    { zone: '11348096', src: 'https://nap5k.com/tag.min.js' },
-]
-const monetagScripts = []
-
-const injectMonetag = () => {
-    MONETAG_ZONES.forEach(({ zone, src }) => {
-        const s = document.createElement('script')
-        s.dataset.zone = zone
-        s.src = src
-        s.async = true
-        s.setAttribute('data-monetag-injected', 'landing')
-        document.head.appendChild(s)
-        monetagScripts.push(s)
-    })
-}
-
-const removeMonetag = () => {
-    monetagScripts.forEach(s => s.parentNode && s.parentNode.removeChild(s))
-    monetagScripts.length = 0
-}
-
 onMounted(async () => {
     // Get initial user from local storage
     const userData = localStorage.getItem('classmaster-user')
     if (userData) {
         user.value = JSON.parse(userData)
     }
-
-    // Inject Monetag ads on all public/landing pages
-    injectMonetag()
-})
-
-onUnmounted(() => {
-    removeMonetag()
 })
 
 const openWhatsapp = () => {
