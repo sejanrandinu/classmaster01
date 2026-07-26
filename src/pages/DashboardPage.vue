@@ -12,40 +12,29 @@
         </q-banner>
      </div>
 
-     <!-- Trial Banner / Ads Section -->
-     <div v-if="userProfile && isTrialActive" class="q-mb-md">
-        <q-card flat bordered class="bg-blue-50 text-blue-9 rounded-borders shadow-1">
-          <q-card-section class="row items-center q-py-md q-px-lg">
-            <div class="col-12 col-md row items-center q-col-gutter-md">
-              <div class="col-auto">
-                <q-avatar icon="info" color="blue-2" text-color="blue-9" />
-              </div>
-              <div class="col">
-                <div class="text-subtitle1 text-weight-bold text-blue-10">
-                  Free Trial: {{ trialDaysLeft }} Days Remaining
-                </div>
-                <div class="text-caption text-grey-8">
-                  ClassMaster runs on ad revenue to support our hosting costs. If you want to keep using the system for free, you can voluntarily watch a short video ad to instantly extend your free trial by <strong>2 additional days</strong>!
-                </div>
-              </div>
-            </div>
-            <div class="col-12 col-md-auto row q-gutter-sm justify-end q-mt-md q-mt-md-none">
-              <q-btn outline color="primary" label="Upgrade Now" @click="showPaymentDetails" no-caps class="q-px-md" />
-              <q-btn
-                unelevated
-                color="positive"
-                :label="adCountdown > 0 ? `Watching Ad (${adCountdown}s)...` : 'Watch Ad & Extend +2 Days'"
-                icon="play_circle"
-                no-caps
-                :loading="adLoading"
-                :disable="adCountdown > 0 || adLoading"
-                @click="watchAdForTrial"
-                class="q-px-md"
-              />
-            </div>
-          </q-card-section>
-        </q-card>
-     </div>
+      <!-- Trial Banner Section -->
+      <div v-if="userProfile && isTrialActive" class="q-mb-md">
+         <q-card flat bordered class="bg-blue-50 text-blue-9 rounded-borders shadow-1">
+           <q-card-section class="row items-center q-py-md q-px-lg">
+             <div class="col-12 col-md row items-center q-col-gutter-md">
+               <div class="col-auto">
+                 <q-avatar icon="info" color="blue-2" text-color="blue-9" />
+               </div>
+               <div class="col">
+                 <div class="text-subtitle1 text-weight-bold text-blue-10">
+                   Free Trial: {{ trialDaysLeft }} Days Remaining
+                 </div>
+                 <div class="text-caption text-grey-8">
+                   Upgrade your account to unlock full lifetime access and premium features for your institute.
+                 </div>
+               </div>
+             </div>
+             <div class="col-12 col-md-auto row q-gutter-sm justify-end q-mt-md q-mt-md-none">
+               <q-btn unelevated color="primary" label="Upgrade Now" @click="showPaymentDetails" no-caps class="q-px-lg" />
+             </div>
+           </q-card-section>
+         </q-card>
+      </div>
 
     <!-- Header -->
     <div class="row items-center justify-between q-mb-lg">
@@ -116,11 +105,12 @@
                                     <q-icon name="person" size="14px" class="q-mr-xs" /> {{ cls.tutor }}
                                     <q-separator vertical class="q-mx-sm" />
                                     <q-badge :label="cls.grade" color="grey-2" text-color="grey-8" dense />
+                                    <q-badge :label="getRecurrenceLabel(cls.recurrence_type)" color="indigo-1" text-color="indigo-9" dense class="q-ml-xs" />
                                 </q-item-label>
                             </q-item-section>
                             <q-item-section side>
                                 <div class="text-h6 text-weight-bold text-primary">{{ formatTime(cls.start_time) }}</div>
-                                <div class="text-caption text-grey-5">{{ cls.day }}</div>
+                                <div class="text-caption text-grey-5">{{ cls.recurrence_type === 'none' && cls.class_date ? cls.class_date : cls.day }}</div>
                             </q-item-section>
                         </q-item>
                     </q-list>
@@ -331,8 +321,6 @@ const showPaymentDetails = () => {
     })
 }
 
-const adLoading = ref(false)
-const adCountdown = ref(0)
 
 onMounted(() => {
     fetchInitialData()
@@ -463,6 +451,16 @@ const formatTimeAgo = (at) => {
     return new Date(at).toLocaleDateString()
 }
 
+const getRecurrenceLabel = (type) => {
+    switch (type) {
+        case 'weekly': return 'Weekly'
+        case 'biweekly': return 'Bi-Weekly'
+        case 'monthly': return 'Monthly'
+        case 'none': return 'One-Time'
+        default: return 'Weekly'
+    }
+}
+
 const formatTime = (timeStr) => {
     if (!timeStr) return ''
     const [h, m] = timeStr.split(':')
@@ -480,50 +478,6 @@ const handleQuickAction = (action) => {
     }
 }
 
-const watchAdForTrial = async () => {
-    if (adCountdown.value > 0 || adLoading.value) return
-
-    // 30-second countdown
-    adCountdown.value = 30
-    const timer = setInterval(() => {
-        adCountdown.value--
-        if (adCountdown.value <= 0) {
-            clearInterval(timer)
-            claimTrialExtension()
-        }
-    }, 1000)
-}
-
-const claimTrialExtension = async () => {
-    adLoading.value = true
-    try {
-        const res = await client.post('me/extend-trial', {})
-        if (res.trial_ends_at) {
-            userProfile.value.trial_ends_at = res.trial_ends_at
-        }
-        $q.notify({
-            type: 'positive',
-            icon: 'celebration',
-            message: '🎉 Trial extended by 2 days!',
-            caption: 'Thank you for watching the ad.',
-            position: 'top',
-            timeout: 4000
-        })
-    } catch (e) {
-        const hoursLeft = e?.message?.match(/\d+/)?.[0]
-        $q.notify({
-            type: 'warning',
-            icon: 'schedule',
-            message: hoursLeft
-                ? `You can claim again in ${hoursLeft} hour(s).`
-                : (e.message || 'Could not extend trial. Try again later.'),
-            position: 'top',
-            timeout: 4000
-        })
-    } finally {
-        adLoading.value = false
-    }
-}
 
 const handleNewAdmission = () => router.push('/dashboard/students')
 const handleViewAllSchedule = () => router.push('/dashboard/classes')

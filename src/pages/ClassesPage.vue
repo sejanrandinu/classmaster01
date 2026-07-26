@@ -17,21 +17,44 @@
       />
     </div>
 
+    <!-- Filter Tabs -->
+    <div v-if="rows.length > 0" class="row justify-between items-center q-mb-lg">
+        <q-btn-toggle
+            v-model="filterType"
+            spread
+            no-caps
+            unelevated
+            toggle-color="primary"
+            color="white"
+            text-color="grey-8"
+            class="shadow-1 rounded-borders font-weight-bold"
+            style="max-width: 480px;"
+            :options="[
+                { label: 'All Classes', value: 'all' },
+                { label: '🔁 Recurring', value: 'recurring' },
+                { label: '1️⃣ One-Time', value: 'onetime' }
+            ]"
+        />
+        <div class="text-caption text-grey-7 text-weight-bold">
+            Showing {{ filteredRows.length }} of {{ rows.length }} classes
+        </div>
+    </div>
+
     <!-- Empty State -->
-    <div v-if="rows.length === 0 && !loading" class="flex flex-center q-pa-xl empty-container">
+    <div v-if="filteredRows.length === 0 && !loading" class="flex flex-center q-pa-xl empty-container">
         <div class="text-center fade-in">
             <div class="icon-blob">
                 <q-icon name="auto_awesome" size="84px" color="primary" />
             </div>
-            <div class="text-h4 text-weight-bold text-grey-9 q-mt-lg">Your Schedule is Clear</div>
-            <p class="text-grey-6 text-h6 q-mt-md mw-400 mx-auto">It looks like you haven't scheduled any classes yet. Time to add your first session!</p>
+            <div class="text-h4 text-weight-bold text-grey-9 q-mt-lg">No Classes Found</div>
+            <p class="text-grey-6 text-h6 q-mt-md mw-400 mx-auto">No sessions match your selected filter. Create a new class or switch filters!</p>
             <q-btn color="primary" label="Create First Class" unelevated no-caps size="lg" class="q-mt-xl premium-btn" @click="openAddDialog" />
         </div>
     </div>
 
     <!-- Class Grid -->
     <div v-else class="row q-col-gutter-xl">
-        <div v-for="item in rows" :key="item.id" class="col-12 col-sm-6 col-lg-4">
+        <div v-for="item in filteredRows" :key="item.id" class="col-12 col-sm-6 col-lg-4">
             <q-card flat class="class-card glass-modern overflow-hidden">
                 <!-- Card Header with Image or Gradient -->
                 <div 
@@ -42,12 +65,19 @@
                     <div class="row items-center justify-between no-wrap">
                         <q-badge :label="item.grade" color="white" text-color="primary" class="text-weight-bold q-px-sm" />
                         <div class="row items-center">
+                            <q-chip dense :color="getRecurrenceColor(item.recurrence_type)" text-color="white" size="sm" class="q-mr-xs">
+                                {{ getRecurrenceLabel(item.recurrence_type) }}
+                            </q-chip>
                             <q-chip dense :color="item.status === 'Active' ? 'green-5' : 'grey-7'" text-color="white" size="sm" class="q-mr-sm">
                                 {{ item.status }}
                             </q-chip>
                             <q-btn flat round dense color="white" icon="more_horiz" class="opacity-80">
                                 <q-menu auto-close transition-show="scale" transition-hide="scale">
                                     <q-list style="min-width: 180px">
+                                        <q-item clickable @click="viewUpcomingSessions(item)" class="q-py-md">
+                                            <q-item-section avatar><q-icon name="event_repeat" color="deep-purple-6" /></q-item-section>
+                                            <q-item-section>Upcoming Dates</q-item-section>
+                                        </q-item>
                                         <q-item clickable @click="openEditDialog(item)" class="q-py-md">
                                             <q-item-section avatar><q-icon name="edit_calendar" color="primary" /></q-item-section>
                                             <q-item-section>Modify Schedule</q-item-section>
@@ -84,7 +114,7 @@
                             <div class="row items-center text-grey-7 q-mb-xs">
                                 <q-icon name="calendar_today" size="16px" class="q-mr-xs" />
                                 <span class="text-caption text-weight-bold uppercase">
-                                  {{ item.class_date ? formatDate(item.class_date) : item.day }}
+                                  {{ item.recurrence_type === 'none' && item.class_date ? formatDate(item.class_date) : `${item.day} (${getRecurrenceLabel(item.recurrence_type)})` }}
                                 </span>
                             </div>
                             <div class="text-h6 text-weight-bold text-grey-9">
@@ -179,13 +209,24 @@
 
                     <div class="row q-col-gutter-lg">
                         <div class="col-12 col-md-6">
-                            <q-input filled v-model="form.class_date" label="Class Date" type="date" stack-label>
-                                <template v-slot:prepend><q-icon name="event" color="primary" /></template>
-                                <template v-slot:hint>Optional: For specific date sessions</template>
-                            </q-input>
+                            <q-select 
+                                filled 
+                                v-model="form.recurrence_type" 
+                                :options="recurrenceOptions" 
+                                emit-value 
+                                map-options
+                                label="Recurrence Pattern"
+                            >
+                                <template v-slot:prepend><q-icon name="update" color="primary" /></template>
+                            </q-select>
                         </div>
-                        <div class="col-12 col-md-6">
-                            <q-select filled v-model="form.day" :options="dayOptions" label="Recurring Day" hint="Ignored if date is set" />
+                        <div class="col-12 col-md-6" v-if="form.recurrence_type !== 'none'">
+                            <q-select filled v-model="form.day" :options="dayOptions" label="Day of Week" />
+                        </div>
+                        <div class="col-12 col-md-6" v-if="form.recurrence_type === 'none' || form.recurrence_type === 'monthly'">
+                            <q-input filled v-model="form.class_date" label="Class Date" type="date" stack-label hint="Specific session date">
+                                <template v-slot:prepend><q-icon name="event" color="primary" /></template>
+                            </q-input>
                         </div>
                     </div>
 
@@ -356,6 +397,52 @@
         </q-card>
     </q-dialog>
 
+    <!-- Upcoming Sessions Dialog -->
+    <q-dialog v-model="showUpcomingDialog" backdrop-filter="blur(10px)">
+        <q-card style="width: 420px; max-width: 90vw; border-radius: 20px;">
+            <q-card-section class="bg-deep-purple-8 text-white q-pa-lg">
+                <div class="row items-center justify-between">
+                    <div>
+                        <div class="text-h6 text-weight-bold flex items-center">
+                            <q-icon name="event_repeat" class="q-mr-sm" />
+                            Upcoming Dates
+                        </div>
+                        <div class="text-caption opacity-80">{{ upcomingClass?.class_name }} ({{ getRecurrenceLabel(upcomingClass?.recurrence_type) }})</div>
+                    </div>
+                    <q-btn icon="close" flat round dense v-close-popup />
+                </div>
+            </q-card-section>
+            <q-card-section class="q-pa-lg">
+                <div v-if="loadingUpcoming" class="text-center q-pa-lg">
+                    <q-spinner color="primary" size="36px" />
+                    <div class="text-caption text-grey-6 q-mt-sm">Calculating upcoming sessions...</div>
+                </div>
+                <div v-else-if="upcomingDates.length === 0" class="text-center q-pa-md text-grey-6">
+                    No upcoming sessions found.
+                </div>
+                <q-list v-else separator bordered class="rounded-borders overflow-hidden shadow-1">
+                    <q-item v-for="(dateStr, idx) in upcomingDates" :key="idx" class="q-py-md">
+                        <q-item-section avatar>
+                            <q-avatar color="deep-purple-1" text-color="deep-purple-9" icon="event" />
+                        </q-item-section>
+                        <q-item-section>
+                            <q-item-label class="text-weight-bold text-subtitle1">{{ formatDate(dateStr) }}</q-item-label>
+                            <q-item-label caption class="text-grey-7">
+                                {{ upcomingClass?.day || 'Specific Date' }} • {{ formatTime(upcomingClass?.start_time) }} - {{ formatTime(upcomingClass?.end_time) }}
+                            </q-item-label>
+                        </q-item-section>
+                        <q-item-section side>
+                            <q-badge color="deep-purple-1" text-color="deep-purple-9" :label="`Session #${idx + 1}`" class="q-px-sm" />
+                        </q-item-section>
+                    </q-item>
+                </q-list>
+            </q-card-section>
+            <q-card-actions align="right" class="q-pa-md">
+                <q-btn flat label="Close" color="grey-7" v-close-popup />
+            </q-card-actions>
+        </q-card>
+    </q-dialog>
+
   </q-page>
 </template>
 
@@ -369,6 +456,8 @@ const $q = useQuasar()
 const appStore = useAppStore()
 const rows = ref([])
 const loading = ref(false)
+const filterType = ref('all')
+
 const showDialog = ref(false)
 const isEdit = ref(false)
 const showBroadcastDialog = ref(false)
@@ -377,6 +466,48 @@ const selectedBroadcastIds = ref([])
 const lastScheduledClass = ref(null)
 const showDetails = ref(false)
 const selectedClass = ref(null)
+
+const showUpcomingDialog = ref(false)
+const upcomingClass = ref(null)
+const upcomingDates = ref([])
+const loadingUpcoming = ref(false)
+
+const recurrenceOptions = [
+    { label: '🔁 Weekly (Every Week)', value: 'weekly' },
+    { label: '🔁 Bi-Weekly (Every 2 Weeks)', value: 'biweekly' },
+    { label: '🗓️ Monthly (Monthly)', value: 'monthly' },
+    { label: '1️⃣ One-Time (Specific Date)', value: 'none' }
+]
+
+const filteredRows = computed(() => {
+    if (filterType.value === 'recurring') {
+        return rows.value.filter(r => r.recurrence_type !== 'none')
+    }
+    if (filterType.value === 'onetime') {
+        return rows.value.filter(r => r.recurrence_type === 'none')
+    }
+    return rows.value
+})
+
+const getRecurrenceLabel = (type) => {
+    switch (type) {
+        case 'weekly': return 'Weekly'
+        case 'biweekly': return 'Bi-Weekly'
+        case 'monthly': return 'Monthly'
+        case 'none': return 'One-Time'
+        default: return 'Weekly'
+    }
+}
+
+const getRecurrenceColor = (type) => {
+    switch (type) {
+        case 'weekly': return 'indigo-6'
+        case 'biweekly': return 'purple-6'
+        case 'monthly': return 'teal-6'
+        case 'none': return 'orange-7'
+        default: return 'indigo-6'
+    }
+}
 
 const pickedFile = ref(null)
 
@@ -438,6 +569,7 @@ const form = ref({
     subject: '',
     tutor: '',
     grade: '',
+    recurrence_type: 'weekly',
     day: 'Sunday',
     class_date: '',
     start_time: '08:00',
@@ -513,14 +645,51 @@ const fetchClasses = async () => {
 
 const openAddDialog = () => {
     isEdit.value = false
-    form.value = { id: null, class_name: '', subject: '', tutor: '', grade: '', day: 'Sunday', class_date: '', start_time: '08:00', end_time: '10:00', fee: 5000, status: 'Active' }
+    form.value = { 
+        id: null, 
+        class_name: '', 
+        subject: '', 
+        tutor: '', 
+        grade: '', 
+        recurrence_type: 'weekly',
+        day: 'Sunday', 
+        class_date: '', 
+        start_time: '08:00', 
+        end_time: '10:00', 
+        fee: 5000, 
+        status: 'Active',
+        image_url: '',
+        color_theme: null,
+        whatsapp_group_url: ''
+    }
     showDialog.value = true
 }
 
 const openEditDialog = (item) => {
     isEdit.value = true
-    form.value = { ...item }
+    form.value = { 
+        recurrence_type: 'weekly',
+        ...item 
+    }
     showDialog.value = true
+}
+
+const viewUpcomingSessions = async (item) => {
+    upcomingClass.value = item
+    upcomingDates.value = []
+    showUpcomingDialog.value = true
+    loadingUpcoming.value = true
+    try {
+        const res = await client.get(`classes/${item.id}/upcoming`)
+        if (res && res.upcoming_dates) {
+            upcomingDates.value = res.upcoming_dates
+        }
+    } catch (e) {
+        console.error('Fetch upcoming error:', e)
+        $q.notify({ type: 'negative', message: 'Could not fetch upcoming dates' })
+    } finally {
+        loadingUpcoming.value = false
+    }
 }
 
 const saveClass = async () => {

@@ -85,6 +85,7 @@ CREATE TABLE IF NOT EXISTS classes (
     end_time TEXT,
     fee DECIMAL(10, 2),
     status TEXT DEFAULT 'Active', -- Added
+    recurrence_type TEXT DEFAULT 'weekly', -- Added: weekly, biweekly, monthly, none
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(user_id) REFERENCES profiles(id) ON DELETE CASCADE
 );

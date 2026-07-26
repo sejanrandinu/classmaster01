@@ -574,40 +574,7 @@ export async function onRequest(context) {
                 }
                 return json({ message: "Updated" });
             }
-            // Extend trial by 2 days (once per day, for trial users only)
-            if (method === 'POST' && subPath === 'extend-trial') {
-                try {
-                    // Self-heal: add last_ad_claim_at column if missing
-                    try { await db.prepare("ALTER TABLE profiles ADD COLUMN last_ad_claim_at TEXT").run(); } catch(e) {}
 
-                    const profile = await db.prepare("SELECT role, trial_ends_at, last_ad_claim_at FROM profiles WHERE id = ?").bind(userId).first();
-                    
-                    if (!profile) return json({ error: "User not found" }, 404);
-                    if (profile.role !== 'trial') return json({ error: "Only trial users can extend their trial." }, 403);
-
-                    // Rate limit: once per 24 hours
-                    if (profile.last_ad_claim_at) {
-                        const lastClaim = new Date(profile.last_ad_claim_at);
-                        const hoursSince = (Date.now() - lastClaim.getTime()) / (1000 * 60 * 60);
-                        if (hoursSince < 24) {
-                            const hoursLeft = Math.ceil(24 - hoursSince);
-                            return json({ error: `You can claim again in ${hoursLeft} hour(s).`, hoursLeft }, 429);
-                        }
-                    }
-
-                    // Extend trial_ends_at by 2 days from current end (or from now if expired)
-                    const currentEnd = profile.trial_ends_at ? new Date(profile.trial_ends_at) : new Date();
-                    const base = currentEnd > new Date() ? currentEnd : new Date();
-                    const newEnd = new Date(base.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString();
-                    const now = new Date().toISOString();
-
-                    await db.prepare("UPDATE profiles SET trial_ends_at = ?, last_ad_claim_at = ? WHERE id = ?").bind(newEnd, now, userId).run();
-                    return json({ message: "Trial extended by 2 days!", trial_ends_at: newEnd });
-                } catch (e) {
-                    console.error("Extend trial error:", e);
-                    return json({ error: e.message }, 500);
-                }
-            }
 
             if (method === 'PUT' && subPath === 'password') {
                 const { password } = await request.json();
@@ -760,6 +727,47 @@ export async function onRequest(context) {
 
         // CLASSES
         if (path === 'classes') {
+            // Self-heal table schema for recurrence_type
+            try { await db.prepare("ALTER TABLE classes ADD COLUMN recurrence_type TEXT DEFAULT 'weekly'").run(); } catch(e) {}
+
+            if (subPath && method === 'GET' && subPath.endsWith('/upcoming')) {
+                const classId = subPath.split('/')[0];
+                const cls = await db.prepare("SELECT *, COALESCE(recurrence_type, 'weekly') as recurrence_type FROM classes WHERE id = ? AND user_id = ?").bind(classId, userId).first();
+                if (!cls) return json({ error: "Class not found" }, 404);
+
+                const daysMap = { 'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6 };
+                const dates = [];
+                const now = new Date(Date.now() + 5.5 * 3600000);
+                const rec = cls.recurrence_type || 'weekly';
+
+                if (rec === 'none' && cls.class_date) {
+                    dates.push(cls.class_date);
+                } else {
+                    const targetDayIndex = daysMap[cls.day] !== undefined ? daysMap[cls.day] : 0;
+                    let current = new Date(now);
+                    let daysChecked = 0;
+                    while (dates.length < 6 && daysChecked < 90) {
+                        if (current.getDay() === targetDayIndex) {
+                            const dateStr = current.toISOString().split('T')[0];
+                            if (rec === 'weekly') {
+                                dates.push(dateStr);
+                            } else if (rec === 'biweekly') {
+                                if (dates.length === 0 || (daysChecked % 14 === 0)) {
+                                    dates.push(dateStr);
+                                }
+                            } else if (rec === 'monthly') {
+                                if (dates.length === 0 || current.getDate() <= 7) {
+                                    dates.push(dateStr);
+                                }
+                            }
+                        }
+                        current.setDate(current.getDate() + 1);
+                        daysChecked++;
+                    }
+                }
+                return json({ class_id: cls.id, recurrence_type: rec, upcoming_dates: dates });
+            }
+
             if (method === 'GET') {
                 const grade = url.searchParams.get('grade');
                 const status = url.searchParams.get('status');
@@ -768,16 +776,14 @@ export async function onRequest(context) {
                 const now = new Date(Date.now() + 5.5 * 3600000);
                 const todayDate = now.toISOString().split('T')[0];
 
-                let q = "SELECT id, name, name as class_name, tutor_name, tutor_name as tutor, subject_name, subject_name as subject, grade, day, class_date, start_time, end_time, fee, status, image_url, color_theme, whatsapp_group_url FROM classes WHERE user_id = ?";
+                let q = "SELECT id, name, name as class_name, tutor_name, tutor_name as tutor, subject_name, subject_name as subject, grade, day, class_date, start_time, end_time, fee, status, image_url, color_theme, whatsapp_group_url, COALESCE(recurrence_type, 'weekly') as recurrence_type FROM classes WHERE user_id = ?";
                 const p = [userId];
                 if (grade) { q += " AND grade = ?"; p.push(grade); }
                 if (status) { q += " AND status = ?"; p.push(status); }
                 
-                // Optional: Auto-deactivate past sessions in memory or just filter them
-                // For now, let's just make sure we return them but maybe mark them as 'Expired' if past date
                 const { results } = await db.prepare(q + " ORDER BY created_at DESC").bind(...p).all();
                 const mapped = (results || []).map(c => {
-                    if (c.class_date && c.class_date < todayDate && c.status === 'Active') {
+                    if (c.recurrence_type === 'none' && c.class_date && c.class_date < todayDate && c.status === 'Active') {
                         return { ...c, status: 'Completed' };
                     }
                     return c;
@@ -786,9 +792,10 @@ export async function onRequest(context) {
             }
             if (method === 'POST') {
                 const d = await request.json();
+                const recType = d.recurrence_type || (d.class_date && !d.day ? 'none' : 'weekly');
                 try {
-                    await db.prepare("INSERT INTO classes (user_id, name, tutor_name, subject_name, grade, day, class_date, start_time, end_time, fee, status, image_url, color_theme, whatsapp_group_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-                        .bind(userId, d.class_name, d.tutor, d.subject, d.grade, d.day, d.class_date || null, d.start_time, d.end_time, d.fee, d.status || 'Active', d.image_url || null, d.color_theme || null, d.whatsapp_group_url || null).run();
+                    await db.prepare("INSERT INTO classes (user_id, name, tutor_name, subject_name, grade, day, class_date, start_time, end_time, fee, status, image_url, color_theme, whatsapp_group_url, recurrence_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                        .bind(userId, d.class_name, d.tutor, d.subject, d.grade, d.day, d.class_date || null, d.start_time, d.end_time, d.fee, d.status || 'Active', d.image_url || null, d.color_theme || null, d.whatsapp_group_url || null, recType).run();
                     await logActivity('class', `Scheduled class ${d.class_name}`);
                     return json({ message: "Added" });
                 } catch (e) {
@@ -798,9 +805,10 @@ export async function onRequest(context) {
             }
             if (method === 'PUT' && subPath) {
                 const d = await request.json();
+                const recType = d.recurrence_type || (d.class_date && !d.day ? 'none' : 'weekly');
                 try {
-                    await db.prepare("UPDATE classes SET name = ?, tutor_name = ?, subject_name = ?, grade = ?, day = ?, class_date = ?, start_time = ?, end_time = ?, fee = ?, status = ?, image_url = ?, color_theme = ?, whatsapp_group_url = ? WHERE id = ? AND user_id = ?")
-                        .bind(d.class_name, d.tutor, d.subject, d.grade, d.day, d.class_date || null, d.start_time, d.end_time, d.fee, d.status, d.image_url || null, d.color_theme || null, d.whatsapp_group_url || null, subPath, userId).run();
+                    await db.prepare("UPDATE classes SET name = ?, tutor_name = ?, subject_name = ?, grade = ?, day = ?, class_date = ?, start_time = ?, end_time = ?, fee = ?, status = ?, image_url = ?, color_theme = ?, whatsapp_group_url = ?, recurrence_type = ? WHERE id = ? AND user_id = ?")
+                        .bind(d.class_name, d.tutor, d.subject, d.grade, d.day, d.class_date || null, d.start_time, d.end_time, d.fee, d.status, d.image_url || null, d.color_theme || null, d.whatsapp_group_url || null, recType, subPath, userId).run();
                     return json({ message: "Updated" });
                 } catch (e) {
                     console.error('Class Update Error:', e);
@@ -1028,24 +1036,45 @@ export async function onRequest(context) {
         // SCHEDULE
         if (path === 'schedule' && subPath === 'today') {
             const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-            // Colombo Time Offset (+5:30)
             const now = new Date(Date.now() + 5.5 * 3600000);
             const todayDay = days[now.getUTCDay()];
             const todayDate = now.toISOString().split('T')[0];
+            const currentDayOfMonth = now.getUTCDate();
 
-            // Show classes where (day matches AND no specific date is set) OR (specific date matches today)
+            // Fetch active classes
             const { results } = await db.prepare(`
-                SELECT * FROM classes 
-                WHERE user_id = ? AND status = 'Active' 
-                AND (
-                    (day = ? AND (class_date IS NULL OR class_date = ''))
-                    OR 
-                    (class_date = ?)
-                )
+                SELECT *, COALESCE(recurrence_type, 'weekly') as recurrence_type FROM classes 
+                WHERE user_id = ? AND status = 'Active'
                 ORDER BY start_time ASC
-            `).bind(userId, todayDay, todayDate).all();
+            `).bind(userId).all();
             
-            return json(results || []);
+            const todayClasses = (results || []).filter(c => {
+                const rec = c.recurrence_type || 'weekly';
+                if (rec === 'none') {
+                    return c.class_date === todayDate;
+                }
+                if (rec === 'weekly') {
+                    return c.day === todayDay;
+                }
+                if (rec === 'biweekly') {
+                    if (c.day !== todayDay) return false;
+                    if (!c.created_at) return true;
+                    const createdDate = new Date(c.created_at);
+                    const diffDays = Math.floor((now.getTime() - createdDate.getTime()) / (1000 * 3600 * 24));
+                    const diffWeeks = Math.floor(diffDays / 7);
+                    return diffWeeks % 2 === 0;
+                }
+                if (rec === 'monthly') {
+                    if (c.class_date) {
+                        const targetDate = new Date(c.class_date).getUTCDate();
+                        return currentDayOfMonth === targetDate;
+                    }
+                    return c.day === todayDay && currentDayOfMonth <= 7;
+                }
+                return c.day === todayDay || c.class_date === todayDate;
+            });
+            
+            return json(todayClasses);
         }
 
         // SUBJECTS
