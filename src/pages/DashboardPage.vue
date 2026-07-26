@@ -483,17 +483,7 @@ const handleQuickAction = (action) => {
 const watchAdForTrial = async () => {
     if (adCountdown.value > 0 || adLoading.value) return
 
-    // Trigger Monetag vignette (video popup) ad using the exact provided script
-    try {
-        (function(s){
-            s.dataset.zone='11348093'
-            s.src='https://n6wxm.com/vignette.min.js'
-        })([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))
-    } catch (err) {
-        console.warn('Ad trigger error:', err)
-    }
-
-    // 30-second countdown (simulate ad watching)
+    // 30-second countdown
     adCountdown.value = 30
     const timer = setInterval(() => {
         adCountdown.value--
