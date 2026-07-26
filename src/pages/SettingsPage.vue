@@ -640,10 +640,10 @@ const sheetsWebhookUrl = ref('')
 const savingWebhook = ref(false)
 const testingWebhook = ref(false)
 
-// Load existing webhook URL on mount
+// Load existing webhook URL on mount (piggybacks on existing getUser call)
 onMounted(async () => {
   try {
-    const data = await client.get('me')
+    const data = await auth.getUser()
     if (data?.sheets_webhook_url) sheetsWebhookUrl.value = data.sheets_webhook_url
   } catch (err) {
     console.error('Failed to load webhook URL:', err)
@@ -670,11 +670,8 @@ const testWebhookUrl = async () => {
   }
   testingWebhook.value = true
   try {
-    await fetch(sheetsWebhookUrl.value, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event: 'test_ping', timestamp: new Date().toISOString(), data: { source: 'ClassMaster Settings' } })
-    })
+    // Route through backend to avoid browser CORS restrictions on Google Apps Script URLs
+    await client.post('sheets-test', { webhook_url: sheetsWebhookUrl.value })
     $q.notify({ type: 'positive', message: 'Test ping sent! Check your Google Sheet.', icon: 'check_circle' })
   } catch (err) {
     console.error('Test webhook error:', err)

@@ -600,7 +600,7 @@ export async function onRequest(context) {
         if (path === 'me') {
             if (method === 'GET') {
                 try {
-                    const user = await db.prepare("SELECT id, email, whatsapp_number, whatsapp_enabled, profile_image_url, role, is_approved, is_email_verified, trial_ends_at, bank_name, account_number, account_holder_name, created_at, card_background_url, card_theme_color, card_layout_type, card_show_visuals FROM profiles WHERE id = ?").bind(userId).first();
+                    const user = await db.prepare("SELECT id, email, whatsapp_number, whatsapp_enabled, profile_image_url, role, is_approved, is_email_verified, trial_ends_at, bank_name, account_number, account_holder_name, created_at, card_background_url, card_theme_color, card_layout_type, card_show_visuals, sheets_webhook_url FROM profiles WHERE id = ?").bind(userId).first();
                     return json(user);
                 } catch (e) {
                     console.error('Fetch me error:', e);
@@ -618,7 +618,8 @@ export async function onRequest(context) {
                 const possibleFields = [
                     'whatsapp_number', 'bank_name', 'account_number', 'account_holder_name',
                     'card_background_url', 'card_theme_color', 'card_layout_type', 
-                    'card_show_visuals', 'profile_image_url', 'whatsapp_enabled'
+                    'card_show_visuals', 'profile_image_url', 'whatsapp_enabled',
+                    'sheets_webhook_url'
                 ];
 
                 for (const f of possibleFields) {
@@ -648,6 +649,27 @@ export async function onRequest(context) {
                 const password_hash = await hashString(password + JWT_SECRET);
                 await db.prepare("UPDATE profiles SET password_hash = ? WHERE id = ?").bind(password_hash, userId).run();
                 return json({ message: "Password updated" });
+            }
+        }
+
+        // GOOGLE SHEETS TEST PING (backend proxy to bypass browser CORS)
+        if (path === 'sheets-test' && method === 'POST') {
+            const { webhook_url } = await request.json();
+            if (!webhook_url) return json({ error: 'webhook_url is required' }, 400);
+            try {
+                await fetch(webhook_url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        event: 'test_ping', 
+                        timestamp: new Date().toISOString(), 
+                        data: { source: 'ClassMaster Settings Test' } 
+                    })
+                });
+                return json({ message: 'Test ping sent successfully' });
+            } catch (e) {
+                console.error('Sheets test ping error:', e);
+                return json({ error: 'Failed to reach the webhook URL. Check the URL and redeploy the Apps Script.' }, 502);
             }
         }
 
