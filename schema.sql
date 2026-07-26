@@ -210,6 +210,7 @@ CREATE TABLE IF NOT EXISTS exams (
     subject_name TEXT,
     date TEXT NOT NULL,
     max_marks INTEGER DEFAULT 100,
+    certificate_cutoff INTEGER DEFAULT 50,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE
 );

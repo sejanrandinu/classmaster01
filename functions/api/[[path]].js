@@ -362,6 +362,9 @@ export async function onRequest(context) {
                 const { results: attendance } = await db.prepare("SELECT a.*, c.name as class_name FROM attendance a LEFT JOIN classes c ON a.class_id = c.id WHERE a.student_id = ? ORDER BY a.date DESC LIMIT 10").bind(studentDbId).all();
                 const { results: payments } = await db.prepare("SELECT * FROM payments WHERE student_id = ? ORDER BY created_at DESC LIMIT 10").bind(studentDbId).all();
                 
+                // Self-heal exams schema for public portal if column doesn't exist yet
+                try { await db.prepare("ALTER TABLE exams ADD COLUMN certificate_cutoff INTEGER DEFAULT 50").run(); } catch(e) {}
+
                 // Fetch Exam Results — standard competition ranking computed in JS
                 const { results: rawResults } = await db.prepare(`
                     SELECT 
