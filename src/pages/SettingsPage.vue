@@ -209,6 +209,63 @@
           </q-card-section>
         </q-card>
 
+        <!-- Google Sheets Sync -->
+        <q-card flat class="glass-modern q-mt-lg">
+          <q-card-section class="q-pa-lg">
+            <div class="text-h6 text-weight-bold q-mb-md row items-center">
+              <q-avatar size="28px" class="q-mr-sm" square>
+                <img src="https://fonts.gstatic.com/s/i/productlogos/sheets_2020q4/v8/web-64dp/logo_sheets_2020q4_color_2x_web_64dp.png" style="width:22px;height:22px;" />
+              </q-avatar>
+              Google Sheets Sync
+              <q-badge color="green-7" class="q-ml-sm text-caption">NEW</q-badge>
+            </div>
+            <p class="text-grey-7 text-caption q-mb-md">
+              Automatically sync attendance, payments &amp; exam marks to your Google Sheet via a Google Apps Script webhook.
+            </p>
+
+            <q-input
+              outlined
+              dense
+              v-model="sheetsWebhookUrl"
+              label="Google Apps Script Web App URL"
+              placeholder="https://script.google.com/macros/s/.../exec"
+              class="q-mb-md"
+            >
+              <template v-slot:prepend><q-icon name="link" color="green-7" /></template>
+            </q-input>
+
+            <div class="row q-gutter-sm q-mb-lg">
+              <q-btn unelevated color="green-7" label="Save Webhook URL" icon="save" no-caps :loading="savingWebhook" @click="saveWebhookUrl" />
+              <q-btn outline color="blue-7" label="Test Connection" icon="send" no-caps :loading="testingWebhook" @click="testWebhookUrl" />
+            </div>
+
+            <!-- Setup Instructions -->
+            <q-expansion-item
+              icon="help_outline"
+              label="How to set up Google Sheets sync?"
+              dense
+              class="bg-grey-1 rounded-borders"
+            >
+              <q-card flat class="q-pa-md bg-grey-1">
+                <ol class="text-caption text-grey-8" style="padding-left:1.2rem; line-height: 1.8;">
+                  <li>Open <a href="https://sheets.google.com" target="_blank" class="text-green-7">Google Sheets</a> and create a new spreadsheet.</li>
+                  <li>Go to <strong>Extensions → Apps Script</strong>.</li>
+                  <li>Delete any existing code and paste the script below.</li>
+                  <li>Click <strong>Deploy → New deployment → Web app</strong>.</li>
+                  <li>Set <em>Execute as</em>: <strong>Me</strong>, <em>Who has access</em>: <strong>Anyone</strong>.</li>
+                  <li>Click <strong>Deploy</strong> and copy the Web App URL.</li>
+                  <li>Paste it above and click <strong>Save Webhook URL</strong>.</li>
+                </ol>
+
+                <q-separator class="q-my-sm" />
+                <div class="text-caption text-weight-bold text-grey-8 q-mb-xs">📋 Google Apps Script Template:</div>
+                <div class="bg-grey-900 text-green-4 rounded-borders q-pa-sm" style="font-family:monospace; font-size:11px; white-space:pre-wrap; background:#1e1e1e; color:#4ec9b0; border-radius:8px;">{{ gasScriptTemplate }}</div>
+                <q-btn flat dense size="sm" icon="content_copy" label="Copy Script" color="green-7" class="q-mt-xs" @click="copyGasScript" />
+              </q-card>
+            </q-expansion-item>
+          </q-card-section>
+        </q-card>
+
         <!-- Data Management -->
         <q-card flat class="glass-modern q-mt-lg">
           <q-card-section class="q-pa-lg">
@@ -576,6 +633,74 @@ const testNotification = async () => {
     body: 'This is how your notifications will appear! 🔔',
     requireInteraction: false
   })
+}
+
+// Google Sheets Sync
+const sheetsWebhookUrl = ref('')
+const savingWebhook = ref(false)
+const testingWebhook = ref(false)
+
+// Load existing webhook URL on mount
+onMounted(async () => {
+  try {
+    const data = await client.get('me')
+    if (data?.sheets_webhook_url) sheetsWebhookUrl.value = data.sheets_webhook_url
+  } catch(e) {}
+})
+
+const saveWebhookUrl = async () => {
+  savingWebhook.value = true
+  try {
+    await client.post('me', { sheets_webhook_url: sheetsWebhookUrl.value })
+    $q.notify({ type: 'positive', message: 'Google Sheets webhook URL saved!', icon: 'check_circle' })
+  } catch (e) {
+    $q.notify({ type: 'negative', message: 'Failed to save webhook URL' })
+  } finally {
+    savingWebhook.value = false
+  }
+}
+
+const testWebhookUrl = async () => {
+  if (!sheetsWebhookUrl.value) {
+    $q.notify({ type: 'warning', message: 'Please enter a webhook URL first' })
+    return
+  }
+  testingWebhook.value = true
+  try {
+    await fetch(sheetsWebhookUrl.value, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: 'test_ping', timestamp: new Date().toISOString(), data: { source: 'ClassMaster Settings' } })
+    })
+    $q.notify({ type: 'positive', message: 'Test ping sent! Check your Google Sheet.', icon: 'check_circle' })
+  } catch (e) {
+    $q.notify({ type: 'negative', message: 'Test failed — check if the URL is correct and the script is deployed.' })
+  } finally {
+    testingWebhook.value = false
+  }
+}
+
+const gasScriptTemplate = `function doPost(e) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet();
+  var data = JSON.parse(e.postData.contents);
+  var sheetName = data.event || 'events';
+  var tab = sheet.getSheetByName(sheetName) || sheet.insertSheet(sheetName);
+  
+  if (tab.getLastRow() === 0) {
+    var headers = ['timestamp', 'event'].concat(Object.keys(data.data || {}));
+    tab.appendRow(headers);
+  }
+  
+  var row = [data.timestamp, data.event].concat(Object.values(data.data || {}));
+  tab.appendRow(row);
+  
+  return ContentService.createTextOutput(JSON.stringify({ status: 'ok' }))
+    .setMimeType(ContentService.MimeType.JSON);
+}`
+
+const copyGasScript = () => {
+  navigator.clipboard.writeText(gasScriptTemplate)
+  $q.notify({ type: 'positive', message: 'Script copied to clipboard!', icon: 'content_copy' })
 }
 </script>
 

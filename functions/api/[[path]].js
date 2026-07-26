@@ -362,15 +362,15 @@ export async function onRequest(context) {
                 const { results: attendance } = await db.prepare("SELECT a.*, c.name as class_name FROM attendance a LEFT JOIN classes c ON a.class_id = c.id WHERE a.student_id = ? ORDER BY a.date DESC LIMIT 10").bind(studentDbId).all();
                 const { results: payments } = await db.prepare("SELECT * FROM payments WHERE student_id = ? ORDER BY created_at DESC LIMIT 10").bind(studentDbId).all();
                 
-                // Fetch Exam Results with Rankings
+                // Fetch Exam Results — standard competition ranking computed in JS
                 const { results: rawResults } = await db.prepare(`
                     SELECT 
                         er.*, 
                         e.title as exam_title, 
                         e.max_marks,
                         e.subject_name,
+                        COALESCE(e.certificate_cutoff, 50) as certificate_cutoff,
                         c.tutor_name,
-                        (SELECT COUNT(*) + 1 FROM exam_results WHERE exam_id = er.exam_id AND marks_obtained > er.marks_obtained) as rank,
                         (SELECT COUNT(*) FROM exam_results WHERE exam_id = er.exam_id) as total_students,
                         (SELECT AVG(marks_obtained) FROM exam_results WHERE exam_id = er.exam_id) as average_marks,
                         (SELECT MAX(marks_obtained) FROM exam_results WHERE exam_id = er.exam_id) as highest_marks
@@ -378,8 +378,30 @@ export async function onRequest(context) {
                     LEFT JOIN exams e ON er.exam_id = e.id
                     LEFT JOIN classes c ON e.class_id = c.id
                     WHERE er.student_id = ?
-                    ORDER BY e.date DESC
+                    ORDER BY e.date ASC
                 `).bind(studentDbId).all();
+
+                // Compute equal (standard competition) rankings per exam
+                // Group results by exam_id, rank within each group
+                const examGroups = {};
+                for (const r of (rawResults || [])) {
+                    if (!examGroups[r.exam_id]) examGroups[r.exam_id] = [];
+                    examGroups[r.exam_id].push(r);
+                }
+                const rankMap = {}; // key: "examId_studentId" => rank
+                for (const [examId, rows] of Object.entries(examGroups)) {
+                    // Fetch ALL results for this exam to compute proper rank
+                    const { results: allForExam } = await db.prepare(
+                        "SELECT student_id, marks_obtained FROM exam_results WHERE exam_id = ? ORDER BY marks_obtained DESC"
+                    ).bind(examId).all();
+                    let rank = 1;
+                    for (let i = 0; i < allForExam.length; i++) {
+                        if (i > 0 && allForExam[i].marks_obtained < allForExam[i - 1].marks_obtained) {
+                            rank = i + 1;
+                        }
+                        rankMap[`${examId}_${allForExam[i].student_id}`] = rank;
+                    }
+                }
 
                 const examResults = (rawResults || []).map(r => {
                     const percentage = (r.marks_obtained / (r.max_marks || 100)) * 100;
@@ -392,8 +414,9 @@ export async function onRequest(context) {
                     let tutor_sub_marks = {};
                     try { sub_marks = JSON.parse(r.sub_marks_json || '{}'); } catch(e) {}
                     try { tutor_sub_marks = JSON.parse(r.tutor_sub_marks_json || '{}'); } catch(e) {}
-                    
-                    return { ...r, percentage, group, sub_marks, tutor_sub_marks };
+
+                    const rank = rankMap[`${r.exam_id}_${r.student_id}`] || 1;
+                    return { ...r, percentage, group, sub_marks, tutor_sub_marks, rank };
                 });
 
                 // Fetch Tutes (Filtered by institute, then we filter by subject in JS since class/subject logic varies)
@@ -530,6 +553,30 @@ export async function onRequest(context) {
             }
         };
 
+        // Self-heal: add sheets_webhook_url to profiles if not yet present
+        try { await db.prepare("ALTER TABLE profiles ADD COLUMN sheets_webhook_url TEXT").run(); } catch(e) {}
+
+        // Helper: fire-and-forget sync to Google Sheets webhook
+        const syncToSheets = async (webhookUrl, eventType, payload) => {
+            if (!webhookUrl) return;
+            try {
+                await fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ event: eventType, timestamp: new Date().toISOString(), data: payload })
+                });
+            } catch (e) {
+                console.error('Google Sheets sync error:', e);
+            }
+        };
+
+        // Fetch sheets webhook URL for current user (used in multiple handlers below)
+        let sheetsWebhookUrl = null;
+        try {
+            const profileWebhook = await db.prepare("SELECT sheets_webhook_url FROM profiles WHERE id = ?").bind(userId).first();
+            sheetsWebhookUrl = profileWebhook?.sheets_webhook_url || null;
+        } catch(e) {}
+
         // ME
         if (path === 'me') {
             if (method === 'GET') {
@@ -545,6 +592,7 @@ export async function onRequest(context) {
             }
             if (method === 'POST') {
                 const d = await request.json();
+                // sheets_webhook_url is allowed to be saved via /api/me
                 const fields = [];
                 const values = [];
                 
@@ -895,6 +943,8 @@ export async function onRequest(context) {
                     await db.prepare("INSERT INTO payments (user_id, student_id, class_id, amount, month, payment_date, payment_method, receipt_no) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
                         .bind(userId, d.student_id, d.class_id, Number(d.amount), d.month, d.payment_date || new Date().toISOString().split('T')[0], d.payment_method, d.receipt_no).run();
                     await logActivity('payment', `Collected fee Rs. ${d.amount}`);
+                    // Sync to Google Sheets
+                    await syncToSheets(sheetsWebhookUrl, 'payment_recorded', { student_id: d.student_id, class_id: d.class_id, amount: d.amount, month: d.month, payment_date: d.payment_date });
                     return json({ message: "Recorded" });
                 } catch (e) {
                     console.error('Payment Error:', e.message);
@@ -943,6 +993,8 @@ export async function onRequest(context) {
                     await db.prepare("INSERT INTO attendance (user_id, student_id, class_id, date, status) VALUES (?, ?, ?, ?, ?) ON CONFLICT(student_id, class_id, date) DO UPDATE SET status = excluded.status")
                         .bind(userId, r.student_id, r.class_id, r.date, r.status).run();
                 }
+                // Sync to Google Sheets
+                await syncToSheets(sheetsWebhookUrl, 'attendance_saved', { date: records[0]?.date, class_id: records[0]?.class_id, count: records.length });
                 return json({ message: "Saved" });
             }
             if (method === 'DELETE' && subPath) {
@@ -1201,21 +1253,33 @@ export async function onRequest(context) {
         }
         // EXAMS
         if (path === 'exams') {
+            // Self-heal: add certificate_cutoff column if not present
+            try { await db.prepare("ALTER TABLE exams ADD COLUMN certificate_cutoff INTEGER DEFAULT 50").run(); } catch(e) {}
+
             if (method === 'GET') {
-                const { results } = await db.prepare("SELECT e.*, c.name as class_name FROM exams e LEFT JOIN classes c ON e.class_id = c.id WHERE c.user_id = ? ORDER BY e.date DESC").bind(userId).all();
-                return json(results || []);
+                // Fetch exams ordered by date ASC (chronological), include draft counts per exam
+                const { results: examRows } = await db.prepare(`
+                    SELECT e.*, c.name as class_name,
+                        COALESCE(e.certificate_cutoff, 50) as certificate_cutoff,
+                        (SELECT COUNT(*) FROM exam_results er WHERE er.exam_id = e.id AND er.tutor_marks IS NOT NULL AND er.tutor_marks > 0) as draft_count
+                    FROM exams e 
+                    LEFT JOIN classes c ON e.class_id = c.id 
+                    WHERE c.user_id = ? 
+                    ORDER BY e.date ASC
+                `).bind(userId).all();
+                return json(examRows || []);
             }
             if (method === 'POST') {
                 const d = await request.json();
                 const id = crypto.randomUUID();
-                await db.prepare("INSERT INTO exams (id, title, class_id, subject_name, date, max_marks, sub_subjects_json) VALUES (?, ?, ?, ?, ?, ?, ?)")
-                    .bind(id, d.title, d.class_id, d.subject_name, d.date, d.max_marks || 100, JSON.stringify(d.sub_subjects || [])).run();
+                await db.prepare("INSERT INTO exams (id, title, class_id, subject_name, date, max_marks, sub_subjects_json, certificate_cutoff) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+                    .bind(id, d.title, d.class_id, d.subject_name, d.date, d.max_marks || 100, JSON.stringify(d.sub_subjects || []), d.certificate_cutoff ?? 50).run();
                 return json({ message: "Created", id });
             }
             if (method === 'PUT' && subPath) {
                 const d = await request.json();
-                await db.prepare("UPDATE exams SET title = ?, subject_name = ?, date = ?, max_marks = ?, sub_subjects_json = ? WHERE id = ?")
-                    .bind(d.title, d.subject_name, d.date, d.max_marks, JSON.stringify(d.sub_subjects || []), subPath).run();
+                await db.prepare("UPDATE exams SET title = ?, subject_name = ?, date = ?, max_marks = ?, sub_subjects_json = ?, certificate_cutoff = ? WHERE id = ?")
+                    .bind(d.title, d.subject_name, d.date, d.max_marks, JSON.stringify(d.sub_subjects || []), d.certificate_cutoff ?? 50, subPath).run();
                 return json({ message: "Updated" });
             }
             if (method === 'DELETE' && subPath) {
@@ -1293,6 +1357,17 @@ export async function onRequest(context) {
                         ).run();
                     }
                 }
+
+                // Sync marks to Google Sheets
+                const examInfo = await db.prepare("SELECT title, subject_name FROM exams WHERE id = ?").bind(exam_id).first();
+                await syncToSheets(sheetsWebhookUrl, 'exam_results_saved', {
+                    exam_id,
+                    exam_title: examInfo?.title,
+                    subject: examInfo?.subject_name,
+                    saved_by: isTeacher ? 'tutor_draft' : 'official',
+                    student_count: results.length
+                });
+
                 return json({ message: "Saved" });
             }
         }

@@ -183,7 +183,7 @@
                         </template>
                         <template v-slot:body-cell-certificate="props">
                             <q-td :props="props" class="text-center">
-                                <div v-if="props.row.percentage >= 50">
+                                <div v-if="props.row.marks_obtained >= (props.row.certificate_cutoff ?? 50)">
                                     <q-btn 
                                         flat 
                                         round 

@@ -71,8 +71,19 @@
               no-caps
               class="full-width rounded-button q-py-sm"
               :loading="shuffling"
+              :disable="hasActivePairingSession"
             />
           </q-form>
+
+          <!-- Active session lock warning -->
+          <q-banner v-if="hasActivePairingSession" dense inline-actions class="bg-amber-1 text-amber-9 rounded-borders q-mt-md" style="border: 1px solid #ffe082;">
+            <template v-slot:avatar><q-icon name="lock" color="amber-9" /></template>
+            <span class="text-weight-medium text-caption">
+              {{ appStore.language === 'English'
+                ? 'An active pairing session already exists for this class. Toggle it to Inactive before generating a new one.'
+                : 'මෙම පන්තිය සඳහා ක්‍රියාකාරී යුගල සැසියක් දැනටමත් ඇත. නව යුගලයක් සෑදීමට පෙර එය අක්‍රිය කරන්න.' }}
+            </span>
+          </q-banner>
         </q-card>
 
         <!-- History Panel -->
@@ -296,6 +307,12 @@ const pastSessions = ref([])
 
 const detailDialogOpen = ref(false)
 const detailSession = ref(null)
+
+// Computed: does this class already have an active pairing session?
+const hasActivePairingSession = computed(() => {
+  if (!selectedClass.value) return false
+  return pastSessions.value.some(s => s.is_active !== 0)
+})
 
 onMounted(() => {
   fetchClasses()

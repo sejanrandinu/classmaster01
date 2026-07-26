@@ -8,7 +8,21 @@
         </h1>
         <p class="text-grey-7 q-mt-sm text-subtitle1">Track student performance, manage sub-subjects, and approve tutor drafts.</p>
       </div>
-      <q-btn color="primary" icon="add" label="New Exam" unelevated no-caps class="rounded-button q-px-md" @click="openExamDialog" />
+      <div class="row q-gutter-sm items-center">
+        <q-btn-toggle
+          v-model="sortOrder"
+          toggle-color="indigo"
+          no-caps
+          dense
+          unelevated
+          :options="[
+            { label: '📅 Oldest First', value: 'asc' },
+            { label: '📅 Newest First', value: 'desc' }
+          ]"
+          class="rounded-button"
+        />
+        <q-btn color="primary" icon="add" label="New Exam" unelevated no-caps class="rounded-button q-px-md" @click="openExamDialog" />
+      </div>
     </div>
 
     <!-- Exams List -->
@@ -22,7 +36,7 @@
     </div>
 
     <div v-else class="row q-col-gutter-md">
-      <div v-for="exam in examsList" :key="exam.id" class="col-12 col-sm-6 col-md-4">
+      <div v-for="exam in sortedExams" :key="exam.id" class="col-12 col-sm-6 col-md-4">
         <q-card flat bordered class="rounded-borders hover-shadow transition glass-card">
           <q-card-section>
             <div class="row justify-between items-start">
@@ -52,6 +66,16 @@
               <q-separator vertical class="q-mx-md" />
               <q-icon name="grade" size="16px" class="q-mr-xs" />
               <span>Max: {{ exam.max_marks }}</span>
+              <q-separator vertical class="q-mx-md" />
+              <q-icon name="emoji_events" size="16px" class="q-mr-xs" />
+              <span>Pass: {{ exam.certificate_cutoff ?? 50 }}</span>
+            </div>
+
+            <!-- Draft marks badge -->
+            <div v-if="exam.draft_count > 0" class="q-mt-sm">
+              <q-chip dense color="amber-2" text-color="amber-9" icon="edit_note" class="text-weight-bold">
+                {{ exam.draft_count }} tutor draft{{ exam.draft_count === 1 ? '' : 's' }} pending
+              </q-chip>
             </div>
 
             <!-- Sub subjects tags -->
@@ -124,6 +148,22 @@
             </div>
 
             <q-input outlined dense v-model="form.date" type="date" label="Exam Date" :rules="[val => !!val || 'Date required']" />
+
+            <!-- Certificate Pass Mark -->
+            <q-input 
+              outlined 
+              dense 
+              v-model.number="form.certificate_cutoff"
+              type="number"
+              label="Certificate Pass Mark"
+              hint="Minimum marks needed to qualify for an achievement certificate"
+              min="0"
+              :max="form.max_marks"
+            >
+              <template v-slot:prepend>
+                <q-icon name="emoji_events" color="amber-7" />
+              </template>
+            </q-input>
 
             <!-- Sub Subjects List Builder -->
             <div class="border-indigo-light q-pa-md rounded-borders q-mt-sm">
@@ -347,7 +387,18 @@ const form = ref({
   subject_name: '',
   date: '',
   max_marks: 100,
-  sub_subjects: []
+  sub_subjects: [],
+  certificate_cutoff: 50
+})
+
+const sortOrder = ref('asc')
+
+const sortedExams = computed(() => {
+  const list = [...examsList.value]
+  return list.sort((a, b) => {
+    const da = new Date(a.date), db = new Date(b.date)
+    return sortOrder.value === 'asc' ? da - db : db - da
+  })
 })
 
 const marksDialog = ref(false)
@@ -442,7 +493,8 @@ const openExamDialog = () => {
     subject_name: '', 
     date: new Date().toISOString().split('T')[0], 
     max_marks: 100,
-    sub_subjects: [] 
+    sub_subjects: [],
+    certificate_cutoff: 50
   }
   examDialog.value = true
 }
@@ -457,7 +509,8 @@ const editExam = (exam) => {
   }
   form.value = { 
     ...exam,
-    sub_subjects
+    sub_subjects,
+    certificate_cutoff: exam.certificate_cutoff ?? 50
   }
   examDialog.value = true
 }
@@ -472,7 +525,8 @@ const saveExam = async () => {
       subject_name: form.value.subject_name,
       date: form.value.date,
       max_marks: form.value.max_marks,
-      sub_subjects: form.value.sub_subjects
+      sub_subjects: form.value.sub_subjects,
+      certificate_cutoff: form.value.certificate_cutoff ?? 50
     }
     
     if (isEdit.value) {
@@ -532,18 +586,22 @@ const enterMarks = async (exam) => {
         marksRows.value = students.map(s => {
             const mark = existingMarks.find(m => m.student_id === s.id)
             
-            // Populate sub marks
+            // Populate sub marks (fallback to tutor_sub_marks if sub_marks is empty)
             const sub_marks = {}
             subSubs.forEach(ss => {
-              sub_marks[ss.name] = mark?.sub_marks?.[ss.name] !== undefined ? mark.sub_marks[ss.name] : null
+              const val = mark?.sub_marks?.[ss.name] ?? mark?.tutor_sub_marks?.[ss.name]
+              sub_marks[ss.name] = (val !== undefined && val !== null) ? val : null
             })
             
+            // Effective score: official marks if set, otherwise tutor draft marks
+            const initialMarks = mark ? (mark.marks_obtained !== null && mark.marks_obtained !== undefined && mark.marks_obtained > 0 ? mark.marks_obtained : (mark.tutor_marks ?? null)) : null
+
             return {
                 student_id: s.id,
                 student_name: s.name,
                 student_id_str: s.student_id,
                 contact: s.contact,
-                marks_obtained: mark ? mark.marks_obtained : null,
+                marks_obtained: initialMarks,
                 sub_marks,
                 tutor_marks: mark ? mark.tutor_marks : null,
                 tutor_sub_marks: mark ? (mark.tutor_sub_marks || {}) : {},
