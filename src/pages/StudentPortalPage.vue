@@ -758,12 +758,12 @@ const attendanceRate = computed(() => {
 
 const latestRank = computed(() => {
     if (examResultsList.value.length === 0) return '-'
-    return examResultsList.value[examResultsList.value.length - 1].rank
+    return examResultsList.value[0].rank
 })
 
 const latestExamTitle = computed(() => {
     if (examResultsList.value.length === 0) return 'No Data'
-    return examResultsList.value[examResultsList.value.length - 1].exam_title
+    return examResultsList.value[0].exam_title
 })
 
 const quickStats = computed(() => [
@@ -799,7 +799,7 @@ const quickStats = computed(() => [
 
 const avgMarks = computed(() => {
     if (examResultsList.value.length === 0) return 0
-    const latestExam = examResultsList.value[examResultsList.value.length - 1]
+    const latestExam = examResultsList.value[0]
     if (!latestExam || !latestExam.max_marks) return 0
     return (latestExam.average_marks / latestExam.max_marks) * 100
 })
@@ -878,13 +878,13 @@ const rankChartOptions = {
 
 const comparisonChartSeries = computed(() => {
     if (examResultsList.value.length === 0) return []
-    const latest = examResultsList.value[examResultsList.value.length - 1]
+    const latest = examResultsList.value[0]
     return [{
         name: 'Marks',
         data: [
             { x: 'Me', y: Math.round(latest.percentage) },
-            { x: 'Class Avg', y: Math.round(latest.average_marks) },
-            { x: 'Highest', y: Math.round(latest.highest_marks) }
+            { x: 'Class Avg', y: Math.round((latest.average_marks / (latest.max_marks || 100)) * 100) },
+            { x: 'Highest', y: Math.round((latest.highest_marks / (latest.max_marks || 100)) * 100) }
         ]
     }]
 })

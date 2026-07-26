@@ -375,8 +375,8 @@ export async function onRequest(context) {
                         COALESCE(e.certificate_cutoff, 50) as certificate_cutoff,
                         c.tutor_name,
                         (SELECT COUNT(*) FROM exam_results WHERE exam_id = er.exam_id) as total_students,
-                        (SELECT AVG(marks_obtained) FROM exam_results WHERE exam_id = er.exam_id) as average_marks,
-                        (SELECT MAX(marks_obtained) FROM exam_results WHERE exam_id = er.exam_id) as highest_marks
+                        (SELECT AVG(CASE WHEN marks_obtained > 0 THEN marks_obtained ELSE COALESCE(tutor_marks, 0) END) FROM exam_results WHERE exam_id = er.exam_id) as average_marks,
+                        (SELECT MAX(CASE WHEN marks_obtained > 0 THEN marks_obtained ELSE COALESCE(tutor_marks, 0) END) FROM exam_results WHERE exam_id = er.exam_id) as highest_marks
                     FROM exam_results er
                     LEFT JOIN exams e ON er.exam_id = e.id
                     LEFT JOIN classes c ON e.class_id = c.id
@@ -384,8 +384,7 @@ export async function onRequest(context) {
                     ORDER BY e.date ASC
                 `).bind(studentDbId).all();
 
-                // Compute equal (standard competition) rankings per exam
-                // Group results by exam_id, rank within each group
+                // Compute equal (standard competition) rankings per exam using effective marks
                 const examGroups = {};
                 for (const r of (rawResults || [])) {
                     if (!examGroups[r.exam_id]) examGroups[r.exam_id] = [];
@@ -393,13 +392,17 @@ export async function onRequest(context) {
                 }
                 const rankMap = {}; // key: "examId_studentId" => rank
                 for (const [examId, rows] of Object.entries(examGroups)) {
-                    // Fetch ALL results for this exam to compute proper rank
-                    const { results: allForExam } = await db.prepare(
-                        "SELECT student_id, marks_obtained FROM exam_results WHERE exam_id = ? ORDER BY marks_obtained DESC"
-                    ).bind(examId).all();
+                    // Fetch ALL results for this exam to compute proper rank based on effective marks
+                    const { results: allForExam } = await db.prepare(`
+                        SELECT student_id, CASE WHEN marks_obtained > 0 THEN marks_obtained ELSE COALESCE(tutor_marks, 0) END as effective_marks 
+                        FROM exam_results 
+                        WHERE exam_id = ? 
+                        ORDER BY effective_marks DESC
+                    `).bind(examId).all();
+                    
                     let rank = 1;
                     for (let i = 0; i < allForExam.length; i++) {
-                        if (i > 0 && allForExam[i].marks_obtained < allForExam[i - 1].marks_obtained) {
+                        if (i > 0 && allForExam[i].effective_marks < allForExam[i - 1].effective_marks) {
                             rank = i + 1;
                         }
                         rankMap[`${examId}_${allForExam[i].student_id}`] = rank;
@@ -407,7 +410,10 @@ export async function onRequest(context) {
                 }
 
                 const examResults = (rawResults || []).map(r => {
-                    const percentage = (r.marks_obtained / (r.max_marks || 100)) * 100;
+                    const effectiveMark = (r.marks_obtained !== null && r.marks_obtained !== undefined && r.marks_obtained > 0) 
+                        ? r.marks_obtained 
+                        : (r.tutor_marks || 0);
+                    const percentage = (effectiveMark / (r.max_marks || 100)) * 100;
                     let group = 'red';
                     if (percentage >= 75) group = 'green';
                     else if (percentage >= 65) group = 'yellow';
@@ -419,7 +425,15 @@ export async function onRequest(context) {
                     try { tutor_sub_marks = JSON.parse(r.tutor_sub_marks_json || '{}'); } catch(e) {}
 
                     const rank = rankMap[`${r.exam_id}_${r.student_id}`] || 1;
-                    return { ...r, percentage, group, sub_marks, tutor_sub_marks, rank };
+                    return { 
+                        ...r, 
+                        marks_obtained: effectiveMark, 
+                        percentage, 
+                        group, 
+                        sub_marks, 
+                        tutor_sub_marks, 
+                        rank 
+                    };
                 });
 
                 // Fetch Tutes (Filtered by institute, then we filter by subject in JS since class/subject logic varies)
@@ -431,16 +445,18 @@ export async function onRequest(context) {
                 );
                 const receivedTuteIds = (studentTuteHistory || []).map(h => h.tute_id);
 
-                // Fetch Leaderboard for the latest exam
+                // Fetch Leaderboard for the LATEST exam (last item in examResults array because ordered date ASC)
                 let leaderboard = [];
                 if (examResults && examResults.length > 0) {
-                    const latestExamId = examResults[0].exam_id;
+                    const latestExamId = examResults[examResults.length - 1].exam_id;
                     const { results: topStudents } = await db.prepare(`
-                        SELECT s.name, er.marks_obtained, s.image_url
+                        SELECT s.name, 
+                               CASE WHEN er.marks_obtained > 0 THEN er.marks_obtained ELSE COALESCE(er.tutor_marks, 0) END as marks_obtained, 
+                               s.image_url
                         FROM exam_results er
                         JOIN students s ON er.student_id = s.id
                         WHERE er.exam_id = ?
-                        ORDER BY er.marks_obtained DESC
+                        ORDER BY CASE WHEN er.marks_obtained > 0 THEN er.marks_obtained ELSE COALESCE(er.tutor_marks, 0) END DESC
                         LIMIT 5
                     `).bind(latestExamId).all();
                     leaderboard = topStudents || [];
