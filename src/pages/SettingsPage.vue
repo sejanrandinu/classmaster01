@@ -645,7 +645,9 @@ onMounted(async () => {
   try {
     const data = await client.get('me')
     if (data?.sheets_webhook_url) sheetsWebhookUrl.value = data.sheets_webhook_url
-  } catch(e) {}
+  } catch (err) {
+    console.error('Failed to load webhook URL:', err)
+  }
 })
 
 const saveWebhookUrl = async () => {
@@ -653,7 +655,8 @@ const saveWebhookUrl = async () => {
   try {
     await client.post('me', { sheets_webhook_url: sheetsWebhookUrl.value })
     $q.notify({ type: 'positive', message: 'Google Sheets webhook URL saved!', icon: 'check_circle' })
-  } catch (e) {
+  } catch (err) {
+    console.error('Save webhook error:', err)
     $q.notify({ type: 'negative', message: 'Failed to save webhook URL' })
   } finally {
     savingWebhook.value = false
@@ -673,7 +676,8 @@ const testWebhookUrl = async () => {
       body: JSON.stringify({ event: 'test_ping', timestamp: new Date().toISOString(), data: { source: 'ClassMaster Settings' } })
     })
     $q.notify({ type: 'positive', message: 'Test ping sent! Check your Google Sheet.', icon: 'check_circle' })
-  } catch (e) {
+  } catch (err) {
+    console.error('Test webhook error:', err)
     $q.notify({ type: 'negative', message: 'Test failed — check if the URL is correct and the script is deployed.' })
   } finally {
     testingWebhook.value = false
