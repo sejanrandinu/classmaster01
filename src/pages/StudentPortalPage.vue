@@ -493,6 +493,260 @@
             </q-card>
         </div>
 
+        <!-- ============ CLASS RECORDINGS SECTION ============ -->
+        <div class="col-12">
+            <q-card flat class="glass-modern">
+                <q-card-section class="row items-center justify-between">
+                    <div class="text-h6 text-white text-weight-bold flex items-center">
+                        <q-icon name="video_library" color="indigo-3" class="q-mr-sm" />
+                        {{ appStore.language === 'English' ? 'Class Recordings' : 'පන්ති පටිගත කිරීම්' }}
+                    </div>
+                    <q-badge color="indigo-7">
+                        {{ appStore.language === 'English' ? 'Pay-Gated Access' : 'ගෙවීම් ශ්‍රේණිගත ප්‍රවේශය' }}
+                    </q-badge>
+                </q-card-section>
+                <q-card-section class="q-pa-md">
+                    <div v-if="recordingsList.length === 0" class="text-center text-indigo-3 q-py-xl">
+                        <q-icon name="video_off" size="54px" color="indigo-4" class="q-mb-md" />
+                        <div class="text-subtitle1 text-white">
+                            {{ appStore.language === 'English' ? 'No recordings available yet.' : 'තවම කිසිදු පටිගත කිරීමක් නොමැත.' }}
+                        </div>
+                    </div>
+                    <div v-else class="row q-col-gutter-md">
+                        <div
+                            v-for="rec in recordingsList"
+                            :key="rec.id"
+                            class="col-12 col-sm-6 col-md-4"
+                        >
+                            <q-card flat class="glass-modern q-pa-md relative-position overflow-hidden" :class="rec.has_paid ? 'border-left-teal' : 'border-left-warning'">
+                                <div class="absolute-top-right q-pa-sm">
+                                    <q-chip
+                                        dense
+                                        :color="rec.has_paid ? 'teal-9' : 'amber-9'"
+                                        :text-color="rec.has_paid ? 'teal-2' : 'amber-2'"
+                                        :icon="rec.has_paid ? 'lock_open' : 'lock'"
+                                        class="text-weight-bold"
+                                    >
+                                        {{ rec.has_paid ? (appStore.language === 'English' ? 'UNLOCKED' : 'අගුළු ඇරී ඇත') : (appStore.language === 'English' ? 'LOCKED' : 'අගුළු දමා ඇත') }}
+                                    </q-chip>
+                                </div>
+                                <div class="q-mb-sm">
+                                    <q-avatar color="indigo-9" text-color="indigo-2" icon="play_circle" size="44px" class="q-mr-sm" />
+                                    <span class="text-subtitle2 text-white text-weight-bold">{{ rec.title }}</span>
+                                </div>
+                                <div class="text-caption text-indigo-3 q-mb-xs">{{ rec.class_name }} · {{ rec.subject_name }}</div>
+                                <q-chip dense color="indigo-9" text-color="indigo-2" icon="calendar_month" size="sm" v-if="rec.month" class="q-mb-sm">{{ rec.month }}</q-chip>
+                                <div class="text-caption text-indigo-4 q-mb-md" style="font-size: 11px;">{{ rec.description }}</div>
+
+                                <!-- Unlocked: Show link -->
+                                <q-btn
+                                    v-if="rec.has_paid"
+                                    :href="rec.recording_url"
+                                    target="_blank"
+                                    type="a"
+                                    color="teal-7"
+                                    icon="play_arrow"
+                                    :label="appStore.language === 'English' ? 'Watch Recording' : 'පටිගත කිරීම නරඹන්න'"
+                                    unelevated
+                                    no-caps
+                                    class="full-width text-weight-bold"
+                                    style="border-radius: 12px;"
+                                />
+                                <!-- Locked: Show pay prompt -->
+                                <q-btn
+                                    v-else
+                                    color="amber-8"
+                                    text-color="black"
+                                    icon="lock"
+                                    :label="appStore.language === 'English' ? 'Pay to Unlock' : 'ගෙවා අගුළු ඇරීමට'"
+                                    unelevated
+                                    no-caps
+                                    class="full-width text-weight-bold"
+                                    style="border-radius: 12px;"
+                                    @click="scrollToPayment"
+                                />
+                            </q-card>
+                        </div>
+                    </div>
+                </q-card-section>
+            </q-card>
+        </div>
+
+        <!-- ============ ONLINE PAYMENT & RECEIPT UPLOAD ============ -->
+        <div class="col-12" id="payment-section">
+            <q-card flat class="glass-modern">
+                <q-card-section class="row items-center justify-between">
+                    <div class="text-h6 text-white text-weight-bold flex items-center">
+                        <q-icon name="payments" color="green-4" class="q-mr-sm" />
+                        {{ appStore.language === 'English' ? 'Online Payment & Receipt Upload' : 'අන්තර්ජාල ගෙවීම් සහ රිසිට් පත් උඩුගත කිරීම' }}
+                    </div>
+                    <q-badge color="green-8">
+                        {{ appStore.language === 'English' ? 'Submit Payment Proof' : 'ගෙවීම් සාක්ෂිය ඉදිරිපත් කරන්න' }}
+                    </q-badge>
+                </q-card-section>
+                <q-card-section class="q-pa-md">
+                    <div class="row q-col-gutter-lg">
+                        <!-- Payment Form -->
+                        <div class="col-12 col-md-6">
+                            <q-card flat class="glass-modern q-pa-lg" style="border: 1px solid rgba(74, 222, 128, 0.2);">
+                                <div class="text-subtitle1 text-weight-bold text-green-4 q-mb-md flex items-center">
+                                    <q-icon name="receipt_long" class="q-mr-sm" />
+                                    {{ appStore.language === 'English' ? 'Submit New Payment' : 'නව ගෙවීමක් ඉදිරිපත් කරන්න' }}
+                                </div>
+                                <q-form @submit.prevent="submitPayment" class="q-gutter-md">
+                                    <!-- Class Selection -->
+                                    <q-select
+                                        v-model="payForm.class_id"
+                                        :options="studentClasses"
+                                        option-value="id"
+                                        option-label="label"
+                                        :label="appStore.language === 'English' ? 'Select Class *' : 'පන්තිය තෝරන්න *'"
+                                        dark
+                                        color="green-4"
+                                        filled
+                                        emit-value
+                                        map-options
+                                        :rules="[val => !!val || 'Required']"
+                                    >
+                                        <template v-slot:prepend><q-icon name="class" /></template>
+                                    </q-select>
+
+                                    <!-- Month -->
+                                    <q-select
+                                        v-model="payForm.month"
+                                        :options="paymentMonths"
+                                        :label="appStore.language === 'English' ? 'Payment Month *' : 'ගෙවීම් මාසය *'"
+                                        dark
+                                        color="green-4"
+                                        filled
+                                        :rules="[val => !!val || 'Required']"
+                                    >
+                                        <template v-slot:prepend><q-icon name="calendar_month" /></template>
+                                    </q-select>
+
+                                    <!-- Amount -->
+                                    <q-input
+                                        v-model.number="payForm.amount"
+                                        type="number"
+                                        :label="appStore.language === 'English' ? 'Amount (Rs.) *' : 'මුදල (රු.) *'"
+                                        dark
+                                        color="green-4"
+                                        filled
+                                        :rules="[val => !!val || 'Required']"
+                                    >
+                                        <template v-slot:prepend><q-icon name="attach_money" /></template>
+                                    </q-input>
+
+                                    <!-- Payment Method -->
+                                    <q-select
+                                        v-model="payForm.payment_method"
+                                        :options="['Online Transfer', 'Mobile Pay (eZ Cash)', 'Mobile Pay (mCash)', 'Bank Deposit', 'Other']"
+                                        :label="appStore.language === 'English' ? 'Payment Method' : 'ගෙවීම් ක්‍රමය'"
+                                        dark
+                                        color="green-4"
+                                        filled
+                                    >
+                                        <template v-slot:prepend><q-icon name="account_balance" /></template>
+                                    </q-select>
+
+                                    <!-- Receipt Image Upload -->
+                                    <div class="q-mb-sm">
+                                        <div class="text-caption text-indigo-3 q-mb-xs">
+                                            {{ appStore.language === 'English' ? 'Upload Receipt Image' : 'රිසිට් පත ඡායාරූපය උඩුගත කරන්න' }}
+                                        </div>
+                                        <q-file
+                                            v-model="receiptFile"
+                                            accept="image/*"
+                                            filled
+                                            dark
+                                            color="green-4"
+                                            :label="appStore.language === 'English' ? 'Choose Receipt Image (JPG, PNG)' : 'රිසිට් ඡායාරූපය තෝරන්න'"
+                                            @update:model-value="onReceiptFilePicked"
+                                        >
+                                            <template v-slot:prepend><q-icon name="upload_file" /></template>
+                                        </q-file>
+                                        <div v-if="receiptPreview" class="q-mt-sm">
+                                            <img :src="receiptPreview" style="max-width: 100%; max-height: 160px; border-radius: 12px; border: 1px solid rgba(74,222,128,0.3);" />
+                                        </div>
+                                        <div class="text-caption text-indigo-4 q-mt-sm">
+                                            — {{ appStore.language === 'English' ? 'OR paste an image/drive URL below' : 'හෝ URL ලිපිනය ඇතුළත් කරන්න' }} —
+                                        </div>
+                                        <q-input
+                                            v-model="payForm.receipt_url"
+                                            :label="appStore.language === 'English' ? 'Receipt URL (optional)' : 'රිසිට් URL (අත්‍යවශ්‍ය නොවේ)'"
+                                            dark
+                                            color="green-4"
+                                            filled
+                                            dense
+                                            class="q-mt-sm"
+                                        >
+                                            <template v-slot:prepend><q-icon name="link" /></template>
+                                        </q-input>
+                                    </div>
+
+                                    <q-btn
+                                        type="submit"
+                                        color="green-6"
+                                        :label="appStore.language === 'English' ? 'Submit Payment' : 'ගෙවීම ඉදිරිපත් කරන්න'"
+                                        unelevated
+                                        no-caps
+                                        class="full-width q-py-md text-weight-bold"
+                                        style="border-radius: 14px;"
+                                        :loading="paymentSubmitting"
+                                        icon="send"
+                                    />
+                                </q-form>
+                            </q-card>
+                        </div>
+
+                        <!-- Payment History -->
+                        <div class="col-12 col-md-6">
+                            <div class="text-subtitle1 text-weight-bold text-white q-mb-md flex items-center">
+                                <q-icon name="history" color="indigo-3" class="q-mr-sm" />
+                                {{ appStore.language === 'English' ? 'Recent Payments' : 'මෑත ගෙවීම්' }}
+                            </div>
+                            <div v-if="payments.length === 0" class="text-center text-indigo-3 q-py-xl">
+                                <q-icon name="receipt" size="48px" color="indigo-4" class="q-mb-sm" />
+                                <div>{{ appStore.language === 'English' ? 'No payment records found.' : 'ගෙවීම් වාර්තා කිසිවක් නොමැත.' }}</div>
+                            </div>
+                            <q-list separator dark v-else>
+                                <q-item v-for="pay in payments" :key="pay.id" class="q-py-md">
+                                    <q-item-section avatar>
+                                        <q-avatar color="green-9" text-color="green-2" icon="payments" />
+                                    </q-item-section>
+                                    <q-item-section>
+                                        <q-item-label class="text-weight-bold text-white">
+                                            Rs. {{ pay.amount }}
+                                            <q-chip dense color="indigo-9" text-color="indigo-2" size="sm" class="q-ml-xs">{{ pay.month }}</q-chip>
+                                        </q-item-label>
+                                        <q-item-label caption class="text-indigo-3">
+                                            {{ pay.payment_method }} · {{ pay.payment_date }}
+                                        </q-item-label>
+                                    </q-item-section>
+                                    <q-item-section side>
+                                        <q-btn
+                                            v-if="pay.receipt_url"
+                                            flat
+                                            round
+                                            dense
+                                            icon="receipt"
+                                            color="teal-4"
+                                            :href="pay.receipt_url"
+                                            target="_blank"
+                                            type="a"
+                                        >
+                                            <q-tooltip>{{ appStore.language === 'English' ? 'View Receipt' : 'රිසිට් පත බලන්න' }}</q-tooltip>
+                                        </q-btn>
+                                        <q-chip v-else dense color="grey-8" text-color="grey-4" size="sm">{{ appStore.language === 'English' ? 'No receipt' : 'රිසිට් නොමැත' }}</q-chip>
+                                    </q-item-section>
+                                </q-item>
+                            </q-list>
+                        </div>
+                    </div>
+                </q-card-section>
+            </q-card>
+        </div>
+
       </div>
 
       <div class="text-center q-mt-xl text-indigo-4 text-caption q-pb-xl">
@@ -706,6 +960,103 @@ const examResultsList = ref([])
 const leaderboard = ref([])
 const pairingsList = ref([])
 const disciplineRecords = ref([])
+const recordingsList = ref([])
+const classList = ref([])
+
+// ============ PAYMENT UPLOAD ============
+const paymentSubmitting = ref(false)
+const receiptFile = ref(null)
+const receiptPreview = ref(null)
+const payForm = ref({
+    class_id: null,
+    month: new Date().toLocaleString('en-US', { month: 'long' }),
+    amount: '',
+    payment_method: 'Online Transfer',
+    receipt_url: ''
+})
+
+const paymentMonths = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+]
+
+// Student's enrolled classes for dropdown
+const studentClasses = computed(() => {
+    // Primary: use classes list from API
+    if (classList.value.length > 0) {
+        return classList.value.map(c => ({ id: c.id, label: `${c.class_name} (${c.subject_name})` }))
+    }
+    // Fallback: derive from recordings
+    const seen = new Set()
+    const result = []
+    recordingsList.value.forEach(r => {
+        if (!seen.has(r.class_id)) {
+            seen.add(r.class_id)
+            result.push({ id: r.class_id, label: `${r.class_name} (${r.subject_name})` })
+        }
+    })
+    return result
+})
+
+const onReceiptFilePicked = (file) => {
+    if (!file) { receiptPreview.value = null; return }
+    const reader = new FileReader()
+    reader.onload = (e) => { receiptPreview.value = e.target.result }
+    reader.readAsDataURL(file)
+    // Use the base64 data URL as the receipt_url (stored as data URI)
+    payForm.value.receipt_url = ''
+}
+
+const submitPayment = async () => {
+    if (!payForm.value.class_id || !payForm.value.amount) {
+        $q.notify({ type: 'warning', message: appStore.language === 'English' ? 'Please fill all required fields.' : 'අවශ්‍ය ක්ෂේත්‍ර සම්පූර්ණ කරන්න.' })
+        return
+    }
+    paymentSubmitting.value = true
+    try {
+        // If file picked, use base64 preview as receipt URL
+        let finalReceiptUrl = payForm.value.receipt_url || null
+        if (receiptPreview.value && !finalReceiptUrl) {
+            finalReceiptUrl = receiptPreview.value // base64 data URI
+        }
+
+        await client.post('students/public-portal-payment', {
+            student_id_str: studentData.value.student_id,
+            class_id: payForm.value.class_id,
+            amount: payForm.value.amount,
+            month: payForm.value.month,
+            payment_method: payForm.value.payment_method,
+            receipt_url: finalReceiptUrl
+        })
+
+        $q.notify({
+            type: 'positive',
+            icon: 'check_circle',
+            message: appStore.language === 'English'
+                ? 'Payment submitted successfully! Tutor will verify soon.'
+                : 'ගෙවීම සාර්ථකව ඉදිරිපත් කළෙමු! ගුරුතුමා ඉක්මනින් තහවුරු කරනු ඇත.',
+            timeout: 5000
+        })
+
+        // Refresh portal data
+        payForm.value = { class_id: null, month: new Date().toLocaleString('en-US', { month: 'long' }), amount: '', payment_method: 'Online Transfer', receipt_url: '' }
+        receiptFile.value = null
+        receiptPreview.value = null
+        await fetchStudentStatus()
+    } catch (err) {
+        $q.notify({
+            type: 'negative',
+            message: err.message || (appStore.language === 'English' ? 'Payment submission failed.' : 'ගෙවීම ඉදිරිපත් කිරීම අසාර්ථකයි.')
+        })
+    } finally {
+        paymentSubmitting.value = false
+    }
+}
+
+const scrollToPayment = () => {
+    document.getElementById('payment-section')?.scrollIntoView({ behavior: 'smooth' })
+}
+// =========================================
 
 const chartTab = ref('marks')
 const certificateDialogOpen = ref(false)
@@ -737,6 +1088,8 @@ const fetchStudentStatus = async () => {
         leaderboard.value = data.leaderboard || []
         pairingsList.value = data.pairings || []
         disciplineRecords.value = data.discipline || []
+        recordingsList.value = data.recordings || []
+        classList.value = data.classes || []
 
     } catch (err) {
         $q.notify({ 

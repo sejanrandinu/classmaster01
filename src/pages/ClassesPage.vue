@@ -78,6 +78,10 @@
                                             <q-item-section avatar><q-icon name="event_repeat" color="deep-purple-6" /></q-item-section>
                                             <q-item-section>Upcoming Dates</q-item-section>
                                         </q-item>
+                                        <q-item clickable @click="openRecordingsDialog(item)" class="q-py-md">
+                                            <q-item-section avatar><q-icon name="video_library" color="indigo-6" /></q-item-section>
+                                            <q-item-section>Class Recordings</q-item-section>
+                                        </q-item>
                                         <q-item clickable @click="openEditDialog(item)" class="q-py-md">
                                             <q-item-section avatar><q-icon name="edit_calendar" color="primary" /></q-item-section>
                                             <q-item-section>Modify Schedule</q-item-section>
@@ -443,6 +447,163 @@
         </q-card>
     </q-dialog>
 
+    <!-- ===================== CLASS RECORDINGS DIALOG ===================== -->
+    <q-dialog v-model="showRecordingsDialog" backdrop-filter="blur(10px)" maximized transition-show="slide-up" transition-hide="slide-down">
+        <q-card style="border-radius: 0; background: #f8f9ff;">
+            <!-- Header -->
+            <q-card-section class="bg-indigo-8 text-white q-pa-lg">
+                <div class="row items-center justify-between">
+                    <div>
+                        <div class="text-h5 text-weight-bold flex items-center">
+                            <q-icon name="video_library" class="q-mr-sm" size="28px" />
+                            Class Recordings
+                        </div>
+                        <div class="text-caption opacity-80 q-mt-xs">
+                            {{ recordingsClass?.class_name }} · {{ recordingsClass?.subject_name || recordingsClass?.subject }}
+                        </div>
+                    </div>
+                    <q-btn icon="close" flat round dense v-close-popup color="white" size="lg" />
+                </div>
+            </q-card-section>
+
+            <q-card-section class="q-pa-xl" style="max-width: 900px; margin: 0 auto; width: 100%;">
+                <!-- Add New Recording Form -->
+                <q-card flat bordered class="q-pa-lg q-mb-xl" style="border-radius: 20px; border-color: #c7d2fe;">
+                    <div class="text-subtitle1 text-weight-bold text-indigo-9 q-mb-md flex items-center">
+                        <q-icon name="add_circle" color="indigo-6" class="q-mr-sm" />
+                        Add New Recording
+                    </div>
+                    <div class="row q-col-gutter-md">
+                        <div class="col-12 col-md-6">
+                            <q-input
+                                v-model="newRec.title"
+                                label="Recording Title *"
+                                outlined
+                                dense
+                                color="indigo-6"
+                                placeholder="e.g. Chapter 5 – Derivatives"
+                            >
+                                <template v-slot:prepend><q-icon name="title" color="indigo-5" /></template>
+                            </q-input>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <q-select
+                                v-model="newRec.month"
+                                :options="months"
+                                label="Month (optional)"
+                                outlined
+                                dense
+                                color="indigo-6"
+                                clearable
+                            >
+                                <template v-slot:prepend><q-icon name="calendar_month" color="indigo-5" /></template>
+                            </q-select>
+                        </div>
+                        <div class="col-12">
+                            <q-input
+                                v-model="newRec.recording_url"
+                                label="Recording URL *"
+                                outlined
+                                dense
+                                color="indigo-6"
+                                placeholder="https://youtube.com/... or Google Drive link"
+                            >
+                                <template v-slot:prepend><q-icon name="link" color="indigo-5" /></template>
+                            </q-input>
+                        </div>
+                        <div class="col-12">
+                            <q-input
+                                v-model="newRec.description"
+                                label="Description (optional)"
+                                outlined
+                                dense
+                                color="indigo-6"
+                                type="textarea"
+                                rows="2"
+                                placeholder="Short note about this session..."
+                            />
+                        </div>
+                        <div class="col-12 flex justify-end">
+                            <q-btn
+                                color="indigo-7"
+                                icon="upload"
+                                label="Save Recording"
+                                unelevated
+                                no-caps
+                                class="q-px-xl q-py-sm text-weight-bold"
+                                style="border-radius: 12px;"
+                                :loading="savingRec"
+                                @click="saveRecording"
+                            />
+                        </div>
+                    </div>
+                </q-card>
+
+                <!-- Recordings List -->
+                <div class="text-subtitle1 text-weight-bold text-grey-8 q-mb-md flex items-center">
+                    <q-icon name="list" color="indigo-4" class="q-mr-sm" />
+                    Saved Recordings ({{ recordingsList.length }})
+                </div>
+                <div v-if="loadingRecs" class="text-center q-pa-xl">
+                    <q-spinner color="indigo" size="40px" />
+                    <div class="text-caption text-grey-6 q-mt-sm">Loading recordings...</div>
+                </div>
+                <div v-else-if="recordingsList.length === 0" class="text-center q-pa-xl text-grey-5">
+                    <q-icon name="video_off" size="54px" />
+                    <div class="q-mt-sm text-subtitle2">No recordings yet. Add one above.</div>
+                </div>
+                <div v-else class="q-gutter-md">
+                    <q-card
+                        v-for="rec in recordingsList"
+                        :key="rec.id"
+                        flat
+                        bordered
+                        class="q-pa-md"
+                        style="border-radius: 16px; background: white;"
+                    >
+                        <div class="row items-start justify-between no-wrap">
+                            <div class="row items-center q-gutter-md no-wrap col">
+                                <q-avatar color="indigo-1" text-color="indigo-8" icon="play_circle" size="48px" />
+                                <div class="col overflow-hidden">
+                                    <div class="text-subtitle1 text-weight-bold text-grey-9 ellipsis">{{ rec.title }}</div>
+                                    <div class="text-caption text-grey-6">{{ rec.description }}</div>
+                                    <div class="row q-gutter-sm q-mt-xs items-center">
+                                        <q-chip dense color="indigo-1" text-color="indigo-8" icon="calendar_month" size="sm" v-if="rec.month">{{ rec.month }}</q-chip>
+                                        <a :href="rec.recording_url" target="_blank" class="text-indigo-6 text-caption ellipsis" style="max-width: 260px; text-decoration: none;">{{ rec.recording_url }}</a>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row q-gutter-sm items-center q-ml-md">
+                                <q-btn
+                                    flat
+                                    round
+                                    dense
+                                    color="indigo-6"
+                                    icon="open_in_new"
+                                    :href="rec.recording_url"
+                                    target="_blank"
+                                    type="a"
+                                >
+                                    <q-tooltip>Open Recording</q-tooltip>
+                                </q-btn>
+                                <q-btn
+                                    flat
+                                    round
+                                    dense
+                                    color="red-5"
+                                    icon="delete_outline"
+                                    @click="deleteRecording(rec.id)"
+                                >
+                                    <q-tooltip>Delete Recording</q-tooltip>
+                                </q-btn>
+                            </div>
+                        </div>
+                    </q-card>
+                </div>
+            </q-card-section>
+        </q-card>
+    </q-dialog>
+
   </q-page>
 </template>
 
@@ -471,6 +632,79 @@ const showUpcomingDialog = ref(false)
 const upcomingClass = ref(null)
 const upcomingDates = ref([])
 const loadingUpcoming = ref(false)
+
+// ========== RECORDINGS ==========
+const showRecordingsDialog = ref(false)
+const recordingsClass = ref(null)
+const recordingsList = ref([])
+const loadingRecs = ref(false)
+const savingRec = ref(false)
+
+const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+]
+
+const newRec = ref({ title: '', description: '', recording_url: '', month: '' })
+
+const openRecordingsDialog = async (cls) => {
+    recordingsClass.value = cls
+    showRecordingsDialog.value = true
+    newRec.value = { title: '', description: '', recording_url: '', month: '' }
+    loadingRecs.value = true
+    try {
+        const data = await client.get(`recordings?class_id=${cls.id}`)
+        recordingsList.value = Array.isArray(data) ? data : []
+    } catch {
+        $q.notify({ type: 'negative', message: 'Failed to load recordings' })
+    } finally {
+        loadingRecs.value = false
+    }
+}
+
+const saveRecording = async () => {
+    if (!newRec.value.title || !newRec.value.recording_url) {
+        $q.notify({ type: 'warning', message: 'Title and Recording URL are required.' })
+        return
+    }
+    savingRec.value = true
+    try {
+        await client.post('recordings', {
+            class_id: recordingsClass.value.id,
+            title: newRec.value.title,
+            description: newRec.value.description,
+            recording_url: newRec.value.recording_url,
+            month: newRec.value.month || ''
+        })
+        $q.notify({ type: 'positive', message: 'Recording saved successfully!', icon: 'check_circle' })
+        newRec.value = { title: '', description: '', recording_url: '', month: '' }
+        // Refresh list
+        const data = await client.get(`recordings?class_id=${recordingsClass.value.id}`)
+        recordingsList.value = Array.isArray(data) ? data : []
+    } catch (err) {
+        $q.notify({ type: 'negative', message: err.message || 'Failed to save recording' })
+    } finally {
+        savingRec.value = false
+    }
+}
+
+const deleteRecording = (id) => {
+    $q.dialog({
+        title: 'Delete Recording?',
+        message: 'This will permanently remove the recording link. Students will lose access.',
+        cancel: true,
+        ok: { color: 'red-7', unelevated: true, label: 'Delete' }
+    }).onOk(async () => {
+        try {
+            await client.delete(`recordings/${id}`)
+            $q.notify({ type: 'positive', message: 'Recording deleted.' })
+            recordingsList.value = recordingsList.value.filter(r => r.id !== id)
+        } catch {
+            $q.notify({ type: 'negative', message: 'Failed to delete recording' })
+        }
+    })
+}
+// ================================
 
 const recurrenceOptions = [
     { label: '🔁 Weekly (Every Week)', value: 'weekly' },

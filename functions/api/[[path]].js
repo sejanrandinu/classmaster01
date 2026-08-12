@@ -37,7 +37,7 @@ async function verifyJWT(token, secret) {
         const decodedPayload = JSON.parse(atob(payload));
         if (decodedPayload.exp < Math.floor(Date.now() / 1000)) return null;
         return decodedPayload;
-    } catch (e) {
+    } catch {
         return null;
     }
 }
@@ -193,17 +193,36 @@ export async function onRequest(context) {
                         FOREIGN KEY(user_id) REFERENCES profiles(id) ON DELETE CASCADE
                     )
                 `).run();
-            } catch (e) {
-                console.error("Migration warning (pairing_sessions):", e.message);
+            } catch (_err) {
+                console.error("Migration warning (pairing_sessions):", _err.message);
+            }
+
+            try {
+                await db.prepare(`
+                    CREATE TABLE IF NOT EXISTS class_recordings (
+                        id TEXT PRIMARY KEY,
+                        user_id TEXT NOT NULL,
+                        class_id INTEGER NOT NULL,
+                        title TEXT NOT NULL,
+                        description TEXT,
+                        recording_url TEXT NOT NULL,
+                        month TEXT,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY(class_id) REFERENCES classes(id) ON DELETE CASCADE,
+                        FOREIGN KEY(user_id) REFERENCES profiles(id) ON DELETE CASCADE
+                    )
+                `).run();
+            } catch (_err) {
+                console.error("Migration warning (class_recordings):", _err.message);
             }
 
             // Alter tables to add columns safely (try-catch because SQLite doesn't have ADD COLUMN IF NOT EXISTS)
-            try { await db.prepare("ALTER TABLE exams ADD COLUMN sub_subjects_json TEXT").run(); } catch(e) {}
-            try { await db.prepare("ALTER TABLE exam_results ADD COLUMN sub_marks_json TEXT").run(); } catch(e) {}
-            try { await db.prepare("ALTER TABLE exam_results ADD COLUMN tutor_marks REAL").run(); } catch(e) {}
-            try { await db.prepare("ALTER TABLE exam_results ADD COLUMN tutor_sub_marks_json TEXT").run(); } catch(e) {}
-            try { await db.prepare("ALTER TABLE profiles ADD COLUMN whatsapp_enabled INTEGER DEFAULT 1").run(); } catch(e) {}
-            try { await db.prepare("ALTER TABLE pairing_sessions ADD COLUMN is_active INTEGER DEFAULT 1").run(); } catch(e) {}
+            try { await db.prepare("ALTER TABLE exams ADD COLUMN sub_subjects_json TEXT").run(); } catch { /* ignore */ }
+            try { await db.prepare("ALTER TABLE exam_results ADD COLUMN sub_marks_json TEXT").run(); } catch { /* ignore */ }
+            try { await db.prepare("ALTER TABLE exam_results ADD COLUMN tutor_marks REAL").run(); } catch { /* ignore */ }
+            try { await db.prepare("ALTER TABLE exam_results ADD COLUMN tutor_sub_marks_json TEXT").run(); } catch { /* ignore */ }
+            try { await db.prepare("ALTER TABLE profiles ADD COLUMN whatsapp_enabled INTEGER DEFAULT 1").run(); } catch { /* ignore */ }
+            try { await db.prepare("ALTER TABLE pairing_sessions ADD COLUMN is_active INTEGER DEFAULT 1").run(); } catch { /* ignore */ }
 
             globalThis.dbMigrated = true;
         }
@@ -315,7 +334,7 @@ export async function onRequest(context) {
 
                 const studentDbId = student.id;
                 const instituteId = student.user_id;
-                try { student.subjects = JSON.parse(student.subjects_json || '[]'); } catch (e) { student.subjects = []; }
+                try { student.subjects = JSON.parse(student.subjects_json || '[]'); } catch { student.subjects = []; }
 
                 // Fetch tutor name matching student's grade and subjects
                 let studentTutor = 'Dr. A.B. Sejan';
@@ -363,7 +382,7 @@ export async function onRequest(context) {
                 const { results: payments } = await db.prepare("SELECT * FROM payments WHERE student_id = ? ORDER BY created_at DESC LIMIT 10").bind(studentDbId).all();
                 
                 // Self-heal exams schema for public portal if column doesn't exist yet
-                try { await db.prepare("ALTER TABLE exams ADD COLUMN certificate_cutoff INTEGER DEFAULT 50").run(); } catch(e) {}
+                try { await db.prepare("ALTER TABLE exams ADD COLUMN certificate_cutoff INTEGER DEFAULT 50").run(); } catch { /* ignore */ }
 
                 // Fetch Exam Results — standard competition ranking computed in JS
                 const { results: rawResults } = await db.prepare(`
@@ -391,7 +410,7 @@ export async function onRequest(context) {
                     examGroups[r.exam_id].push(r);
                 }
                 const rankMap = {}; // key: "examId_studentId" => rank
-                for (const [examId, rows] of Object.entries(examGroups)) {
+                for (const examId of Object.keys(examGroups)) {
                     // Fetch ALL results for this exam to compute proper rank based on effective marks
                     const { results: allForExam } = await db.prepare(`
                         SELECT student_id, CASE WHEN marks_obtained > 0 THEN marks_obtained ELSE COALESCE(tutor_marks, 0) END as effective_marks 
@@ -421,8 +440,8 @@ export async function onRequest(context) {
                     
                     let sub_marks = {};
                     let tutor_sub_marks = {};
-                    try { sub_marks = JSON.parse(r.sub_marks_json || '{}'); } catch(e) {}
-                    try { tutor_sub_marks = JSON.parse(r.tutor_sub_marks_json || '{}'); } catch(e) {}
+                    try { sub_marks = JSON.parse(r.sub_marks_json || '{}'); } catch { /* ignore */ }
+                    try { tutor_sub_marks = JSON.parse(r.tutor_sub_marks_json || '{}'); } catch { /* ignore */ }
 
                     const rank = rankMap[`${r.exam_id}_${r.student_id}`] || 1;
                     return { 
@@ -479,7 +498,7 @@ export async function onRequest(context) {
                     `).bind(...classIds).all();
                     
                     pairings = (pairingsList || []).map(p => {
-                        try { p.pairs = JSON.parse(p.pairs_json || '[]'); } catch (e) { p.pairs = []; }
+                        try { p.pairs = JSON.parse(p.pairs_json || '[]'); } catch { p.pairs = []; }
                         return p;
                     });
                 }
@@ -491,6 +510,52 @@ export async function onRequest(context) {
                     ORDER BY date DESC, created_at DESC
                 `).bind(studentDbId).all();
 
+                // Fetch recordings for student's enrolled classes and calculate paid access
+                let recordings = [];
+                if (classIds && classIds.length > 0) {
+                    const classPlaceholders = classIds.map(() => "?").join(",");
+                    const { results: recList } = await db.prepare(`
+                        SELECT r.*, c.name as class_name, c.subject_name 
+                        FROM class_recordings r
+                        JOIN classes c ON r.class_id = c.id
+                        WHERE r.class_id IN (${classPlaceholders})
+                        ORDER BY r.created_at DESC
+                    `).bind(...classIds).all();
+
+                    // Check student payments for each class to verify access
+                    const { results: studentPayments } = await db.prepare(`
+                        SELECT class_id, month FROM payments WHERE student_id = ?
+                    `).bind(studentDbId).all();
+
+                    const paidClassMap = new Set();
+                    (studentPayments || []).forEach(p => {
+                        paidClassMap.add(`${p.class_id}`);
+                        if (p.month) paidClassMap.add(`${p.class_id}_${p.month.toLowerCase()}`);
+                    });
+
+                    recordings = (recList || []).map(r => {
+                        const isClassPaid = paidClassMap.has(`${r.class_id}`) || 
+                                           (r.month && paidClassMap.has(`${r.class_id}_${r.month.toLowerCase()}`));
+                        return {
+                            id: r.id,
+                            class_id: r.class_id,
+                            class_name: r.class_name,
+                            subject_name: r.subject_name,
+                            title: r.title,
+                            description: r.description,
+                            month: r.month,
+                            created_at: r.created_at,
+                            has_paid: isClassPaid,
+                            recording_url: isClassPaid ? r.recording_url : null // Server-side URL mask for unpaid students
+                        };
+                    });
+                }
+
+                // Return classes for payment form dropdown
+                const { results: enrolledClasses } = await db.prepare(
+                    `SELECT id, name as class_name, subject_name, grade FROM classes WHERE user_id = ? AND grade = ?`
+                ).bind(instituteId, student.grade).all();
+
                 return json({ 
                     student, 
                     attendance, 
@@ -500,11 +565,48 @@ export async function onRequest(context) {
                     receivedTuteIds,
                     leaderboard,
                     pairings,
-                    discipline
+                    discipline,
+                    recordings,
+                    classes: enrolledClasses || []
                 });
             } catch (e) {
                 console.error('Public Portal API Error:', e);
                 return json({ error: `Public Portal Sync Error: ${e.message}` }, 500);
+            }
+        }
+
+        // --- PUBLIC PORTAL ONLINE PAYMENT SUBMISSION WITH RECEIPT ---
+        if (path === 'students' && subPath === 'public-portal-payment' && method === 'POST') {
+            try {
+                const { student_id_str, class_id, amount, month, payment_method, receipt_url, receipt_no } = await request.json();
+                if (!student_id_str || !class_id || !amount) {
+                    return json({ error: "Student ID, Class, and Amount are required" }, 400);
+                }
+
+                const student = await db.prepare("SELECT id, user_id, name FROM students WHERE student_id = ?").bind(student_id_str).first();
+                if (!student) return json({ error: "Student ID not found" }, 404);
+
+                const paymentId = crypto.randomUUID();
+                const paymentDate = new Date().toISOString().split('T')[0];
+                await db.prepare(`
+                    INSERT INTO payments (user_id, student_id, class_id, amount, month, payment_date, payment_method, receipt_url, receipt_no)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `).bind(
+                    student.user_id,
+                    student.id,
+                    Number(class_id),
+                    Number(amount),
+                    month || new Date().toLocaleString('en-US', { month: 'long' }),
+                    paymentDate,
+                    payment_method || 'Online Receipt',
+                    receipt_url || null,
+                    receipt_no || `REC-ONL-${Date.now().toString().slice(-6)}`
+                ).run();
+
+                return json({ message: "Payment receipt uploaded & submitted successfully", id: paymentId });
+            } catch (err) {
+                console.error('Public Portal Payment Error:', err);
+                return json({ error: `Payment submission failed: ${err.message}` }, 500);
             }
         }
 
@@ -573,7 +675,7 @@ export async function onRequest(context) {
         };
 
         // Self-heal: add sheets_webhook_url to profiles if not yet present
-        try { await db.prepare("ALTER TABLE profiles ADD COLUMN sheets_webhook_url TEXT").run(); } catch(e) {}
+        try { await db.prepare("ALTER TABLE profiles ADD COLUMN sheets_webhook_url TEXT").run(); } catch { /* ignore */ }
 
         // Helper: fire-and-forget sync to Google Sheets webhook
         const syncToSheets = async (webhookUrl, eventType, payload) => {
@@ -594,7 +696,7 @@ export async function onRequest(context) {
         try {
             const profileWebhook = await db.prepare("SELECT sheets_webhook_url FROM profiles WHERE id = ?").bind(userId).first();
             sheetsWebhookUrl = profileWebhook?.sheets_webhook_url || null;
-        } catch(e) {}
+        } catch { /* ignore */ }
 
         // ME
         if (path === 'me') {
@@ -696,7 +798,7 @@ export async function onRequest(context) {
                     }
 
                     if (s) {
-                        try { s.subjects = JSON.parse(s.subjects_json || '[]'); } catch (e) { s.subjects = []; }
+                        try { s.subjects = JSON.parse(s.subjects_json || '[]'); } catch { s.subjects = []; }
                         return json(s);
                     }
                     return json({ error: "Student not found in your database" }, 404);
@@ -726,7 +828,7 @@ export async function onRequest(context) {
                 
                 const mapped = (students || []).map(s => {
                     let subjects = [];
-                    try { subjects = JSON.parse(s.subjects_json || '[]'); } catch (e) { subjects = []; }
+                    try { subjects = JSON.parse(s.subjects_json || '[]'); } catch { subjects = []; }
                     
                     const groups = (classes || [])
                         .filter(c => subjects.includes(c.subject_name))
@@ -791,7 +893,7 @@ export async function onRequest(context) {
                 const { results } = await db.prepare("SELECT * FROM tutors WHERE user_id = ? ORDER BY name ASC").bind(userId).all();
                 const mapped = (results || []).map(t => {
                     let grades = [];
-                    try { grades = JSON.parse(t.grades_json || '[]'); } catch (e) { grades = []; }
+                    try { grades = JSON.parse(t.grades_json || '[]'); } catch { grades = []; }
                     return { ...t, grades };
                 });
                 return json(mapped);
@@ -817,7 +919,7 @@ export async function onRequest(context) {
         // CLASSES
         if (path === 'classes') {
             // Self-heal table schema for recurrence_type
-            try { await db.prepare("ALTER TABLE classes ADD COLUMN recurrence_type TEXT DEFAULT 'weekly'").run(); } catch(e) {}
+            try { await db.prepare("ALTER TABLE classes ADD COLUMN recurrence_type TEXT DEFAULT 'weekly'").run(); } catch { /* ignore */ }
 
             if (subPath && method === 'GET' && subPath.endsWith('/upcoming')) {
                 const classId = subPath.split('/')[0];
@@ -936,7 +1038,7 @@ export async function onRequest(context) {
                 try {
                     const subs = JSON.parse(s.subjects_json || '[]');
                     return subs.includes(cls.subject_name);
-                } catch (e) {
+                } catch {
                     return false;
                 }
             });
@@ -1089,7 +1191,7 @@ export async function onRequest(context) {
                 const { results } = await db.prepare("SELECT * FROM roles WHERE user_id = ?").bind(userId).all();
                 return json((results || []).map(r => {
                     let perms = [];
-                    try { perms = JSON.parse(r.permissions_json || '[]'); } catch(e) { perms = []; }
+                    try { perms = JSON.parse(r.permissions_json || '[]'); } catch { perms = []; }
                     return { ...r, permissions: perms };
                 }));
             }
@@ -1295,7 +1397,7 @@ export async function onRequest(context) {
         // EXAMS
         if (path === 'exams') {
             // Self-heal: add certificate_cutoff column if not present
-            try { await db.prepare("ALTER TABLE exams ADD COLUMN certificate_cutoff INTEGER DEFAULT 50").run(); } catch(e) {}
+            try { await db.prepare("ALTER TABLE exams ADD COLUMN certificate_cutoff INTEGER DEFAULT 50").run(); } catch { /* ignore */ }
 
             if (method === 'GET') {
                 // Fetch exams ordered by date ASC (chronological), include draft counts per exam
@@ -1339,8 +1441,8 @@ export async function onRequest(context) {
                 const mappedResults = (results || []).map(r => {
                     let sub_marks = {};
                     let tutor_sub_marks = {};
-                    try { sub_marks = JSON.parse(r.sub_marks_json || '{}'); } catch (e) { sub_marks = {}; }
-                    try { tutor_sub_marks = JSON.parse(r.tutor_sub_marks_json || '{}'); } catch (e) { tutor_sub_marks = {}; }
+                    try { sub_marks = JSON.parse(r.sub_marks_json || '{}'); } catch { sub_marks = {}; }
+                    try { tutor_sub_marks = JSON.parse(r.tutor_sub_marks_json || '{}'); } catch { tutor_sub_marks = {}; }
                     return {
                         ...r,
                         sub_marks,
@@ -1488,6 +1590,45 @@ export async function onRequest(context) {
             }
         }
 
+        // RECORDINGS (TUTOR / ADMIN MANAGEMENT)
+        if (path === 'recordings') {
+            if (method === 'GET') {
+                const classId = url.searchParams.get('class_id');
+                let query = `
+                    SELECT r.*, c.name as class_name, c.subject_name 
+                    FROM class_recordings r 
+                    LEFT JOIN classes c ON r.class_id = c.id 
+                    WHERE r.user_id = ?
+                `;
+                const params = [userId];
+                if (classId) {
+                    query += " AND r.class_id = ?";
+                    params.push(Number(classId));
+                }
+                query += " ORDER BY r.created_at DESC";
+                const { results } = await db.prepare(query).bind(...params).all();
+                return json(results || []);
+            }
+
+            if (method === 'POST') {
+                const { class_id, title, description, recording_url, month } = await request.json();
+                if (!class_id || !title || !recording_url) {
+                    return json({ error: "Class, Title, and Recording URL are required" }, 400);
+                }
+                const id = crypto.randomUUID();
+                await db.prepare(`
+                    INSERT INTO class_recordings (id, user_id, class_id, title, description, recording_url, month)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                `).bind(id, userId, Number(class_id), title, description || '', recording_url, month || '').run();
+                return json({ message: "Class recording saved successfully", id });
+            }
+
+            if (method === 'DELETE' && subPath) {
+                await db.prepare("DELETE FROM class_recordings WHERE id = ? AND user_id = ?").bind(subPath, userId).run();
+                return json({ message: "Recording deleted successfully" });
+            }
+        }
+
         // --- PAIRINGS SHUFFLER CRUD ---
         if (path === 'pairings') {
             if (method === 'GET') {
@@ -1508,7 +1649,7 @@ export async function onRequest(context) {
                 
                 const mappedPairings = (results || []).map(p => {
                     let pairs = [];
-                    try { pairs = JSON.parse(p.pairs_json || '[]'); } catch(e) {}
+                    try { pairs = JSON.parse(p.pairs_json || '[]'); } catch { pairs = []; }
                     return { ...p, pairs };
                 });
                 return json(mappedPairings);
