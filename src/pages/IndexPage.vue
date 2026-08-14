@@ -58,8 +58,8 @@
                   size="lg" 
                   flat 
                   color="grey-4" 
-                  label="Explore Features" 
-                  @click="scrollToSection('features')"
+                  label="Explore All Plans" 
+                  @click="scrollToSection('pricing')"
                   no-caps 
                   icon-right="arrow_downward"
                 />
@@ -73,7 +73,7 @@
                 </div>
                 <div class="col-auto row items-center text-grey-4">
                   <q-icon name="check_circle" color="yellow-6" class="q-mr-xs" size="18px" />
-                  <span>Unlimited Students</span>
+                  <span>4 Flexible Tiers</span>
                 </div>
                 <div class="col-auto row items-center text-grey-4">
                   <q-icon name="check_circle" color="yellow-6" class="q-mr-xs" size="18px" />
@@ -109,7 +109,7 @@
                 <q-tab-panel name="register" class="q-pa-lg">
                   <div class="text-center q-mb-md">
                     <h3 class="text-h5 text-weight-bold q-mb-xs">Join ClassMaster</h3>
-                    <p class="text-caption text-grey-5">Start your 7-day free trial now. Select your preference below.</p>
+                    <p class="text-caption text-grey-5">Select your package tier & start your 7-day trial now.</p>
                   </div>
 
                   <q-form @submit="onRegisterSubmit" class="q-gutter-y-md">
@@ -185,37 +185,31 @@
                       </template>
                     </q-input>
 
-                    <!-- Payment Plan Selector & Details -->
+                    <!-- All 4 Package Selector Grid -->
                     <div class="q-pa-md rounded-borders" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1);">
                       <div class="row items-center justify-between q-mb-sm">
                         <div class="row items-center">
-                          <q-icon name="payments" color="yellow-6" size="20px" class="q-mr-xs" />
-                          <span class="text-subtitle2 text-weight-bold text-white">Select Pricing Plan</span>
+                          <q-icon name="stars" color="yellow-6" size="20px" class="q-mr-xs" />
+                          <span class="text-subtitle2 text-weight-bold text-white">Select Package</span>
                         </div>
-                        <q-badge color="indigo-10" label="Special Offer" />
+                        <q-badge color="indigo-10" label="All Features" />
                       </div>
 
+                      <!-- 4 Tier Selector Buttons -->
                       <div class="row q-col-gutter-xs q-mb-sm">
-                        <div class="col-6">
+                        <div v-for="pkg in allPackages" :key="pkg.id" class="col-6">
                           <div 
-                            class="q-pa-sm rounded-borders text-center cursor-pointer transition-all"
-                            :class="selectedPlan === 'lifetime' ? 'bg-indigo-10 border-indigo' : 'bg-grey-10 border-grey'"
-                            @click="selectedPlan = 'lifetime'"
+                            class="q-pa-xs rounded-borders text-center cursor-pointer transition-all border-grey"
+                            :class="selectedPackageId === pkg.id ? 'bg-indigo-10 border-indigo' : 'bg-grey-10'"
+                            @click="selectedPackageId = pkg.id"
                           >
-                            <div class="text-caption text-indigo-2 text-weight-bold">LIFETIME</div>
-                            <div class="text-subtitle2 text-weight-bolder text-white">Rs. 130,000</div>
-                            <div class="text-caption text-grey-5 text-strike">140,000</div>
-                          </div>
-                        </div>
-                        <div class="col-6">
-                          <div 
-                            class="q-pa-sm rounded-borders text-center cursor-pointer transition-all"
-                            :class="selectedPlan === 'monthly' ? 'bg-indigo-10 border-indigo' : 'bg-grey-10 border-grey'"
-                            @click="selectedPlan = 'monthly'"
-                          >
-                            <div class="text-caption text-yellow-5 text-weight-bold">MONTHLY</div>
-                            <div class="text-subtitle2 text-weight-bolder text-yellow-5">Rs. 5,000</div>
-                            <div class="text-caption text-grey-5">/ month</div>
+                            <div class="text-caption text-weight-bold text-white" style="font-size: 0.75rem;">{{ pkg.name }}</div>
+                            <div class="text-subtitle2 text-weight-bolder text-yellow-5" style="font-size: 0.85rem;">
+                              LKR {{ getPackageDisplayPrice(pkg).toLocaleString() }}
+                            </div>
+                            <div class="text-caption text-grey-5" style="font-size: 0.65rem;">
+                              {{ activeBillingCycle === 'lifetime' ? 'Lifetime' : (activeBillingCycle === 'annual' ? '/yr' : '/mo') }}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -502,68 +496,93 @@
       </div>
     </section>
 
-    <!-- Pricing Section -->
+    <!-- Complete 4-Tier Flexible Pricing Section -->
     <section id="pricing" class="section-padding">
        <div class="container-xl">
           <div class="text-center q-mb-xl">
-             <q-badge outline color="white" label="FLEXIBLE PRICING" class="q-mb-md q-px-md q-py-xs letter-spacing-wide" rounded />
-             <h2 class="text-h2 text-weight-bolder">Choose Your Plan</h2>
-             <p class="text-grey-5 text-h6 q-mt-xs">Transparent pricing built for academies of all sizes.</p>
+             <q-badge outline color="white" label="TRANSPARENT PRICING" class="q-mb-md q-px-md q-py-xs letter-spacing-wide" rounded />
+             <h2 class="text-h2 text-weight-bolder">Choose Your Perfect Plan</h2>
+             <p class="text-grey-5 text-h6 q-mt-xs">Scalable packages designed for individual tutors to enterprise academies.</p>
+
+             <!-- Interactive Billing Cycle Toggle -->
+             <div class="row justify-center items-center q-mt-lg">
+               <q-btn-toggle
+                 v-model="activeBillingCycle"
+                 toggle-color="indigo-10"
+                 color="grey-10"
+                 text-color="grey-4"
+                 unelevated
+                 rounded
+                 class="border-grey q-pa-xs"
+                 :options="[
+                   { label: 'Monthly', value: 'monthly' },
+                   { label: 'Annually (Save 20%)', value: 'annual' },
+                   { label: 'Lifetime Access (One-Time)', value: 'lifetime' }
+                 ]"
+               />
+             </div>
           </div>
 
-          <div class="row q-col-gutter-xl justify-center">
-            <!-- Lifetime Plan Card -->
-            <div class="col-xs-12 col-sm-6 col-md-5">
-              <div class="glass-card q-pa-xl rounded-borders h-full flex flex-center flex-column relative-position overflow-hidden border-indigo hover-card">
-                <div class="absolute-top-right q-pa-md">
-                   <q-badge color="indigo-10" label="LIFETIME ACCESS" class="q-pa-sm text-weight-bold" />
+          <!-- All 4 Package Cards Grid -->
+          <div class="row q-col-gutter-lg justify-center items-stretch">
+            <div
+              v-for="pkg in allPackages"
+              :key="pkg.id"
+              class="col-12 col-sm-6 col-md-3 flex"
+            >
+              <div 
+                class="glass-card q-pa-lg rounded-borders full-width flex flex-column justify-between relative-position overflow-hidden hover-card"
+                :class="{ 'border-indigo shadow-24': pkg.id === 'standard' || pkg.id === 'enterprise' }"
+              >
+                <!-- Badge Header -->
+                <div class="q-mb-md text-center relative-position">
+                  <q-badge
+                    v-if="pkg.badge"
+                    :color="pkg.color"
+                    text-color="white"
+                    class="q-pa-xs text-weight-bold q-mb-xs"
+                  >
+                    {{ pkg.badge }}
+                  </q-badge>
+                  <div class="text-h4 text-weight-bold text-white q-mt-xs">{{ pkg.name }}</div>
+                  <div class="text-caption text-indigo-2 font-weight-medium">
+                    {{ pkg.student_limit === 999999 ? 'Unlimited Students' : `Up to ${pkg.student_limit} Students` }}
+                  </div>
                 </div>
-                <div class="text-h4 q-mb-md text-weight-bold">Enterprise Lifetime</div>
-                <h2 class="text-h2 q-mb-md text-weight-bolder text-white">
-                   <span class="text-grey-6 text-strike text-h4 q-mr-sm">Rs. 140,000</span>
-                   Rs. 130,000
-                </h2>
-                <p class="text-grey-4 q-mb-xl text-center">One-time payment for perpetual access. Best for established institutes.</p>
-                <q-list dense class="q-gutter-y-md q-mb-xl full-width">
-                   <q-item v-for="item in ['All Core Modules Included', 'Unlimited Students & Tutors', 'No Recurring Monthly Bills', 'Free Lifetime Updates & Backup']" :key="item" class="q-px-none">
-                      <q-item-section avatar min-width="24px"><q-icon name="check_circle" color="yellow-6" size="20px" /></q-item-section>
-                      <q-item-section class="text-grey-3">{{ item }}</q-item-section>
-                   </q-item>
+
+                <!-- Price Display -->
+                <div class="text-center q-mb-md q-pa-md rounded-borders" style="background: rgba(255,255,255,0.03);">
+                  <div class="text-caption text-grey-5">Price (LKR)</div>
+                  <div class="text-h3 text-weight-bolder text-white q-my-xs">
+                    {{ getPackageDisplayPrice(pkg).toLocaleString() }}
+                  </div>
+                  <div class="text-caption text-yellow-5 text-weight-bold">
+                    {{ activeBillingCycle === 'monthly' ? '/ month' : (activeBillingCycle === 'annual' ? '/ year' : 'One-Time Payment') }}
+                  </div>
+                </div>
+
+                <!-- Features List -->
+                <q-list dense class="q-gutter-y-sm q-mb-lg full-width">
+                  <q-item v-for="(feat, fIdx) in pkg.features" :key="fIdx" class="q-px-none">
+                    <q-item-section avatar min-width="20px">
+                      <q-icon name="check_circle" color="yellow-6" size="16px" />
+                    </q-item-section>
+                    <q-item-section class="text-grey-3 text-caption">
+                      {{ feat }}
+                    </q-item-section>
+                  </q-item>
                 </q-list>
+
+                <!-- Select Button -->
                 <q-btn 
-                  size="lg" 
-                  color="white" 
-                  text-color="black" 
-                  label="Select Lifetime Deal" 
-                  @click="selectPlanAndRegister('lifetime')" 
+                  size="md" 
+                  :color="pkg.id === 'standard' || pkg.id === 'enterprise' ? 'white' : 'indigo-10'" 
+                  :text-color="pkg.id === 'standard' || pkg.id === 'enterprise' ? 'black' : 'white'" 
+                  label="Select This Plan" 
+                  @click="selectSpecificPackage(pkg.id)" 
                   no-caps 
                   rounded 
                   class="full-width text-weight-bold hover-glow" 
-                />
-              </div>
-            </div>
-
-            <!-- Monthly Plan Card -->
-            <div class="col-xs-12 col-sm-6 col-md-5">
-              <div class="glass-card q-pa-xl rounded-borders h-full flex flex-center flex-column relative-position overflow-hidden hover-card">
-                <div class="text-h4 q-mb-md text-weight-bold">Starter Monthly</div>
-                <h2 class="text-h2 q-mb-md text-weight-bolder text-yellow-5">Rs. 5,000 <span class="text-h6 text-grey-5">/ mo</span></h2>
-                <p class="text-grey-4 q-mb-xl text-center">Low entry cost. Pay as you grow. Ideal for growing academies.</p>
-                <q-list dense class="q-gutter-y-md q-mb-xl full-width">
-                   <q-item v-for="item in ['All Core Modules Included', 'Monthly Subscription Billing', 'Cancel or Upgrade Anytime', '24/7 Dedicated Support']" :key="item" class="q-px-none">
-                      <q-item-section avatar min-width="24px"><q-icon name="check_circle" color="yellow-6" size="20px" /></q-item-section>
-                      <q-item-section class="text-grey-3">{{ item }}</q-item-section>
-                   </q-item>
-                </q-list>
-                <q-btn 
-                  size="lg" 
-                  outline 
-                  color="white" 
-                  label="Select Monthly Plan" 
-                  @click="selectPlanAndRegister('monthly')" 
-                  no-caps 
-                  rounded 
-                  class="full-width text-weight-bold glass-button" 
                 />
               </div>
             </div>
@@ -626,12 +645,83 @@ const appStore = useAppStore()
 const authTab = ref(props.initialTab || route.query.tab || 'register')
 const slide = ref('1')
 
-// Registration State
+// Pricing State
+const activeBillingCycle = ref('monthly')
+const selectedPackageId = ref('enterprise')
+
+// All 4 Packages Definition
+const allPackages = ref([
+  {
+    id: 'starter',
+    name: 'Starter Pack',
+    badge: 'Essential',
+    color: 'blue-7',
+    student_limit: 50,
+    prices: { monthly: 1500, annual: 14400, lifetime: 35000 },
+    features: [
+      'Up to 50 Active Students',
+      'Up to 2 Active Classes',
+      '1 Staff Member',
+      'Dashboard & Student Management',
+      'Class Scheduling & Attendance',
+      'Student QR Scanner'
+    ]
+  },
+  {
+    id: 'standard',
+    name: 'Standard Pack',
+    badge: 'Most Popular',
+    color: 'indigo-10',
+    student_limit: 250,
+    prices: { monthly: 3500, annual: 33600, lifetime: 75000 },
+    features: [
+      'Up to 250 Active Students',
+      'Up to 10 Active Classes',
+      'Up to 3 Staff Members',
+      'Tutes & Study Materials',
+      'Exams & Marks System',
+      'Fees Collection & Receipts'
+    ]
+  },
+  {
+    id: 'pro',
+    name: 'Pro Pack',
+    badge: 'Advanced',
+    color: 'purple-8',
+    student_limit: 1000,
+    prices: { monthly: 7500, annual: 72000, lifetime: 150000 },
+    features: [
+      'Up to 1,000 Active Students',
+      'Up to 30 Active Classes',
+      'Up to 10 Staff Members',
+      'SMS Gateway & Direct Messaging',
+      'Staff Roles & Discipline Engine',
+      'Exam Analytics & Certificates'
+    ]
+  },
+  {
+    id: 'enterprise',
+    name: 'Enterprise Pack',
+    badge: 'Ultimate Deal',
+    color: 'amber-9',
+    student_limit: 999999,
+    prices: { monthly: 15000, annual: 144000, lifetime: 130000 },
+    features: [
+      'Unlimited Active Students',
+      'Unlimited Classes & Tutors',
+      'Unlimited Staff Members',
+      '24/7 Dedicated WhatsApp Support',
+      'Custom Card Branding & Themes',
+      'Bulk CSV/Excel Data Exports'
+    ]
+  }
+])
+
+// Registration Form State
 const regEmail = ref('')
 const regPassword = ref('')
 const regConfirmPassword = ref('')
 const regWhatsapp = ref('')
-const selectedPlan = ref('lifetime')
 const regLoading = ref(false)
 
 // Login State
@@ -693,14 +783,19 @@ watch(() => route.query.tab, (newTab) => {
   }
 })
 
+const getPackageDisplayPrice = (pkg) => {
+  if (!pkg || !pkg.prices) return 0
+  return pkg.prices[activeBillingCycle.value] || pkg.prices.monthly
+}
+
+const selectSpecificPackage = (pkgId) => {
+  selectedPackageId.value = pkgId
+  switchAuthTab('register')
+}
+
 const switchAuthTab = (tab) => {
   authTab.value = tab
   scrollToSection('auth-section')
-}
-
-const selectPlanAndRegister = (plan) => {
-  selectedPlan.value = plan
-  switchAuthTab('register')
 }
 
 const scrollToSection = (sectionId) => {
