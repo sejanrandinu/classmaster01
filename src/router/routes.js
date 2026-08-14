@@ -40,6 +40,8 @@ const routes = [
       { path: 'scan-qr', component: () => import('pages/QRScannerPage.vue'), meta: { requiresAuth: true } },
       { path: 'profile', component: () => import('pages/ProfilePage.vue'), meta: { requiresAuth: true } },
       { path: 'settings', component: () => import('pages/SettingsPage.vue'), meta: { requiresAuth: true } },
+      { path: 'pricing', component: () => import('pages/PricingPage.vue'), meta: { requiresAuth: true } },
+      { path: 'promo-codes', component: () => import('pages/PromoCodesPage.vue'), meta: { requiresAuth: true } },
       { path: 'help-support', component: () => import('pages/HelpSupportPage.vue'), meta: { requiresAuth: true } }
     ]
   },

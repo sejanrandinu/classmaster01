@@ -1,7 +1,7 @@
 // Helper: Response JSON with CORS headers
 const json = (data, status = 200) => new Response(JSON.stringify(data), {
     status,
-    headers: { 
+    headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
@@ -70,13 +70,13 @@ async function verifyEmailDomain(email) {
     try {
         const domain = email.split('@')[1];
         if (!domain) return false;
-        
+
         // Use Cloudflare DNS over HTTPS to check MX records
         const res = await fetch(`https://cloudflare-dns.com/dns-query?name=${domain}&type=MX`, {
             headers: { 'accept': 'application/dns-json' }
         });
         const data = await res.json();
-        
+
         // Status 0 means NOERROR, and Answer contains the MX records
         if (data.Status === 0 && data.Answer && data.Answer.length > 0) {
             return true;
@@ -154,7 +154,7 @@ export async function onRequest(context) {
     }
 
     try {
-        const db = env.DB; 
+        const db = env.DB;
         const JWT_SECRET = env.JWT_SECRET || "classmaster-default-secret-2024";
         if (!db) return json({ error: "Database not bound" }, 500);
 
@@ -216,6 +216,47 @@ export async function onRequest(context) {
                 console.error("Migration warning (class_recordings):", _err.message);
             }
 
+            // Promo Codes table
+            try {
+                await db.prepare(`
+                    CREATE TABLE IF NOT EXISTS promo_codes (
+                        id TEXT PRIMARY KEY,
+                        code TEXT UNIQUE NOT NULL,
+                        discount_type TEXT NOT NULL,
+                        discount_value REAL NOT NULL,
+                        valid_package_id TEXT,
+                        valid_billing_cycle TEXT,
+                        max_uses INTEGER DEFAULT 0,
+                        used_count INTEGER DEFAULT 0,
+                        expires_at TEXT,
+                        is_active INTEGER DEFAULT 1,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )
+                `).run();
+            } catch (_err) {
+                console.error("Migration warning (promo_codes):", _err.message);
+            }
+
+            // Promo Redemptions table
+            try {
+                await db.prepare(`
+                    CREATE TABLE IF NOT EXISTS promo_redemptions (
+                        id TEXT PRIMARY KEY,
+                        promo_code_id TEXT NOT NULL,
+                        user_id TEXT NOT NULL,
+                        package_id TEXT NOT NULL,
+                        billing_cycle TEXT NOT NULL,
+                        discount_applied REAL DEFAULT 0,
+                        final_price REAL DEFAULT 0,
+                        redeemed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (promo_code_id) REFERENCES promo_codes(id) ON DELETE CASCADE,
+                        FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+                    )
+                `).run();
+            } catch (_err) {
+                console.error("Migration warning (promo_redemptions):", _err.message);
+            }
+
             // Alter tables to add columns safely (try-catch because SQLite doesn't have ADD COLUMN IF NOT EXISTS)
             try { await db.prepare("ALTER TABLE exams ADD COLUMN sub_subjects_json TEXT").run(); } catch { /* ignore */ }
             try { await db.prepare("ALTER TABLE exam_results ADD COLUMN sub_marks_json TEXT").run(); } catch { /* ignore */ }
@@ -223,15 +264,32 @@ export async function onRequest(context) {
             try { await db.prepare("ALTER TABLE exam_results ADD COLUMN tutor_sub_marks_json TEXT").run(); } catch { /* ignore */ }
             try { await db.prepare("ALTER TABLE profiles ADD COLUMN whatsapp_enabled INTEGER DEFAULT 1").run(); } catch { /* ignore */ }
             try { await db.prepare("ALTER TABLE pairing_sessions ADD COLUMN is_active INTEGER DEFAULT 1").run(); } catch { /* ignore */ }
+            try { await db.prepare("ALTER TABLE profiles ADD COLUMN package_id TEXT DEFAULT 'starter'").run(); } catch { /* ignore */ }
+            try { await db.prepare("ALTER TABLE profiles ADD COLUMN billing_cycle TEXT DEFAULT 'monthly'").run(); } catch { /* ignore */ }
+            try { await db.prepare("ALTER TABLE profiles ADD COLUMN subscription_expires_at TEXT").run(); } catch { /* ignore */ }
+            try { await db.prepare("ALTER TABLE profiles ADD COLUMN applied_promo_code TEXT").run(); } catch { /* ignore */ }
+
+            // Seed default promo codes if empty
+            try {
+                const countRes = await db.prepare("SELECT COUNT(*) as c FROM promo_codes").first();
+                if (!countRes || countRes.c === 0) {
+                    await db.prepare("INSERT INTO promo_codes (id, code, discount_type, discount_value, max_uses, expires_at) VALUES (?, ?, ?, ?, ?, ?)")
+                        .bind(crypto.randomUUID(), 'WELCOME20', 'percentage', 20, 100, '2027-12-31').run();
+                    await db.prepare("INSERT INTO promo_codes (id, code, discount_type, discount_value, max_uses, expires_at) VALUES (?, ?, ?, ?, ?, ?)")
+                        .bind(crypto.randomUUID(), 'ANNUAL50', 'percentage', 50, 50, '2027-12-31').run();
+                    await db.prepare("INSERT INTO promo_codes (id, code, discount_type, discount_value, max_uses, expires_at) VALUES (?, ?, ?, ?, ?, ?)")
+                        .bind(crypto.randomUUID(), 'SUPERDEAL', 'fixed_amount', 2000, 200, '2027-12-31').run();
+                }
+            } catch { /* ignore seed error */ }
 
             globalThis.dbMigrated = true;
         }
 
         // --- CLEANUP EXPIRED TRIALS (Runs on every request, but very fast in D1) ---
         await db.prepare(`
-            DELETE FROM profiles 
-            WHERE trial_ends_at IS NOT NULL 
-            AND is_approved = 0 
+            DELETE FROM profiles
+            WHERE trial_ends_at IS NOT NULL
+            AND is_approved = 0
             AND role != 'super-admin'
             AND datetime(trial_ends_at, '+3 days') < datetime('now')
         `).run();
@@ -239,7 +297,7 @@ export async function onRequest(context) {
         // --- AUTH ---
         if (path === 'auth' && subPath === 'register' && method === 'POST') {
             const { email, password, whatsapp, turnstileToken } = await request.json();
-            
+
             // Turnstile Validation
             const turnstileSecret = env.TURNSTILE_SECRET || '0x4AAAAAADHUUik0ac64rysfxgfCWL1Wmcg';
             const isValid = await verifyTurnstile(turnstileToken, turnstileSecret);
@@ -254,18 +312,18 @@ export async function onRequest(context) {
             const id = crypto.randomUUID();
             const password_hash = await hashString(password + JWT_SECRET);
             const isSuperAdmin = email.trim().toLowerCase() === 'sejanrandinu01@gmail.com';
-            
-            // Set to 'trial' role with is_approved=0. 
+
+            // Set to 'trial' role with is_approved=0.
             // They will be allowed access until trial ends.
             const role = isSuperAdmin ? 'super-admin' : 'trial';
             const approved = isSuperAdmin ? 1 : 0;
-            
+
             const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-            
+
             // Email verification removed by user request - set to 1 by default
             await db.prepare("INSERT INTO profiles (id, email, password_hash, whatsapp_number, role, is_approved, is_email_verified, verification_token, trial_ends_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
                 .bind(id, email, password_hash, whatsapp, role, approved, 1, null, trialEndsAt).run();
-            
+
             const token = await signJWT({ id, email, role, is_email_verified: 1, trial_ends_at: trialEndsAt }, JWT_SECRET);
             return json({ message: "Registered", token, user: { id, email, role, is_email_verified: 1, trial_ends_at: trialEndsAt } });
         }
@@ -281,7 +339,7 @@ export async function onRequest(context) {
             const password_hash = await hashString(password + JWT_SECRET);
             const user = await db.prepare("SELECT * FROM profiles WHERE email = ? AND password_hash = ?").bind(email, password_hash).first();
             if (!user) return json({ error: "Invalid credentials" }, 401);
-            
+
             const token = await signJWT({ id: user.id, email: user.email, role: user.role, is_email_verified: user.is_email_verified, trial_ends_at: user.trial_ends_at }, JWT_SECRET);
             return json({ message: "Logged in", token, user: { id: user.id, email: user.email, role: user.role, is_email_verified: user.is_email_verified, trial_ends_at: user.trial_ends_at } });
         }
@@ -302,7 +360,7 @@ export async function onRequest(context) {
 
             const verificationToken = crypto.randomUUID();
             await db.prepare("UPDATE profiles SET verification_token = ? WHERE id = ?").bind(verificationToken, user.id).run();
-            
+
             const verifyLink = `${url.origin}/verify-email?token=${verificationToken}`;
             const emailHtml = `
                 <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
@@ -317,11 +375,11 @@ export async function onRequest(context) {
                 </div>
             `;
             await sendEmail(email, 'Verify your ClassMaster account', emailHtml, env);
-            
+
             // Fallback: Save to system notifications
             await db.prepare("INSERT INTO system_notifications (id, type, recipient, content) VALUES (?, ?, ?, ?)")
                 .bind(crypto.randomUUID(), 'email_verification_resend', email, verifyLink).run();
-            
+
             return json({ message: "Verification email sent" });
         }
 
@@ -343,15 +401,15 @@ export async function onRequest(context) {
                     if (student.subjects && student.subjects.length > 0) {
                         const placeholders = student.subjects.map(() => "?").join(",");
                         matchingClass = await db.prepare(`
-                            SELECT tutor_name FROM classes 
-                            WHERE user_id = ? AND grade = ? AND subject_name IN (${placeholders}) 
+                            SELECT tutor_name FROM classes
+                            WHERE user_id = ? AND grade = ? AND subject_name IN (${placeholders})
                             LIMIT 1
                         `).bind(instituteId, student.grade, ...student.subjects).first();
                     }
                     if (!matchingClass) {
                         // Fallback 1: Match any class of the same grade
                         matchingClass = await db.prepare(`
-                            SELECT tutor_name FROM classes 
+                            SELECT tutor_name FROM classes
                             WHERE user_id = ? AND grade = ?
                             LIMIT 1
                         `).bind(instituteId, student.grade).first();
@@ -361,7 +419,7 @@ export async function onRequest(context) {
                     } else {
                         // Fallback 2: Check if student has exam results and get latest tutor
                         const latestResult = await db.prepare(`
-                            SELECT c.tutor_name 
+                            SELECT c.tutor_name
                             FROM exam_results er
                             JOIN exams e ON er.exam_id = e.id
                             JOIN classes c ON e.class_id = c.id
@@ -380,15 +438,15 @@ export async function onRequest(context) {
 
                 const { results: attendance } = await db.prepare("SELECT a.*, c.name as class_name FROM attendance a LEFT JOIN classes c ON a.class_id = c.id WHERE a.student_id = ? ORDER BY a.date DESC LIMIT 10").bind(studentDbId).all();
                 const { results: payments } = await db.prepare("SELECT * FROM payments WHERE student_id = ? ORDER BY created_at DESC LIMIT 10").bind(studentDbId).all();
-                
+
                 // Self-heal exams schema for public portal if column doesn't exist yet
                 try { await db.prepare("ALTER TABLE exams ADD COLUMN certificate_cutoff INTEGER DEFAULT 50").run(); } catch { /* ignore */ }
 
                 // Fetch Exam Results — standard competition ranking computed in JS
                 const { results: rawResults } = await db.prepare(`
-                    SELECT 
-                        er.*, 
-                        e.title as exam_title, 
+                    SELECT
+                        er.*,
+                        e.title as exam_title,
                         e.max_marks,
                         e.subject_name,
                         COALESCE(e.certificate_cutoff, 50) as certificate_cutoff,
@@ -413,12 +471,12 @@ export async function onRequest(context) {
                 for (const examId of Object.keys(examGroups)) {
                     // Fetch ALL results for this exam to compute proper rank based on effective marks
                     const { results: allForExam } = await db.prepare(`
-                        SELECT student_id, CASE WHEN marks_obtained > 0 THEN marks_obtained ELSE COALESCE(tutor_marks, 0) END as effective_marks 
-                        FROM exam_results 
-                        WHERE exam_id = ? 
+                        SELECT student_id, CASE WHEN marks_obtained > 0 THEN marks_obtained ELSE COALESCE(tutor_marks, 0) END as effective_marks
+                        FROM exam_results
+                        WHERE exam_id = ?
                         ORDER BY effective_marks DESC
                     `).bind(examId).all();
-                    
+
                     let rank = 1;
                     for (let i = 0; i < allForExam.length; i++) {
                         if (i > 0 && allForExam[i].effective_marks < allForExam[i - 1].effective_marks) {
@@ -429,37 +487,37 @@ export async function onRequest(context) {
                 }
 
                 const examResults = (rawResults || []).map(r => {
-                    const effectiveMark = (r.marks_obtained !== null && r.marks_obtained !== undefined && r.marks_obtained > 0) 
-                        ? r.marks_obtained 
+                    const effectiveMark = (r.marks_obtained !== null && r.marks_obtained !== undefined && r.marks_obtained > 0)
+                        ? r.marks_obtained
                         : (r.tutor_marks || 0);
                     const percentage = (effectiveMark / (r.max_marks || 100)) * 100;
                     let group = 'red';
                     if (percentage >= 75) group = 'green';
                     else if (percentage >= 65) group = 'yellow';
                     else if (percentage >= 55) group = 'blue';
-                    
+
                     let sub_marks = {};
                     let tutor_sub_marks = {};
                     try { sub_marks = JSON.parse(r.sub_marks_json || '{}'); } catch { /* ignore */ }
                     try { tutor_sub_marks = JSON.parse(r.tutor_sub_marks_json || '{}'); } catch { /* ignore */ }
 
                     const rank = rankMap[`${r.exam_id}_${r.student_id}`] || 1;
-                    return { 
-                        ...r, 
-                        marks_obtained: effectiveMark, 
-                        percentage, 
-                        group, 
-                        sub_marks, 
-                        tutor_sub_marks, 
-                        rank 
+                    return {
+                        ...r,
+                        marks_obtained: effectiveMark,
+                        percentage,
+                        group,
+                        sub_marks,
+                        tutor_sub_marks,
+                        rank
                     };
                 });
 
                 // Fetch Tutes (Filtered by institute, then we filter by subject in JS since class/subject logic varies)
                 const { results: allTutes } = await db.prepare("SELECT * FROM tutes WHERE user_id = ? AND is_active = 1").bind(instituteId).all();
                 const { results: studentTuteHistory } = await db.prepare("SELECT tute_id FROM student_tutes WHERE student_id = ?").bind(studentDbId).all();
-                
-                const tutes = (allTutes || []).filter(t => 
+
+                const tutes = (allTutes || []).filter(t =>
                     student.subjects && student.subjects.includes(t.subject_name)
                 );
                 const receivedTuteIds = (studentTuteHistory || []).map(h => h.tute_id);
@@ -469,8 +527,8 @@ export async function onRequest(context) {
                 if (examResults && examResults.length > 0) {
                     const latestExamId = examResults[examResults.length - 1].exam_id;
                     const { results: topStudents } = await db.prepare(`
-                        SELECT s.name, 
-                               CASE WHEN er.marks_obtained > 0 THEN er.marks_obtained ELSE COALESCE(er.tutor_marks, 0) END as marks_obtained, 
+                        SELECT s.name,
+                               CASE WHEN er.marks_obtained > 0 THEN er.marks_obtained ELSE COALESCE(er.tutor_marks, 0) END as marks_obtained,
                                s.image_url
                         FROM exam_results er
                         JOIN students s ON er.student_id = s.id
@@ -490,13 +548,13 @@ export async function onRequest(context) {
                 if (classIds.length > 0) {
                     const placeholders = classIds.map(() => "?").join(",");
                     const { results: pairingsList } = await db.prepare(`
-                        SELECT p.*, c.name as class_name 
+                        SELECT p.*, c.name as class_name
                         FROM pairing_sessions p
                         JOIN classes c ON p.class_id = c.id
                         WHERE p.class_id IN (${placeholders}) AND (p.is_active IS NULL OR p.is_active = 1)
                         ORDER BY p.created_at DESC
                     `).bind(...classIds).all();
-                    
+
                     pairings = (pairingsList || []).map(p => {
                         try { p.pairs = JSON.parse(p.pairs_json || '[]'); } catch { p.pairs = []; }
                         return p;
@@ -505,8 +563,8 @@ export async function onRequest(context) {
 
                 // Fetch discipline records for the student
                 const { results: discipline } = await db.prepare(`
-                    SELECT * FROM discipline_records 
-                    WHERE student_id = ? 
+                    SELECT * FROM discipline_records
+                    WHERE student_id = ?
                     ORDER BY date DESC, created_at DESC
                 `).bind(studentDbId).all();
 
@@ -515,7 +573,7 @@ export async function onRequest(context) {
                 if (classIds && classIds.length > 0) {
                     const classPlaceholders = classIds.map(() => "?").join(",");
                     const { results: recList } = await db.prepare(`
-                        SELECT r.*, c.name as class_name, c.subject_name 
+                        SELECT r.*, c.name as class_name, c.subject_name
                         FROM class_recordings r
                         JOIN classes c ON r.class_id = c.id
                         WHERE r.class_id IN (${classPlaceholders})
@@ -534,7 +592,7 @@ export async function onRequest(context) {
                     });
 
                     recordings = (recList || []).map(r => {
-                        const isClassPaid = paidClassMap.has(`${r.class_id}`) || 
+                        const isClassPaid = paidClassMap.has(`${r.class_id}`) ||
                                            (r.month && paidClassMap.has(`${r.class_id}_${r.month.toLowerCase()}`));
                         return {
                             id: r.id,
@@ -556,10 +614,10 @@ export async function onRequest(context) {
                     `SELECT id, name as class_name, subject_name, grade FROM classes WHERE user_id = ? AND grade = ?`
                 ).bind(instituteId, student.grade).all();
 
-                return json({ 
-                    student, 
-                    attendance, 
-                    payments, 
+                return json({
+                    student,
+                    attendance,
+                    payments,
                     examResults,
                     tutes,
                     receivedTuteIds,
@@ -626,7 +684,7 @@ export async function onRequest(context) {
             // Fallback for missing columns
             currentUser = await db.prepare("SELECT role, is_approved FROM profiles WHERE id = ?").bind(userId).first();
         }
-        
+
         if (!currentUser) return json({ error: "User not found" }, 401);
 
         // Trial & Approval Logic
@@ -646,21 +704,21 @@ export async function onRequest(context) {
 
             // 2. Allow Trial Users OR Approved Members
             const isTrialActive = currentUser.role === 'trial' && (trialEnd ? trialEnd > now : true);
-            
+
             // Bypass block ONLY for /api/me so user can fetch their profile status
             if (path !== 'me') {
                 if (trialEnd && trialEnd < now && !currentUser.is_approved) {
-                    return json({ 
-                        error: "Trial Expired", 
+                    return json({
+                        error: "Trial Expired",
                         details: "Your 7-day free trial has expired. Please contact admin to activate your account.",
-                        isTrialExpired: true 
+                        isTrialExpired: true
                     }, 403);
                 }
-                
+
                 if (!currentUser.is_approved && !isTrialActive) {
-                    return json({ 
-                        error: "Access Denied", 
-                        details: "Your account is pending approval or your trial has ended." 
+                    return json({
+                        error: "Access Denied",
+                        details: "Your account is pending approval or your trial has ended."
                     }, 403);
                 }
             }
@@ -702,7 +760,7 @@ export async function onRequest(context) {
         if (path === 'me') {
             if (method === 'GET') {
                 try {
-                    const user = await db.prepare("SELECT id, email, whatsapp_number, whatsapp_enabled, profile_image_url, role, is_approved, is_email_verified, trial_ends_at, bank_name, account_number, account_holder_name, created_at, card_background_url, card_theme_color, card_layout_type, card_show_visuals, sheets_webhook_url FROM profiles WHERE id = ?").bind(userId).first();
+                    const user = await db.prepare("SELECT id, email, whatsapp_number, whatsapp_enabled, profile_image_url, role, is_approved, is_email_verified, trial_ends_at, bank_name, account_number, account_holder_name, created_at, card_background_url, card_theme_color, card_layout_type, card_show_visuals, sheets_webhook_url, package_id, billing_cycle, subscription_expires_at, applied_promo_code FROM profiles WHERE id = ?").bind(userId).first();
                     return json(user);
                 } catch (e) {
                     console.error('Fetch me error:', e);
@@ -716,10 +774,10 @@ export async function onRequest(context) {
                 // sheets_webhook_url is allowed to be saved via /api/me
                 const fields = [];
                 const values = [];
-                
+
                 const possibleFields = [
                     'whatsapp_number', 'bank_name', 'account_number', 'account_holder_name',
-                    'card_background_url', 'card_theme_color', 'card_layout_type', 
+                    'card_background_url', 'card_theme_color', 'card_layout_type',
                     'card_show_visuals', 'profile_image_url', 'whatsapp_enabled',
                     'sheets_webhook_url'
                 ];
@@ -762,10 +820,10 @@ export async function onRequest(context) {
                 await fetch(webhook_url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        event: 'test_ping', 
-                        timestamp: new Date().toISOString(), 
-                        data: { source: 'ClassMaster Settings Test' } 
+                    body: JSON.stringify({
+                        event: 'test_ping',
+                        timestamp: new Date().toISOString(),
+                        data: { source: 'ClassMaster Settings Test' }
                     })
                 });
                 return json({ message: 'Test ping sent successfully' });
@@ -806,10 +864,10 @@ export async function onRequest(context) {
                 const classId = url.searchParams.get('class_id');
                 const grade = url.searchParams.get('grade');
                 const status = url.searchParams.get('status');
-                
+
                 let targetGrade = grade;
                 let targetSubject = null;
-                
+
                 if (classId) {
                     const cls = await db.prepare("SELECT grade, subject_name FROM classes WHERE id = ? AND user_id = ?").bind(classId, userId).first();
                     if (cls) {
@@ -817,31 +875,31 @@ export async function onRequest(context) {
                         targetSubject = cls.subject_name;
                     }
                 }
-                
+
                 let q = "SELECT * FROM students WHERE user_id = ?";
                 const p = [userId];
                 if (targetGrade) { q += " AND grade = ?"; p.push(targetGrade); }
                 if (status) { q += " AND status = ?"; p.push(status); }
-                
+
                 const { results: students } = await db.prepare(q + " ORDER BY name ASC").bind(...p).all();
                 const { results: classes } = await db.prepare("SELECT subject_name, whatsapp_group_url FROM classes WHERE user_id = ? AND whatsapp_group_url IS NOT NULL").bind(userId).all();
-                
+
                 const mapped = (students || []).map(s => {
                     let subjects = [];
                     try { subjects = JSON.parse(s.subjects_json || '[]'); } catch { subjects = []; }
-                    
+
                     const groups = (classes || [])
                         .filter(c => subjects.includes(c.subject_name))
                         .map(c => c.whatsapp_group_url);
-                        
-                    return { 
-                        ...s, 
+
+                    return {
+                        ...s,
                         subjects,
                         whatsapp_group_url: groups.length > 0 ? groups[0] : null,
                         all_whatsapp_groups: groups
                     };
                 });
-                
+
                 if (targetSubject) {
                     return json(mapped.filter(s => s.subjects && s.subjects.includes(targetSubject)));
                 }
@@ -849,7 +907,7 @@ export async function onRequest(context) {
             }
             if (method === 'POST') {
                 const d = await request.json();
-                
+
                 // Bulk reactivation support
                 if (subPath === 'bulk-status') {
                     const { ids, status } = d;
@@ -859,7 +917,7 @@ export async function onRequest(context) {
                         .bind(status, ...ids, userId).run();
                     return json({ message: `Bulk updated ${ids.length} students to ${status}` });
                 }
-                
+
                 // Bulk deletion support
                 if (subPath === 'bulk-delete') {
                     const { ids } = d;
@@ -962,7 +1020,7 @@ export async function onRequest(context) {
             if (method === 'GET') {
                 const grade = url.searchParams.get('grade');
                 const status = url.searchParams.get('status');
-                
+
                 // Colombo Time for checking past classes
                 const now = new Date(Date.now() + 5.5 * 3600000);
                 const todayDate = now.toISOString().split('T')[0];
@@ -971,7 +1029,7 @@ export async function onRequest(context) {
                 const p = [userId];
                 if (grade) { q += " AND grade = ?"; p.push(grade); }
                 if (status) { q += " AND status = ?"; p.push(status); }
-                
+
                 const { results } = await db.prepare(q + " ORDER BY created_at DESC").bind(...p).all();
                 const mapped = (results || []).map(c => {
                     if (c.recurrence_type === 'none' && c.class_date && c.class_date < todayDate && c.status === 'Active') {
@@ -1024,16 +1082,16 @@ export async function onRequest(context) {
             // Get all active students for this grade
             const { results: students } = await db.prepare("SELECT id, name, contact, subjects_json FROM students WHERE user_id = ? AND grade = ? AND status = 'Active'")
                 .bind(userId, cls.grade).all();
-            
+
             // Get all students who have paid for this class and month
             const { results: paidStudents } = await db.prepare("SELECT student_id FROM payments WHERE user_id = ? AND class_id = ? AND month = ?")
                 .bind(userId, classId, month).all();
-            
+
             const paidIds = new Set(paidStudents.map(p => p.student_id));
             const unpaid = students.filter(s => {
                 // Check if already paid
                 if (paidIds.has(s.id)) return false;
-                
+
                 // Check if student takes this subject
                 try {
                     const subs = JSON.parse(s.subjects_json || '[]');
@@ -1052,11 +1110,11 @@ export async function onRequest(context) {
                 const limit = url.searchParams.get('limit');
                 const sid = url.searchParams.get('student_id');
                 let q = `
-                    SELECT 
-                        p.*, 
-                        s.name as student_name, 
-                        s.student_id as student_id_str, 
-                        c.name as class_name 
+                    SELECT
+                        p.*,
+                        s.name as student_name,
+                        s.student_id as student_id_str,
+                        c.name as class_name
                     FROM payments p
                     LEFT JOIN students s ON p.student_id = s.id
                     LEFT JOIN classes c ON p.class_id = c.id
@@ -1066,7 +1124,7 @@ export async function onRequest(context) {
                 if (sid) { q += " AND p.student_id = ?"; p.push(sid); }
                 q += " ORDER BY p.payment_date DESC, p.created_at DESC";
                 if (limit) { q += " LIMIT ?"; p.push(Number(limit)); }
-                
+
                 const { results } = await db.prepare(q).bind(...p).all();
                 return json(results || []);
             }
@@ -1074,11 +1132,11 @@ export async function onRequest(context) {
             if (method === 'POST') {
                 try {
                     const d = await request.json();
-                    
+
                     // Check for duplicate payment
                     const existing = await db.prepare("SELECT id FROM payments WHERE student_id = ? AND class_id = ? AND month = ? AND user_id = ?")
                         .bind(d.student_id, d.class_id, d.month, userId).first();
-                    
+
                     if (existing) {
                         return json({ error: "Duplicate Payment", details: `A payment for ${d.month} already exists for this student and class.` }, 400);
                     }
@@ -1110,14 +1168,14 @@ export async function onRequest(context) {
                 const end = url.searchParams.get('end');
 
                 let q = `
-                    SELECT 
-                        a.*, 
-                        s.name as student_name, 
-                        s.student_id as student_id_str, 
-                        c.name as class_name 
-                    FROM attendance a 
-                    LEFT JOIN students s ON a.student_id = s.id 
-                    LEFT JOIN classes c ON a.class_id = c.id 
+                    SELECT
+                        a.*,
+                        s.name as student_name,
+                        s.student_id as student_id_str,
+                        c.name as class_name
+                    FROM attendance a
+                    LEFT JOIN students s ON a.student_id = s.id
+                    LEFT JOIN classes c ON a.class_id = c.id
                     WHERE a.user_id = ?
                 `;
                 const p = [userId];
@@ -1126,7 +1184,7 @@ export async function onRequest(context) {
                 if (date) { q += " AND a.date = ?"; p.push(date); }
                 if (start) { q += " AND a.date >= ?"; p.push(start); }
                 if (end) { q += " AND a.date <= ?"; p.push(end); }
-                
+
                 const { results } = await db.prepare(q + " ORDER BY a.date DESC, a.created_at DESC").bind(...p).all();
                 return json(results || []);
             }
@@ -1211,20 +1269,20 @@ export async function onRequest(context) {
             const students = await db.prepare("SELECT COUNT(*) as count FROM students WHERE user_id = ?").bind(userId).first('count') || 0;
             const tutors = await db.prepare("SELECT COUNT(*) as count FROM tutors WHERE user_id = ?").bind(userId).first('count') || 0;
             const classes = await db.prepare("SELECT COUNT(*) as count FROM classes WHERE user_id = ?").bind(userId).first('count') || 0;
-            
+
             // Adjusted for Colombo Time (+5:30)
             const colomboNow = new Date(Date.now() + 5.5 * 3600000);
             const monthPrefix = colomboNow.toISOString().substring(0, 7); // YYYY-MM
 
             const revenue = await db.prepare("SELECT SUM(amount) as sum FROM payments WHERE user_id = ? AND payment_date LIKE ?").bind(userId, `${monthPrefix}%`).first('sum') || 0;
             const expenses = await db.prepare("SELECT SUM(amount) as sum FROM salary_payments WHERE user_id = ? AND payment_date LIKE ?").bind(userId, `${monthPrefix}%`).first('sum') || 0;
-            
-            return json({ 
-                students_count: Number(students), 
-                tutors_count: Number(tutors), 
-                total_classes: Number(classes), 
-                monthly_revenue: Number(revenue), 
-                monthly_expenses: Number(expenses) 
+
+            return json({
+                students_count: Number(students),
+                tutors_count: Number(tutors),
+                total_classes: Number(classes),
+                monthly_revenue: Number(revenue),
+                monthly_expenses: Number(expenses)
             });
         }
 
@@ -1238,11 +1296,11 @@ export async function onRequest(context) {
 
             // Fetch active classes
             const { results } = await db.prepare(`
-                SELECT *, COALESCE(recurrence_type, 'weekly') as recurrence_type FROM classes 
+                SELECT *, COALESCE(recurrence_type, 'weekly') as recurrence_type FROM classes
                 WHERE user_id = ? AND status = 'Active'
                 ORDER BY start_time ASC
             `).bind(userId).all();
-            
+
             const todayClasses = (results || []).filter(c => {
                 const rec = c.recurrence_type || 'weekly';
                 if (rec === 'none') {
@@ -1268,7 +1326,7 @@ export async function onRequest(context) {
                 }
                 return c.day === todayDay || c.class_date === todayDate;
             });
-            
+
             return json(todayClasses);
         }
 
@@ -1405,9 +1463,9 @@ export async function onRequest(context) {
                     SELECT e.*, c.name as class_name,
                         COALESCE(e.certificate_cutoff, 50) as certificate_cutoff,
                         (SELECT COUNT(*) FROM exam_results er WHERE er.exam_id = e.id AND er.tutor_marks IS NOT NULL AND er.tutor_marks > 0) as draft_count
-                    FROM exams e 
-                    LEFT JOIN classes c ON e.class_id = c.id 
-                    WHERE c.user_id = ? 
+                    FROM exams e
+                    LEFT JOIN classes c ON e.class_id = c.id
+                    WHERE c.user_id = ?
                     ORDER BY e.date ASC
                 `).bind(userId).all();
                 return json(examRows || []);
@@ -1437,7 +1495,7 @@ export async function onRequest(context) {
             if (method === 'GET') {
                 const examId = url.searchParams.get('exam_id');
                 const { results } = await db.prepare("SELECT er.*, s.name as student_name, s.student_id as student_id_str FROM exam_results er JOIN students s ON er.student_id = s.id WHERE er.exam_id = ?").bind(examId).all();
-                
+
                 const mappedResults = (results || []).map(r => {
                     let sub_marks = {};
                     let tutor_sub_marks = {};
@@ -1454,25 +1512,25 @@ export async function onRequest(context) {
             if (subPath === 'upsert' && method === 'POST') {
                 const { exam_id, results } = await request.json();
                 const isTeacher = currentUser.role === 'teacher';
-                
+
                 for (const r of results) {
                     if (isTeacher) {
                         // Tutor/Teacher logs a draft
                         await db.prepare(`
                             INSERT INTO exam_results (id, exam_id, student_id, marks_obtained, sub_marks_json, tutor_marks, tutor_sub_marks_json, remarks)
                             VALUES (?, ?, ?, 0, '{}', ?, ?, ?)
-                            ON CONFLICT(exam_id, student_id) 
-                            DO UPDATE SET 
-                                tutor_marks = excluded.tutor_marks, 
+                            ON CONFLICT(exam_id, student_id)
+                            DO UPDATE SET
+                                tutor_marks = excluded.tutor_marks,
                                 tutor_sub_marks_json = excluded.tutor_sub_marks_json,
                                 remarks = CASE WHEN excluded.remarks != '' THEN excluded.remarks ELSE exam_results.remarks END
                         `)
                         .bind(
-                            crypto.randomUUID(), 
-                            exam_id, 
-                            r.student_id, 
-                            Number(r.tutor_marks || r.marks_obtained || 0), 
-                            JSON.stringify(r.tutor_sub_marks || r.sub_marks || {}), 
+                            crypto.randomUUID(),
+                            exam_id,
+                            r.student_id,
+                            Number(r.tutor_marks || r.marks_obtained || 0),
+                            JSON.stringify(r.tutor_sub_marks || r.sub_marks || {}),
                             r.remarks || ''
                         ).run();
                     } else {
@@ -1480,19 +1538,19 @@ export async function onRequest(context) {
                         await db.prepare(`
                             INSERT INTO exam_results (id, exam_id, student_id, marks_obtained, sub_marks_json, tutor_marks, tutor_sub_marks_json, remarks)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                            ON CONFLICT(exam_id, student_id) 
-                            DO UPDATE SET 
-                                marks_obtained = excluded.marks_obtained, 
+                            ON CONFLICT(exam_id, student_id)
+                            DO UPDATE SET
+                                marks_obtained = excluded.marks_obtained,
                                 sub_marks_json = excluded.sub_marks_json,
                                 tutor_marks = CASE WHEN excluded.tutor_marks IS NOT NULL AND excluded.tutor_marks > 0 THEN excluded.tutor_marks ELSE exam_results.tutor_marks END,
                                 tutor_sub_marks_json = CASE WHEN excluded.tutor_sub_marks_json IS NOT NULL THEN excluded.tutor_sub_marks_json ELSE exam_results.tutor_sub_marks_json END,
                                 remarks = excluded.remarks
                         `)
                         .bind(
-                            crypto.randomUUID(), 
-                            exam_id, 
-                            r.student_id, 
-                            Number(r.marks_obtained || 0), 
+                            crypto.randomUUID(),
+                            exam_id,
+                            r.student_id,
+                            Number(r.marks_obtained || 0),
                             JSON.stringify(r.sub_marks || {}),
                             r.tutor_marks ? Number(r.tutor_marks) : null,
                             r.tutor_sub_marks_json || JSON.stringify(r.tutor_sub_marks || {}),
@@ -1518,7 +1576,7 @@ export async function onRequest(context) {
         // MAINTENANCE
         if (path === 'maintenance' && subPath === 'reset' && method === 'POST') {
             const { type } = await request.json();
-            
+
             if (type === 'financial') {
                 await db.prepare("DELETE FROM payments WHERE user_id = ?").bind(userId).run();
                 await db.prepare("DELETE FROM salary_payments WHERE user_id = ?").bind(userId).run();
@@ -1526,11 +1584,11 @@ export async function onRequest(context) {
             } else if (type === 'all') {
                 // Delete everything for this user except the profile
                 const tables = [
-                    'students', 'classes', 'tutors', 'payments', 'attendance', 
-                    'exams', 'exam_results', 'staff', 'salary_payments', 
+                    'students', 'classes', 'tutors', 'payments', 'attendance',
+                    'exams', 'exam_results', 'staff', 'salary_payments',
                     'subjects', 'roles', 'messages', 'tutes', 'student_tutes'
                 ];
-                
+
                 for (const table of tables) {
                     try {
                         await db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).bind(userId).run();
@@ -1548,7 +1606,7 @@ export async function onRequest(context) {
             if (method === 'GET') {
                 const studentId = url.searchParams.get('student_id');
                 let q = `
-                    SELECT d.*, s.name as student_name, s.student_id as student_id_str, s.grade as student_grade 
+                    SELECT d.*, s.name as student_name, s.student_id as student_id_str, s.grade as student_grade
                     FROM discipline_records d
                     JOIN students s ON d.student_id = s.id
                     WHERE d.user_id = ?
@@ -1576,7 +1634,7 @@ export async function onRequest(context) {
             if (method === 'PUT' && subPath) {
                 const d = await request.json();
                 await db.prepare(`
-                    UPDATE discipline_records 
+                    UPDATE discipline_records
                     SET student_id = ?, type = ?, category = ?, description = ?, date = ?
                     WHERE id = ? AND user_id = ?
                 `)
@@ -1595,9 +1653,9 @@ export async function onRequest(context) {
             if (method === 'GET') {
                 const classId = url.searchParams.get('class_id');
                 let query = `
-                    SELECT r.*, c.name as class_name, c.subject_name 
-                    FROM class_recordings r 
-                    LEFT JOIN classes c ON r.class_id = c.id 
+                    SELECT r.*, c.name as class_name, c.subject_name
+                    FROM class_recordings r
+                    LEFT JOIN classes c ON r.class_id = c.id
                     WHERE r.user_id = ?
                 `;
                 const params = [userId];
@@ -1634,7 +1692,7 @@ export async function onRequest(context) {
             if (method === 'GET') {
                 const classId = url.searchParams.get('class_id');
                 let q = `
-                    SELECT p.*, c.name as class_name, c.grade as class_grade 
+                    SELECT p.*, c.name as class_name, c.grade as class_grade
                     FROM pairing_sessions p
                     JOIN classes c ON p.class_id = c.id
                     WHERE p.user_id = ?
@@ -1676,6 +1734,272 @@ export async function onRequest(context) {
             if (method === 'DELETE' && subPath) {
                 await db.prepare("DELETE FROM pairing_sessions WHERE id = ? AND user_id = ?").bind(subPath, userId).run();
                 return json({ message: "Pairing session deleted" });
+            }
+        }
+
+        // --- PACKAGES & PROMO CODES ---
+        const ALL_PACKAGES = [
+            {
+                id: 'starter',
+                name: 'Starter Pack',
+                badge: 'Essential',
+                color: 'blue-7',
+                student_limit: 50,
+                class_limit: 2,
+                staff_limit: 1,
+                prices: { monthly: 1500, annual: 14400, lifetime: 35000 },
+                features: [
+                    'Up to 50 Active Students',
+                    'Up to 2 Active Classes',
+                    '1 Staff Member',
+                    'Dashboard & Analytics',
+                    'Student Management',
+                    'Class Scheduling',
+                    'Attendance Marking',
+                    'Student QR Scanner'
+                ],
+                restricted_features: ['tutes', 'exams', 'payments', 'sms', 'staff', 'roles', 'discipline', 'pairing', 'branding']
+            },
+            {
+                id: 'standard',
+                name: 'Standard Pack',
+                badge: 'Most Popular',
+                color: 'primary',
+                student_limit: 250,
+                class_limit: 10,
+                staff_limit: 3,
+                prices: { monthly: 3500, annual: 33600, lifetime: 75000 },
+                features: [
+                    'Up to 250 Active Students',
+                    'Up to 10 Active Classes',
+                    'Up to 3 Staff Members',
+                    'Everything in Starter',
+                    'Tutes & Study Materials',
+                    'Exams & Marks System',
+                    'Fees & Payment Collection',
+                    'Receipt Generation & Printing'
+                ],
+                restricted_features: ['sms', 'staff', 'roles', 'discipline', 'pairing', 'branding']
+            },
+            {
+                id: 'pro',
+                name: 'Pro Pack',
+                badge: 'Advanced',
+                color: 'purple-8',
+                student_limit: 1000,
+                class_limit: 30,
+                staff_limit: 10,
+                prices: { monthly: 7500, annual: 72000, lifetime: 150000 },
+                features: [
+                    'Up to 1,000 Active Students',
+                    'Up to 30 Active Classes',
+                    'Up to 10 Staff Members',
+                    'Everything in Standard',
+                    'SMS Gateway & Direct Messaging',
+                    'Staff Management & Custom Roles',
+                    'Student Discipline Records',
+                    'Student Pairing Engine',
+                    'Exam Analytics & Certificates'
+                ],
+                restricted_features: ['branding']
+            },
+            {
+                id: 'enterprise',
+                name: 'Enterprise Pack',
+                badge: 'Ultimate',
+                color: 'amber-9',
+                student_limit: 999999,
+                class_limit: 999999,
+                staff_limit: 999999,
+                prices: { monthly: 15000, annual: 144000, lifetime: 300000 },
+                features: [
+                    'Unlimited Active Students',
+                    'Unlimited Classes & Tutors',
+                    'Unlimited Staff Members',
+                    'Everything in Pro',
+                    'Priority 24/7 WhatsApp Support',
+                    'Custom Card Branding & Themes',
+                    'Bulk CSV/Excel Data Exports',
+                    'Super Admin System Controls'
+                ],
+                restricted_features: []
+            }
+        ];
+
+        if (path === 'packages' && method === 'GET') {
+            return json(ALL_PACKAGES);
+        }
+
+        if (path === 'promo-codes' && subPath === 'validate' && method === 'POST') {
+            const { code, package_id = 'standard', billing_cycle = 'monthly' } = await request.json();
+            if (!code || !code.trim()) return json({ error: 'Promo code is required' }, 400);
+
+            const cleanCode = code.trim().toUpperCase();
+            const promo = await db.prepare("SELECT * FROM promo_codes WHERE code = ? AND is_active = 1").bind(cleanCode).first();
+
+            if (!promo) {
+                return json({ valid: false, error: 'Invalid or expired promo code' }, 400);
+            }
+
+            if (promo.expires_at && new Date(promo.expires_at) < new Date()) {
+                return json({ valid: false, error: 'This promo code has expired' }, 400);
+            }
+
+            if (promo.max_uses > 0 && promo.used_count >= promo.max_uses) {
+                return json({ valid: false, error: 'This promo code usage limit has been reached' }, 400);
+            }
+
+            if (promo.valid_package_id && promo.valid_package_id !== package_id) {
+                return json({ valid: false, error: `This promo code is only valid for the ${promo.valid_package_id.toUpperCase()} package` }, 400);
+            }
+
+            if (promo.valid_billing_cycle && promo.valid_billing_cycle !== billing_cycle) {
+                return json({ valid: false, error: `This promo code is only valid for ${promo.valid_billing_cycle} billing` }, 400);
+            }
+
+            const pkg = ALL_PACKAGES.find(p => p.id === package_id) || ALL_PACKAGES[1];
+            const basePrice = pkg.prices[billing_cycle] || pkg.prices.monthly;
+
+            let discountAmount = 0;
+            if (promo.discount_type === 'percentage') {
+                discountAmount = (basePrice * promo.discount_value) / 100;
+            } else if (promo.discount_type === 'fixed_amount') {
+                discountAmount = promo.discount_value;
+            } else if (promo.discount_type === 'free_pack') {
+                discountAmount = basePrice;
+            }
+
+            if (discountAmount > basePrice) discountAmount = basePrice;
+            const finalPrice = Math.max(0, basePrice - discountAmount);
+
+            return json({
+                valid: true,
+                code: promo.code,
+                discount_type: promo.discount_type,
+                discount_value: promo.discount_value,
+                base_price: basePrice,
+                discount_amount: discountAmount,
+                final_price: finalPrice,
+                package_id,
+                billing_cycle
+            });
+        }
+
+        if (path === 'packages' && subPath === 'subscribe' && method === 'POST') {
+            const { package_id, billing_cycle = 'monthly', promo_code } = await request.json();
+            const pkg = ALL_PACKAGES.find(p => p.id === package_id);
+            if (!pkg) return json({ error: "Invalid package selected" }, 400);
+
+            let discountApplied = 0;
+            let finalPrice = pkg.prices[billing_cycle] || pkg.prices.monthly;
+            let appliedCode = null;
+
+            if (promo_code) {
+                const cleanCode = promo_code.trim().toUpperCase();
+                const promo = await db.prepare("SELECT * FROM promo_codes WHERE code = ? AND is_active = 1").bind(cleanCode).first();
+                if (promo && (!promo.expires_at || new Date(promo.expires_at) >= new Date()) && (promo.max_uses === 0 || promo.used_count < promo.max_uses)) {
+                    appliedCode = promo.code;
+                    if (promo.discount_type === 'percentage') {
+                        discountApplied = (finalPrice * promo.discount_value) / 100;
+                    } else if (promo.discount_type === 'fixed_amount') {
+                        discountApplied = promo.discount_value;
+                    } else if (promo.discount_type === 'free_pack') {
+                        discountApplied = finalPrice;
+                    }
+                    if (discountApplied > finalPrice) discountApplied = finalPrice;
+                    finalPrice = Math.max(0, finalPrice - discountApplied);
+
+                    await db.prepare("UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ?").bind(promo.id).run();
+                    await db.prepare("INSERT INTO promo_redemptions (id, promo_code_id, user_id, package_id, billing_cycle, discount_applied, final_price) VALUES (?, ?, ?, ?, ?, ?, ?)")
+                        .bind(crypto.randomUUID(), promo.id, userId, package_id, billing_cycle, discountApplied, finalPrice).run();
+                }
+            }
+
+            let expiryDate = null;
+            if (billing_cycle === 'monthly') {
+                const d = new Date();
+                d.setMonth(d.getMonth() + 1);
+                expiryDate = d.toISOString();
+            } else if (billing_cycle === 'annual') {
+                const d = new Date();
+                d.setFullYear(d.getFullYear() + 1);
+                expiryDate = d.toISOString();
+            } else if (billing_cycle === 'lifetime') {
+                expiryDate = '2099-12-31T23:59:59.000Z';
+            }
+
+            await db.prepare("UPDATE profiles SET package_id = ?, billing_cycle = ?, subscription_expires_at = ?, applied_promo_code = ?, is_approved = 1, role = CASE WHEN role = 'pending' OR role = 'trial' THEN 'admin' ELSE role END WHERE id = ?")
+                .bind(package_id, billing_cycle, expiryDate, appliedCode, userId).run();
+
+            return json({
+                message: "Subscription updated successfully",
+                package: pkg,
+                billing_cycle,
+                final_price: finalPrice,
+                expires_at: expiryDate
+            });
+        }
+
+        // --- PROMO CODES MANAGEMENT (Admin / SuperAdmin) ---
+        if (path === 'promo-codes') {
+            if (method === 'GET') {
+                const { results } = await db.prepare("SELECT * FROM promo_codes ORDER BY created_at DESC").all();
+                return json(results || []);
+            }
+            if (method === 'POST') {
+                const d = await request.json();
+                if (!d.code || !d.discount_type || d.discount_value === undefined) {
+                    return json({ error: "Code, discount_type and discount_value are required" }, 400);
+                }
+                const id = crypto.randomUUID();
+                const code = d.code.trim().toUpperCase();
+                await db.prepare(`
+                    INSERT INTO promo_codes (id, code, discount_type, discount_value, valid_package_id, valid_billing_cycle, max_uses, expires_at, is_active)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `).bind(
+                    id,
+                    code,
+                    d.discount_type,
+                    Number(d.discount_value),
+                    d.valid_package_id || null,
+                    d.valid_billing_cycle || null,
+                    Number(d.max_uses || 0),
+                    d.expires_at || null,
+                    d.is_active !== undefined ? (d.is_active ? 1 : 0) : 1
+                ).run();
+
+                return json({ message: "Promo code created successfully", id });
+            }
+            if (method === 'PUT' && subPath) {
+                const d = await request.json();
+                await db.prepare(`
+                    UPDATE promo_codes
+                    SET code = COALESCE(?, code),
+                        discount_type = COALESCE(?, discount_type),
+                        discount_value = COALESCE(?, discount_value),
+                        valid_package_id = ?,
+                        valid_billing_cycle = ?,
+                        max_uses = COALESCE(?, max_uses),
+                        expires_at = ?,
+                        is_active = COALESCE(?, is_active)
+                    WHERE id = ?
+                `).bind(
+                    d.code ? d.code.trim().toUpperCase() : null,
+                    d.discount_type || null,
+                    d.discount_value !== undefined ? Number(d.discount_value) : null,
+                    d.valid_package_id || null,
+                    d.valid_billing_cycle || null,
+                    d.max_uses !== undefined ? Number(d.max_uses) : null,
+                    d.expires_at || null,
+                    d.is_active !== undefined ? (d.is_active ? 1 : 0) : null,
+                    subPath
+                ).run();
+
+                return json({ message: "Promo code updated" });
+            }
+            if (method === 'DELETE' && subPath) {
+                await db.prepare("DELETE FROM promo_codes WHERE id = ?").bind(subPath).run();
+                return json({ message: "Promo code deleted" });
             }
         }
 

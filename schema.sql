@@ -18,6 +18,10 @@ CREATE TABLE IF NOT EXISTS profiles (
     is_email_verified INTEGER DEFAULT 1,
     verification_token TEXT,
     trial_ends_at TEXT,
+    package_id TEXT DEFAULT 'starter', -- starter, standard, pro, enterprise
+    billing_cycle TEXT DEFAULT 'monthly', -- monthly, annual, lifetime
+    subscription_expires_at TEXT,
+    applied_promo_code TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -236,4 +240,33 @@ CREATE TABLE IF NOT EXISTS system_notifications (
     is_read INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 14. Promo Codes & Redemptions
+CREATE TABLE IF NOT EXISTS promo_codes (
+    id TEXT PRIMARY KEY,
+    code TEXT UNIQUE NOT NULL,
+    discount_type TEXT NOT NULL, -- percentage, fixed_amount, free_pack
+    discount_value REAL NOT NULL, -- e.g. 20 (for 20%), 1000 (for LKR 1000 off), or target pack_id
+    valid_package_id TEXT, -- NULL for all, or starter/standard/pro/enterprise
+    valid_billing_cycle TEXT, -- NULL for all, or monthly/annual/lifetime
+    max_uses INTEGER DEFAULT 0, -- 0 for unlimited
+    used_count INTEGER DEFAULT 0,
+    expires_at TEXT,
+    is_active INTEGER DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS promo_redemptions (
+    id TEXT PRIMARY KEY,
+    promo_code_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    package_id TEXT NOT NULL,
+    billing_cycle TEXT NOT NULL,
+    discount_applied REAL DEFAULT 0,
+    final_price REAL DEFAULT 0,
+    redeemed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (promo_code_id) REFERENCES promo_codes(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+);
+
 

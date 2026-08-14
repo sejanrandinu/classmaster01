@@ -3,7 +3,7 @@
     <!-- Floating Button -->
     <q-btn
       fab
-      icon="chat"
+      icon="smart_toy"
       color="primary"
       class="chatbot-toggle shadow-10"
       @click="toggleChat"
@@ -20,15 +20,31 @@
     >
       <q-card v-if="isOpen" class="chatbot-window shadow-24 overflow-hidden">
         <!-- Header -->
-        <q-toolbar class="bg-primary text-white">
+        <q-toolbar class="bg-primary text-white shadow-2">
           <q-avatar size="32px" class="q-mr-sm">
             <q-icon name="smart_toy" color="white" />
           </q-avatar>
           <q-toolbar-title class="text-subtitle1 text-weight-bold">
-            ClassMaster AI
+            ClassMaster Smart AI Agent
           </q-toolbar-title>
           <q-btn flat round dense icon="close" @click="isOpen = false" />
         </q-toolbar>
+
+        <!-- Quick Suggestion Chips Header -->
+        <div class="bg-grey-2 q-px-sm q-py-xs row q-gutter-xs overflow-auto no-wrap border-bottom">
+          <q-chip
+            v-for="(chip, cIdx) in quickChips"
+            :key="cIdx"
+            clickable
+            dense
+            color="white"
+            text-color="primary"
+            class="text-weight-bold text-caption shadow-1"
+            @click="handleChipClick(chip)"
+          >
+            {{ chip.label }}
+          </q-chip>
+        </div>
 
         <!-- Messages Area -->
         <q-card-section class="chat-messages q-pa-md scroll" id="chat-box">
@@ -36,19 +52,37 @@
             <q-chat-message
               :name="msg.role === 'ai' ? 'ClassMaster AI' : 'You'"
               :avatar="msg.role === 'ai' ? 'https://cdn-icons-png.flaticon.com/512/4712/4712035.png' : 'https://cdn.quasar.dev/img/boy-avatar.png'"
-              :text="[msg.text]"
               :sent="msg.role === 'user'"
-              :bg-color="msg.role === 'ai' ? 'grey-3' : 'primary'"
-              :text-color="msg.role === 'ai' ? 'black' : 'white'"
-            />
+              :bg-color="msg.role === 'ai' ? 'white' : 'primary'"
+              :text-color="msg.role === 'ai' ? 'grey-9' : 'white'"
+              class="shadow-1 rounded-borders"
+            >
+              <template v-slot:default>
+                <div style="white-space: pre-line;">
+                  {{ msg.text }}
+                </div>
+                <!-- Optional Action Button in AI Message -->
+                <div v-if="msg.action" class="q-mt-sm">
+                  <q-btn
+                    unelevated
+                    size="sm"
+                    color="primary"
+                    :label="msg.action.label"
+                    no-caps
+                    icon="launch"
+                    @click="executeAction(msg.action)"
+                  />
+                </div>
+              </template>
+            </q-chat-message>
           </div>
           <div v-if="isTyping" class="q-mb-md">
             <q-chat-message
               name="ClassMaster AI"
               avatar="https://cdn-icons-png.flaticon.com/512/4712/4712035.png"
-              bg-color="grey-3"
+              bg-color="white"
             >
-              <q-spinner-dots size="20px" />
+              <q-spinner-dots size="20px" color="primary" />
             </q-chat-message>
           </div>
         </q-card-section>
@@ -61,7 +95,7 @@
             v-model="input"
             dense
             outlined
-            placeholder="Type your message..."
+            placeholder="Ask AI (Sinhala, Singlish, English)..."
             class="full-width rounded-borders custom-chat-input"
             @keyup.enter="sendMessage"
             :disable="isTyping"
@@ -78,14 +112,27 @@
 
 <script setup>
 import { ref, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 
+const router = useRouter()
 const isOpen = ref(false)
 const input = ref('')
 const isTyping = ref(false)
 const unreadCount = ref(1)
 
+const quickChips = [
+  { label: '🎟️ Promo Codes', query: 'What promo codes are available?' },
+  { label: '💳 Packages & Pricing', query: 'Show me the 4 package plans and prices' },
+  { label: '♾️ Lifetime & Annual', query: 'How does lifetime and annual pricing work?' },
+  { label: '📱 SMS Messaging', query: 'How to setup SMS messaging?' },
+  { label: '💬 WhatsApp Support', query: 'How can I contact support?' }
+]
+
 const messages = ref([
-  { role: 'ai', text: 'Hello! I am ClassMaster AI. How can I help you today? මම ඔබට උදව් කරන්නේ කෙසේද? (Sinhala/English/Singlish)' }
+  {
+    role: 'ai',
+    text: 'Hello! I am your ClassMaster Smart AI Assistant 🤖\nHow can I help you today?\n(ඔබට පැකේජ, Promo codes හෝ පද්ධතිය පිළිබඳ ඕනෑම දෙයක් සිංහල, Singlish හෝ English වලින් ඇසිය හැක)'
+  }
 ])
 
 const toggleChat = () => {
@@ -104,41 +151,74 @@ const scrollToBottom = async () => {
   }
 }
 
-const responses = {
-  'registration': {
-    keys: ['register', 'signup', 'sign up', 'apply', 'lapaidanchi', 'lekhana', 'ලියාපදිංචි', 'රෙජිස්ටර්'],
-    en: 'To register, click the "Get Started" button on the home page or go to the /register page.',
-    si: 'ලියාපදිංචි වීමට, මුල් පිටුවේ ඇති "Get Started" බොත්තම ක්ලික් කරන්න හෝ /register පිටුවට යන්න.'
-  },
-  'student': {
-    keys: ['student', 'lamayi', 'shishya', 'lamay', 'shisyayo', 'දරුවෝ', 'සිසුන්'],
-    en: 'You can manage students in the "Students" section of your dashboard.',
-    si: 'ඔබට ඔබගේ dashboard එකේ "Students" අංශයට ගොස් සිසුන් කළමනාකරණය කළ හැකිය.'
-  },
-  'attendance': {
-    keys: ['attendance', 'paminiima', 'reg', 'paminima', 'පැමිණීම', 'අattendance'],
-    en: 'Attendance can be marked manually or by scanning student QR codes in the Attendance section.',
-    si: 'පැමිණීම සලකුණු කිරීම "Attendance" අංශය හරහා හෝ QR කේත ස්කෑන් කිරීමෙන් කළ හැකිය.'
-  },
-  'fees': {
-    keys: ['fees', 'salli', 'payment', 'mudal', 'pay', 'මුදල්', 'සල්ලි', 'ගාස්තු'],
-    en: 'Fees management is available under the Finance section. You can track paid and pending registrations.',
-    si: 'මුදල් ගෙවීම් සහ ගාස්තු පිළිබඳ විස්තර "Finance" අංශයෙන් බැලිය හැකිය.'
-  },
-  'qr': {
-    keys: ['qr', 'qr code', 'q r', 'code', 'ක්‍යූ ආර්'],
-    en: 'Each student is assigned a unique QR code which can be generated and downloaded from their profile.',
-    si: 'සෑම සිසුවෙකුටම අනන්‍ය වූ QR කේතයක් ඇති අතර එය ඔවුන්ගේ profile එකෙන් බාගත කළ හැකිය.'
-  },
-  'contact': {
-    keys: ['contact', 'support', 'help', 'kauru hari', 'phone', 'number', 'උදව්', 'සපෝර්ට්'],
-    en: 'You can contact support via WhatsApp at +94 70 283 8364 or email sejanrandinu01@gmail.com.',
-    si: 'ඔබට සහාය සඳහා +94 70 283 8364 අංකයට WhatsApp පණිවිඩයක් හෝ sejanrandinu01@gmail.com වෙත ඊමේල් එකක් එවිය හැකිය.'
-  },
-  'welcome': {
-    keys: ['hi', 'hello', 'kohomada', 'haloo', 'subha dawasak', 'හායි', 'කොහොමද'],
-    en: 'Hello! How can I assist you with ClassMaster today?',
-    si: 'ආයුබෝවන්! අද මම ඔබට උදව් කරන්නේ කෙසේද?'
+const handleChipClick = (chip) => {
+  input.value = chip.query
+  sendMessage()
+}
+
+const executeAction = (action) => {
+  if (action.type === 'route') {
+    router.push(action.url)
+    isOpen.value = false
+  } else if (action.type === 'link') {
+    window.open(action.url, '_blank')
+  }
+}
+
+const processAIResponse = (userMsg) => {
+  const query = userMsg.toLowerCase()
+
+  if (query.includes('promo') || query.includes('discount') || query.includes('voucher') || query.includes('ලබාගත')) {
+    return {
+      text: `🎟️ **ClassMaster Promo Codes & Discounts**:\n\n• **WELCOME20**: Get 20% OFF on any Package!\n• **ANNUAL50**: Get 50% OFF on Annual Subscriptions!\n• **SUPERDEAL**: LKR 2,000 Flat OFF!\n\nYou can enter these promo codes directly on our Pricing & Subscriptions page to apply discounts.`,
+      action: { label: 'Go to Pricing & Apply Promo', type: 'route', url: '/dashboard/pricing' }
+    }
+  }
+
+  if (query.includes('price') || query.includes('pack') || query.includes('plan') || query.includes('ganan') || query.includes('mila') || query.includes('මිල')) {
+    return {
+      text: `💳 **ClassMaster 4 Tiered Packages**:\n\n1. **Starter Pack**: LKR 1,500/mo (50 Students, 2 Classes, 1 Staff)\n2. **Standard Pack**: LKR 3,500/mo (250 Students, 10 Classes, Tutes & Exams)\n3. **Pro Pack**: LKR 7,500/mo (1,000 Students, SMS Gateway & Roles)\n4. **Enterprise Pack**: LKR 15,000/mo (Unlimited Scale & Custom Card Branding)\n\n🎁 Save 20% on Annual billing, or choose a **Lifetime Plan**!`,
+      action: { label: 'View All Pricing Plans', type: 'route', url: '/dashboard/pricing' }
+    }
+  }
+
+  if (query.includes('lifetime') || query.includes('annual') || query.includes('year') || query.includes('එක්වරක්')) {
+    return {
+      text: `♾️ **Annual & Lifetime Pricing Options**:\n\n• **Monthly**: Pay month-by-month as you grow.\n• **Annually**: Save 20% discount (Get ~2 months free every year!).\n• **Lifetime (One-Time)**: Pay once and use forever without monthly renewal fees!\n\nCheck out the toggle on our Pricing page.`,
+      action: { label: 'Explore Lifetime & Annual Plans', type: 'route', url: '/dashboard/pricing' }
+    }
+  }
+
+  if (query.includes('student') || query.includes('lamayi') || query.includes('shishya') || query.includes('සිසුන්')) {
+    return {
+      text: `👨‍🎓 **Student Management**:\n\nYou can add students, view active & inactive records, assign subjects, generate individual QR code ID cards, and record payments in the Students section.`,
+      action: { label: 'Open Students Management', type: 'route', url: '/dashboard/students' }
+    }
+  }
+
+  if (query.includes('attendance') || query.includes('paminiima') || query.includes('qr') || query.includes('පැමිණීම')) {
+    return {
+      text: `📸 **Attendance & QR Scanning**:\n\n• Scan student QR cards instantly using the camera scanner.\n• Mark manual attendance class by class.\n• View historical attendance logs & generate monthly reports.`,
+      action: { label: 'Open QR Attendance Scanner', type: 'route', url: '/dashboard/scan-qr' }
+    }
+  }
+
+  if (query.includes('sms') || query.includes('message') || query.includes('whatsapp') || query.includes('පණිවිඩ')) {
+    return {
+      text: `📱 **SMS & Messaging Gateway**:\n\nSend bulk automated class reminders, fee payment receipts, exam result alerts, and custom SMS notifications to students and parents!`,
+      action: { label: 'Configure Messaging', type: 'route', url: '/dashboard/messages' }
+    }
+  }
+
+  if (query.includes('contact') || query.includes('support') || query.includes('help') || query.includes('උදව්')) {
+    return {
+      text: `📞 **Customer Support**:\n\nOur team is available 24/7 on WhatsApp at **+94 70 283 8364** or email **sejanrandinu01@gmail.com**.`,
+      action: { label: 'Contact WhatsApp Support', type: 'link', url: 'https://wa.me/94702838364' }
+    }
+  }
+
+  return {
+    text: `Subha Dawasak! (ආයුබෝවන්!) I am here to assist you with ClassMaster management, packages, promo codes, QR scanning, and attendance. How can I help you right now?`
   }
 }
 
@@ -151,34 +231,13 @@ const sendMessage = async () => {
   scrollToBottom()
 
   isTyping.value = true
-  
-  // Simulate AI delay
+
   setTimeout(() => {
-    let aiResponse = 'That is a great question! For specific technical issues, please contact our support team. (ඔබට අවශ්‍ය සහය සඳහා කරුණාකර අපගේ කණ්ඩායම අමතන්න.)'
-    const lowerMsg = userMsg.toLowerCase()
-    
-    // Check for specific keywords first by iterating through categories
-    let matchedCategory = null
-    for (const category in responses) {
-      if (responses[category].keys.some(key => lowerMsg.includes(key))) {
-        matchedCategory = category
-        break
-      }
-    }
-
-    if (matchedCategory) {
-      const resp = responses[matchedCategory]
-      // Determine if the input looks like Sinhala or Singlish
-      const isSinhala = resp.keys.some(key => isNaN(key) && lowerMsg.includes(key) && !/^[a-zA-Z0-9\s]*$/.test(key)) || 
-                        ['salli', 'lamayi', 'kohomada', 'register', 'wenne'].some(k => lowerMsg.includes(k))
-      
-      aiResponse = isSinhala ? `${resp.si} (${resp.en})` : resp.en
-    }
-
-    messages.value.push({ role: 'ai', text: aiResponse })
+    const aiResp = processAIResponse(userMsg)
+    messages.value.push({ role: 'ai', text: aiResp.text, action: aiResp.action })
     isTyping.value = false
     scrollToBottom()
-  }, 1000)
+  }, 600)
 }
 </script>
 
@@ -202,8 +261,8 @@ const sendMessage = async () => {
   position: absolute;
   bottom: 80px;
   right: 0;
-  width: 350px;
-  height: 500px;
+  width: 380px;
+  height: 520px;
   border-radius: 16px;
   display: flex;
   flex-direction: column;
@@ -221,8 +280,8 @@ const sendMessage = async () => {
 
 @media (max-width: 600px) {
   .chatbot-window {
-    width: calc(100vw - 48px);
-    height: 400px;
+    width: calc(100vw - 32px);
+    height: 440px;
   }
 }
 </style>

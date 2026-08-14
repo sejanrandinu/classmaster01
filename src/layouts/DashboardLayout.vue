@@ -169,6 +169,20 @@
 
                 <q-item-label header class="text-uppercase text-xs text-weight-bold letter-spacing-wide q-mt-md q-mb-sm">{{ t.finance }}</q-item-label>
 
+                <q-item clickable v-ripple to="/dashboard/pricing" active-class="bg-primary text-white">
+                    <q-item-section avatar>
+                        <q-icon name="card_membership" />
+                    </q-item-section>
+                    <q-item-section class="text-weight-medium">
+                        {{ appStore.language === 'English' ? 'Packages & Pricing' : 'පැකේජ සහ මිල ගණන්' }}
+                    </q-item-section>
+                    <q-item-section side v-if="subStore.currentPackage">
+                        <q-badge color="indigo" text-color="white" rounded class="text-weight-bold">
+                            {{ subStore.currentPackage.name.split(' ')[0] }}
+                        </q-badge>
+                    </q-item-section>
+                </q-item>
+
                 <q-item clickable v-ripple to="/dashboard/fees" active-class="bg-primary text-white">
                     <q-item-section avatar>
                         <q-icon name="payments" />
@@ -215,6 +229,13 @@
 
                 <template v-if="isSuperAdmin">
                     <q-item-label header class="text-uppercase text-xs text-weight-bold letter-spacing-wide q-mt-md q-mb-sm">{{ t.superAdmin }}</q-item-label>
+
+                    <q-item clickable v-ripple to="/dashboard/promo-codes" active-class="bg-primary text-white">
+                        <q-item-section avatar>
+                            <q-icon name="local_offer" />
+                        </q-item-section>
+                        <q-item-section class="text-weight-medium">Promo Codes</q-item-section>
+                    </q-item>
 
                     <q-item clickable v-ripple to="/dashboard/approvals" active-class="bg-primary text-white">
                         <q-item-section avatar>
@@ -321,6 +342,7 @@ import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { auth, client } from 'src/api'
 import { useAppStore } from 'src/store/app'
+import { useSubscriptionStore } from 'src/store/subscription'
 import layoutTranslations from 'src/i18n/layout'
 import ChatbotComponent from 'src/components/ChatbotComponent.vue'
 import ClassReminder from 'src/components/ClassReminder.vue'
@@ -328,6 +350,7 @@ import PaymentDialog from 'src/components/PaymentDialog.vue'
 import { notificationService } from 'src/utils/notifications'
 
 const appStore = useAppStore()
+const subStore = useSubscriptionStore()
 const t = computed(() => layoutTranslations[appStore.language])
 
 const leftDrawerOpen = ref(false)
@@ -378,6 +401,7 @@ const whatsappLoading = ref(false)
 
 onMounted(async () => {
     await fetchProfile()
+    await subStore.syncSubscription()
     if (isSuperAdmin.value) {
         fetchPendingCount()
     }

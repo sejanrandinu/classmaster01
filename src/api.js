@@ -225,3 +225,31 @@ export const storage = {
         return { url: data.secure_url };
     }
 };
+
+export const packages = {
+    async getAll() {
+        return await client.get('packages');
+    },
+    async validatePromoCode(code, packageId, billingCycle) {
+        return await client.post('promo-codes/validate', { code, package_id: packageId, billing_cycle: billingCycle });
+    },
+    async subscribe(packageId, billingCycle, promoCode) {
+        return await client.post('packages/subscribe', { package_id: packageId, billing_cycle: billingCycle, promo_code: promoCode });
+    }
+};
+
+export const promoCodes = {
+    async getAll() {
+        return await client.get('promo-codes');
+    },
+    async create(data) {
+        return await client.post('promo-codes', data);
+    },
+    async update(id, data) {
+        return await client.put(`promo-codes/${id}`, data);
+    },
+    async delete(id) {
+        return await client.delete(`promo-codes/${id}`);
+    }
+};
+
