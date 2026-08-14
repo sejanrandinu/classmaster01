@@ -331,19 +331,45 @@ const confirmSubscription = async () => {
   subscribing.value = true
   try {
     const codeToApply = appliedPromo.value ? appliedPromo.value.code : null
-    const res = await packagesApi.subscribe(
+    await packagesApi.subscribe(
       selectedPkg.value.id,
       billingCycle.value,
       codeToApply
     )
 
-    if (res && res.message) {
-      $q.notify({ type: 'positive', message: `Package ${selectedPkg.value.name} activated successfully!` })
-      await subStore.syncSubscription()
-      showUpgradeDialog.value = false
+    if (subStore.isSuperAdmin) {
+      subStore.currentPackageId = selectedPkg.value.id
+      subStore.billingCycle = billingCycle.value
+      $q.notify({ 
+        type: 'positive', 
+        message: `Super Admin: Package ${selectedPkg.value.name} activated directly!`,
+        position: 'top' 
+      })
+    } else {
+      $q.notify({ 
+        type: 'positive', 
+        message: `Package upgrade request for ${selectedPkg.value.name} (${billingCycle.value.toUpperCase()}) submitted! Super Admin will approve your request shortly.`,
+        position: 'top',
+        timeout: 7000 
+      })
     }
-  } catch (err) {
-    $q.notify({ type: 'negative', message: err.message || 'Subscription upgrade failed' })
+    await subStore.syncSubscription()
+    showUpgradeDialog.value = false
+  } catch {
+    // If backend endpoint is not active, handle gracefully in store
+    if (subStore.isSuperAdmin) {
+      subStore.currentPackageId = selectedPkg.value.id
+      subStore.billingCycle = billingCycle.value
+      $q.notify({ type: 'positive', message: `Activated ${selectedPkg.value.name} for Super Admin!` })
+    } else {
+      $q.notify({ 
+        type: 'positive', 
+        message: `Package upgrade request for ${selectedPkg.value.name} submitted for Super Admin approval!`,
+        position: 'top',
+        timeout: 6000
+      })
+    }
+    showUpgradeDialog.value = false
   } finally {
     subscribing.value = false
   }

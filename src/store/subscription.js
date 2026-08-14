@@ -21,7 +21,7 @@ const DEFAULT_PACKAGES = [
       'Attendance Marking',
       'Student QR Scanner'
     ],
-    restricted_features: ['tutes', 'exams', 'payments', 'sms', 'staff', 'roles', 'discipline', 'pairing', 'branding']
+    restricted_features: ['tutes', 'exams', 'payments', 'sms', 'staff', 'roles', 'discipline', 'pairing', 'student-portal', 'branding']
   },
   {
     id: 'standard',
@@ -42,7 +42,7 @@ const DEFAULT_PACKAGES = [
       'Fees & Payment Collection',
       'Receipt Generation & Printing'
     ],
-    restricted_features: ['sms', 'staff', 'roles', 'discipline', 'pairing', 'branding']
+    restricted_features: ['sms', 'staff', 'roles', 'discipline', 'pairing', 'student-portal', 'branding']
   },
   {
     id: 'pro',
@@ -58,11 +58,11 @@ const DEFAULT_PACKAGES = [
       'Up to 30 Active Classes',
       'Up to 10 Staff Members',
       'Everything in Standard',
+      'Student Portal Access',
       'SMS Gateway & Direct Messaging',
       'Staff Management & Custom Roles',
       'Student Discipline Records',
-      'Student Pairing Engine',
-      'Exam Analytics & Certificates'
+      'Student Pairing Engine'
     ],
     restricted_features: ['branding']
   },
@@ -80,6 +80,7 @@ const DEFAULT_PACKAGES = [
       'Unlimited Classes & Tutors',
       'Unlimited Staff Members',
       'Everything in Pro',
+      'Student Portal Access',
       'Priority 24/7 WhatsApp Support',
       'Custom Card Branding & Themes',
       'Bulk CSV/Excel Data Exports',
@@ -90,15 +91,34 @@ const DEFAULT_PACKAGES = [
 ]
 
 export const useSubscriptionStore = defineStore('subscription', {
-  state: () => ({
-    currentPackageId: 'starter',
-    billingCycle: 'monthly',
-    subscriptionExpiresAt: null,
-    appliedPromoCode: null,
-    packagesList: DEFAULT_PACKAGES,
-    isSuperAdmin: false,
-    userRole: 'pending'
-  }),
+  state: () => {
+    let savedPrices = {}
+    try {
+      const raw = localStorage.getItem('cm_custom_package_prices')
+      if (raw) savedPrices = JSON.parse(raw)
+    } catch (e) {
+      console.warn('Failed to parse custom package prices:', e)
+    }
+
+    const mergedPackages = DEFAULT_PACKAGES.map(pkg => {
+      if (savedPrices[pkg.id]) {
+        return { ...pkg, prices: { ...pkg.prices, ...savedPrices[pkg.id] } }
+      }
+      return pkg
+    })
+
+    return {
+      currentPackageId: 'starter',
+      billingCycle: 'monthly',
+      subscriptionExpiresAt: null,
+      appliedPromoCode: null,
+      customPrices: savedPrices,
+      packagesList: mergedPackages,
+      isSuperAdmin: false,
+      userRole: 'pending',
+      pendingUpgradeRequest: null
+    }
+  },
 
   getters: {
     currentPackage(state) {
@@ -146,11 +166,41 @@ export const useSubscriptionStore = defineStore('subscription', {
       try {
         const pkgs = await packagesApi.getAll()
         if (pkgs && Array.isArray(pkgs) && pkgs.length > 0) {
-          this.packagesList = pkgs
+          // Merge custom prices over fetched packages if any
+          this.packagesList = pkgs.map(pkg => {
+            if (this.customPrices[pkg.id]) {
+              return { ...pkg, prices: { ...pkg.prices, ...this.customPrices[pkg.id] } }
+            }
+            return pkg
+          })
         }
       } catch (e) {
         console.error('Fetch packages error:', e)
       }
+    },
+
+    updatePackagePrice(packageId, monthly, annual, lifetime) {
+      if (!this.customPrices[packageId]) {
+        this.customPrices[packageId] = {}
+      }
+      if (monthly !== undefined && monthly !== null) this.customPrices[packageId].monthly = Number(monthly)
+      if (annual !== undefined && annual !== null) this.customPrices[packageId].annual = Number(annual)
+      if (lifetime !== undefined && lifetime !== null) this.customPrices[packageId].lifetime = Number(lifetime)
+
+      localStorage.setItem('cm_custom_package_prices', JSON.stringify(this.customPrices))
+
+      this.packagesList = this.packagesList.map(pkg => {
+        if (pkg.id === packageId) {
+          return {
+            ...pkg,
+            prices: {
+              ...pkg.prices,
+              ...this.customPrices[packageId]
+            }
+          }
+        }
+        return pkg
+      })
     },
 
     hasFeature(featureKey) {

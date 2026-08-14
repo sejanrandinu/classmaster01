@@ -354,9 +354,11 @@ import { client, tutes, studentTutes } from 'src/api'
 import QrcodeVue from 'qrcode.vue'
 import html2canvas from 'html2canvas'
 import { useAppStore } from 'src/store/app'
+import { useSubscriptionStore } from 'src/store/subscription'
 
 const $q = useQuasar()
 const appStore = useAppStore()
+const subStore = useSubscriptionStore()
 const filter = ref('')
 const showDialog = ref(false)
 const isEdit = ref(false)
@@ -615,6 +617,16 @@ const downloadCard = async () => {
 }
 
 const openAddDialog = () => {
+    if (!subStore.canAddStudent(rows.value.length)) {
+        $q.notify({
+            type: 'negative',
+            icon: 'lock',
+            message: `Student limit reached for your ${subStore.currentPackage.name} (Max ${subStore.studentLimit} students). Please upgrade your plan!`,
+            actions: [{ label: 'Upgrade', color: 'yellow', handler: () => $q.dialog({ title: 'Upgrade Required', message: 'Go to Packages & Pricing to upgrade your plan.', ok: { label: 'Open Pricing', color: 'indigo' } }).onOk(() => {}) }],
+            timeout: 6000
+        })
+        return
+    }
     isEdit.value = false
     const nextId = 'ST-2026' + Math.floor(Math.random() * 10000)
     form.value = { id: null, student_id: nextId, name: '', school: '', grade: '', contact: '', status: 'Active', photo_url: '', subjects: [] }

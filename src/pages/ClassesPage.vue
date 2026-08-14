@@ -612,9 +612,11 @@ import { ref, onMounted, computed } from 'vue'
 import { useQuasar } from 'quasar'
 import { client } from 'src/api'
 import { useAppStore } from 'src/store/app'
+import { useSubscriptionStore } from 'src/store/subscription'
 
 const $q = useQuasar()
 const appStore = useAppStore()
+const subStore = useSubscriptionStore()
 const rows = ref([])
 const loading = ref(false)
 const filterType = ref('all')
@@ -878,6 +880,15 @@ const fetchClasses = async () => {
 }
 
 const openAddDialog = () => {
+    if (!subStore.canAddClass(rows.value.length)) {
+        $q.notify({
+            type: 'negative',
+            icon: 'lock',
+            message: `Class limit reached for your ${subStore.currentPackage.name} (Max ${subStore.classLimit} classes). Please upgrade your plan!`,
+            timeout: 6000
+        })
+        return
+    }
     isEdit.value = false
     form.value = { 
         id: null, 

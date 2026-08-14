@@ -213,9 +213,11 @@ import { ref, onMounted } from 'vue'
 import { useQuasar } from 'quasar'
 import { client } from 'src/api'
 import { useAppStore } from 'src/store/app'
+import { useSubscriptionStore } from 'src/store/subscription'
 
 const $q = useQuasar()
 const appStore = useAppStore()
+const subStore = useSubscriptionStore()
 const filter = ref('')
 const showDialog = ref(false)
 const showPayDialog = ref(false)
@@ -344,6 +346,15 @@ const fetchStaff = async () => {
 }
 
 const openAddDialog = () => {
+    if (!subStore.canAddStaff(rows.value.length)) {
+        $q.notify({
+            type: 'negative',
+            icon: 'lock',
+            message: `Staff limit reached for your ${subStore.currentPackage.name} (Max ${subStore.staffLimit} staff). Please upgrade to Pro or Enterprise!`,
+            timeout: 6000
+        })
+        return
+    }
     isEdit.value = false
     form.value = { id: null, name: '', role: '', whatsapp_number: '', salary: '' }
     showDialog.value = true

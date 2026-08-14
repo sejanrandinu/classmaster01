@@ -1,5 +1,19 @@
 <template>
   <q-page class="portal-root q-pa-md">
+
+    <!-- ============ UPGRADE BANNER (Starter / Standard) ============ -->
+    <div v-if="!portalAllowed" class="flex flex-center" style="min-height:80vh">
+      <q-card class="q-pa-xl text-center rounded-borders shadow-10" style="max-width:520px;background:linear-gradient(135deg,#0d124d,#1a237e);color:#fff">
+        <q-icon name="lock" size="64px" color="yellow" class="q-mb-md" />
+        <div class="text-h5 text-weight-bold q-mb-sm">Student Portal — Pro Feature</div>
+        <p class="text-blue-2 q-mb-lg">The Student Portal is available on <strong>Pro</strong> and <strong>Enterprise</strong> packages only. Upgrade your plan to let students view their marks, attendance, certificates and download tutes.</p>
+        <q-btn unelevated color="yellow-8" text-color="dark" label="View Pricing & Upgrade" icon="rocket_launch" no-caps class="q-px-xl" to="/dashboard/pricing" />
+        <div class="q-mt-md text-caption text-blue-3">Current plan: {{ subStore.currentPackage?.name }}</div>
+      </q-card>
+    </div>
+
+    <!-- ============ FULL PORTAL (Pro / Enterprise) ============ -->
+    <template v-if="portalAllowed">
     <div class="portal-container no-print">
       <!-- Header Branding -->
       <div class="row items-center justify-between q-mb-xl">
@@ -932,6 +946,7 @@
         </q-card-section>
       </q-card>
     </q-dialog>
+    </template><!-- end v-if="portalAllowed" -->
   </q-page>
 </template>
 
@@ -941,14 +956,18 @@ import { useQuasar } from 'quasar'
 import { useRoute } from 'vue-router'
 import { client } from 'src/api'
 import { useAppStore } from 'src/store/app'
+import { useSubscriptionStore } from 'src/store/subscription'
 import VueApexCharts from 'vue3-apexcharts'
 import html2pdf from 'html2pdf.js'
 
 const apexchart = VueApexCharts
 
 const appStore = useAppStore()
+const subStore = useSubscriptionStore()
 const $q = useQuasar()
 const route = useRoute()
+
+const portalAllowed = computed(() => subStore.hasFeature('student-portal'))
 const studentId = ref('')
 const loading = ref(false)
 const studentData = ref(null)

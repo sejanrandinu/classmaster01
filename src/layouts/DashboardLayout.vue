@@ -146,25 +146,34 @@
                     <q-item-section class="text-weight-medium">{{ t.history }}</q-item-section>
                 </q-item>
 
-                <q-item clickable v-ripple to="/dashboard/tutes" active-class="bg-primary text-white">
+                <q-item clickable v-ripple @click="navigateProtected('/dashboard/tutes', 'tutes')" active-class="bg-primary text-white">
                     <q-item-section avatar>
                         <q-icon name="description" />
                     </q-item-section>
                     <q-item-section class="text-weight-medium">{{ t.tutes }}</q-item-section>
+                    <q-item-section side v-if="!subStore.hasFeature('tutes')">
+                        <q-icon name="lock" color="orange" size="16px" />
+                    </q-item-section>
                 </q-item>
 
-                <q-item clickable v-ripple to="/dashboard/exams" active-class="bg-primary text-white">
+                <q-item clickable v-ripple @click="navigateProtected('/dashboard/exams', 'exams')" active-class="bg-primary text-white">
                     <q-item-section avatar>
                         <q-icon name="assignment" />
                     </q-item-section>
                     <q-item-section class="text-weight-medium">{{ t.exams }}</q-item-section>
+                    <q-item-section side v-if="!subStore.hasFeature('exams')">
+                        <q-icon name="lock" color="orange" size="16px" />
+                    </q-item-section>
                 </q-item>
 
-                <q-item clickable v-ripple to="/dashboard/messages" active-class="bg-primary text-white">
+                <q-item clickable v-ripple @click="navigateProtected('/dashboard/messages', 'sms')" active-class="bg-primary text-white">
                     <q-item-section avatar>
                         <q-icon name="send" />
                     </q-item-section>
                     <q-item-section class="text-weight-medium">{{ t.messages }}</q-item-section>
+                    <q-item-section side v-if="!subStore.hasFeature('sms')">
+                        <q-icon name="lock" color="orange" size="16px" />
+                    </q-item-section>
                 </q-item>
 
                 <q-item-label header class="text-uppercase text-xs text-weight-bold letter-spacing-wide q-mt-md q-mb-sm">{{ t.finance }}</q-item-label>
@@ -183,11 +192,14 @@
                     </q-item-section>
                 </q-item>
 
-                <q-item clickable v-ripple to="/dashboard/fees" active-class="bg-primary text-white">
+                <q-item clickable v-ripple @click="navigateProtected('/dashboard/fees', 'payments')" active-class="bg-primary text-white">
                     <q-item-section avatar>
                         <q-icon name="payments" />
                     </q-item-section>
                     <q-item-section class="text-weight-medium">{{ t.collectFees }}</q-item-section>
+                    <q-item-section side v-if="!subStore.hasFeature('payments')">
+                        <q-icon name="lock" color="orange" size="16px" />
+                    </q-item-section>
                 </q-item>
 
                 <q-item clickable v-ripple to="/dashboard/scan-qr" active-class="bg-primary text-white">
@@ -199,32 +211,44 @@
 
                 <q-item-label header class="text-uppercase text-xs text-weight-bold letter-spacing-wide q-mt-md q-mb-sm">{{ t.administration }}</q-item-label>
 
-                <q-item clickable v-ripple to="/dashboard/staff" active-class="bg-primary text-white">
+                <q-item clickable v-ripple @click="navigateProtected('/dashboard/staff', 'staff')" active-class="bg-primary text-white">
                     <q-item-section avatar>
                         <q-icon name="badge" />
                     </q-item-section>
                     <q-item-section class="text-weight-medium">{{ t.staffMembers }}</q-item-section>
+                    <q-item-section side v-if="!subStore.hasFeature('staff')">
+                        <q-icon name="lock" color="orange" size="16px" />
+                    </q-item-section>
                 </q-item>
 
-                <q-item clickable v-ripple to="/dashboard/roles" active-class="bg-primary text-white">
+                <q-item clickable v-ripple @click="navigateProtected('/dashboard/roles', 'roles')" active-class="bg-primary text-white">
                     <q-item-section avatar>
                         <q-icon name="admin_panel_settings" />
                     </q-item-section>
                     <q-item-section class="text-weight-medium">{{ t.staffRoles }}</q-item-section>
+                    <q-item-section side v-if="!subStore.hasFeature('roles')">
+                        <q-icon name="lock" color="orange" size="16px" />
+                    </q-item-section>
                 </q-item>
 
-                <q-item clickable v-ripple to="/dashboard/discipline" active-class="bg-primary text-white">
+                <q-item clickable v-ripple @click="navigateProtected('/dashboard/discipline', 'discipline')" active-class="bg-primary text-white">
                     <q-item-section avatar>
                         <q-icon name="gavel" />
                     </q-item-section>
                     <q-item-section class="text-weight-medium">{{ t.discipline }}</q-item-section>
+                    <q-item-section side v-if="!subStore.hasFeature('discipline')">
+                        <q-icon name="lock" color="orange" size="16px" />
+                    </q-item-section>
                 </q-item>
 
-                <q-item clickable v-ripple to="/dashboard/pairing" active-class="bg-primary text-white">
+                <q-item clickable v-ripple @click="navigateProtected('/dashboard/pairing', 'pairing')" active-class="bg-primary text-white">
                     <q-item-section avatar>
                         <q-icon name="hub" />
                     </q-item-section>
                     <q-item-section class="text-weight-medium">{{ t.pairing }}</q-item-section>
+                    <q-item-section side v-if="!subStore.hasFeature('pairing')">
+                        <q-icon name="lock" color="orange" size="16px" />
+                    </q-item-section>
                 </q-item>
 
                 <template v-if="isSuperAdmin">
@@ -498,6 +522,21 @@ const toggleLeftDrawer = () => { leftDrawerOpen.value = !leftDrawerOpen.value }
 const handleProfile = () => router.push('/dashboard/profile')
 const handleSettings = () => router.push('/dashboard/settings')
 const handleHelp = () => router.push('/dashboard/help-support')
+
+const navigateProtected = (path, featureKey) => {
+  if (featureKey && !subStore.hasFeature(featureKey)) {
+    $q.dialog({
+      title: 'Upgrade Package Required',
+      message: `The "${featureKey.toUpperCase()}" module is locked on your current ${subStore.currentPackage.name}. Please upgrade to Pro or Enterprise Pack to access it!`,
+      ok: { label: 'View Pricing & Upgrade', color: 'indigo' },
+      cancel: true
+    }).onOk(() => {
+      router.push('/dashboard/pricing')
+    })
+    return
+  }
+  router.push(path)
+}
 
 const handleSearch = () => {
     if (!search.value) return
