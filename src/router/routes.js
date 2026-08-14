@@ -4,8 +4,8 @@ const routes = [
     component: () => import('layouts/MainLayout.vue'),
     children: [
       { path: '', component: () => import('pages/IndexPage.vue') },
-      { path: 'login', component: () => import('pages/LoginPage.vue') },
-      { path: 'register', component: () => import('pages/RegisterPage.vue') },
+      { path: 'login', component: () => import('pages/IndexPage.vue'), props: { initialTab: 'login' } },
+      { path: 'register', component: () => import('pages/IndexPage.vue'), props: { initialTab: 'register' } },
       { path: 'privacy-policy', component: () => import('pages/PrivacyPolicyPage.vue') },
       { path: 'terms-of-service', component: () => import('pages/TermsOfServicePage.vue') },
       { path: 'about-us', component: () => import('pages/AboutUsPage.vue') },

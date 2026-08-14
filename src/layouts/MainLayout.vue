@@ -14,13 +14,14 @@
         <q-space />
 
         <div class="q-gutter-sm row items-center gt-sm">
-          <q-btn flat rounded label="Home" to="/" class="text-white text-weight-medium" no-caps />
-          <q-btn flat rounded label="Features" href="/#features" class="text-white text-weight-medium" no-caps />
+          <q-btn flat rounded label="Home" @click="scrollToSection('hero')" class="text-white text-weight-medium" no-caps />
+          <q-btn flat rounded label="Features" @click="scrollToSection('features')" class="text-white text-weight-medium" no-caps />
+          <q-btn flat rounded label="Pricing" @click="scrollToSection('pricing')" class="text-white text-weight-medium" no-caps />
           <q-btn flat rounded label="Student Portal" to="/student-portal" class="text-indigo-2 text-weight-bold" no-caps icon="school" />
             
           <template v-if="!user">
-             <q-btn flat rounded label="Login" to="/login" class="text-white text-weight-medium" no-caps />
-             <q-btn rounded color="white" text-color="black" label="Get Started" to="/register" class="q-ml-md text-weight-bold q-px-lg" no-caps />
+             <q-btn flat rounded label="Login" @click="scrollToAuth('login')" class="text-white text-weight-medium" no-caps />
+             <q-btn rounded color="white" text-color="black" label="Get Started" @click="scrollToAuth('register')" class="q-ml-md text-weight-bold q-px-lg" no-caps />
           </template>
             
           <template v-else>
@@ -134,6 +135,29 @@ onMounted(async () => {
 
 const openWhatsapp = () => {
   window.open('https://wa.me/94702838364', '_blank')
+}
+
+const scrollToSection = (sectionId) => {
+  if (router.currentRoute.value.path !== '/') {
+    router.push({ path: '/', hash: `#${sectionId}` })
+  } else {
+    const el = document.getElementById(sectionId)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth' })
+    }
+  }
+}
+
+const scrollToAuth = (tab = 'register') => {
+  if (router.currentRoute.value.path !== '/') {
+    router.push({ path: '/', query: { tab }, hash: '#auth-section' })
+  } else {
+    window.dispatchEvent(new CustomEvent('switch-auth-tab', { detail: tab }))
+    const el = document.getElementById('auth-section')
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth' })
+    }
+  }
 }
 </script>
 
