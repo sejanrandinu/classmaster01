@@ -2,18 +2,18 @@
   <q-page class="portal-root q-pa-md">
 
     <!-- ============ UPGRADE BANNER (Starter / Standard) ============ -->
-    <div v-if="!portalAllowed" class="flex flex-center" style="min-height:80vh">
+    <div v-if="!portalAllowed || isAccessRestricted" class="flex flex-center" style="min-height:80vh">
       <q-card class="q-pa-xl text-center rounded-borders shadow-10" style="max-width:520px;background:linear-gradient(135deg,#0d124d,#1a237e);color:#fff">
         <q-icon name="lock" size="64px" color="yellow" class="q-mb-md" />
-        <div class="text-h5 text-weight-bold q-mb-sm">Student Portal — Pro Feature</div>
-        <p class="text-blue-2 q-mb-lg">The Student Portal is available on <strong>Pro</strong> and <strong>Enterprise</strong> packages only. Upgrade your plan to let students view their marks, attendance, certificates and download tutes.</p>
+        <div class="text-h5 text-weight-bold q-mb-sm">Student Portal — Pro & Enterprise Feature</div>
+        <p class="text-blue-2 q-mb-lg">The Student Portal is available on <strong>Pro</strong> and <strong>Enterprise</strong> packages only. Please upgrade your institute plan to allow students access.</p>
         <q-btn unelevated color="yellow-8" text-color="dark" label="View Pricing & Upgrade" icon="rocket_launch" no-caps class="q-px-xl" to="/dashboard/pricing" />
         <div class="q-mt-md text-caption text-blue-3">Current plan: {{ subStore.currentPackage?.name }}</div>
       </q-card>
     </div>
 
     <!-- ============ FULL PORTAL (Pro / Enterprise) ============ -->
-    <template v-if="portalAllowed">
+    <template v-if="portalAllowed && !isAccessRestricted">
     <div class="portal-container no-print">
       <!-- Header Branding -->
       <div class="row items-center justify-between q-mb-xl">
@@ -968,6 +968,7 @@ const $q = useQuasar()
 const route = useRoute()
 
 const portalAllowed = computed(() => subStore.hasFeature('student-portal'))
+const isAccessRestricted = ref(false)
 const studentId = ref('')
 const loading = ref(false)
 const studentData = ref(null)
@@ -1111,6 +1112,9 @@ const fetchStudentStatus = async () => {
         classList.value = data.classes || []
 
     } catch (err) {
+        if (err.message && err.message.includes('Pro and Enterprise')) {
+            isAccessRestricted.value = true
+        }
         $q.notify({ 
             type: 'negative', 
             message: err.message || 'Network synchronization failed.',

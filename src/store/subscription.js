@@ -108,7 +108,7 @@ export const useSubscriptionStore = defineStore('subscription', {
     })
 
     return {
-      currentPackageId: 'starter',
+      currentPackageId: 'enterprise',
       billingCycle: 'monthly',
       subscriptionExpiresAt: null,
       appliedPromoCode: null,
@@ -122,7 +122,7 @@ export const useSubscriptionStore = defineStore('subscription', {
 
   getters: {
     currentPackage(state) {
-      if (state.isSuperAdmin) {
+      if (state.isSuperAdmin || state.userRole === 'trial') {
         return state.packagesList.find(p => p.id === 'enterprise') || DEFAULT_PACKAGES[3]
       }
       return state.packagesList.find(p => p.id === state.currentPackageId) || DEFAULT_PACKAGES[0]

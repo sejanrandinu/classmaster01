@@ -819,11 +819,11 @@ const onRegisterSubmit = async () => {
   regLoading.value = true
   
   try {
-    await auth.register(regEmail.value, regPassword.value, regWhatsapp.value, turnstileToken.value)
+    await auth.register(regEmail.value, regPassword.value, regWhatsapp.value, turnstileToken.value, selectedPackageId.value, activeBillingCycle.value)
 
     $q.notify({
       type: 'positive',
-      message: 'Registration successful! Welcome to ClassMaster.',
+      message: 'Registration successful! Your account is pending Super Admin approval.',
       position: 'top',
       timeout: 5000
     })

@@ -402,8 +402,7 @@ const isSuperAdmin = computed(() => {
 
 const isApproved = computed(() => {
     if (isSuperAdmin.value) return true
-    // Allow access if permanently approved OR if currently in active trial
-    return dbApproved.value || userRole.value === 'trial'
+    return !!dbApproved.value
 })
 
 const userDisplayName = computed(() => {

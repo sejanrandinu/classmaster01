@@ -89,67 +89,76 @@
                </template>
             </q-input>
 
-
-            <!-- Payment Instructions -->
-            <div class="q-mb-lg q-pa-lg rounded-borders" style="background: rgba(255,255,255,0.03); border: 2px solid rgba(255,255,255,0.1);">
-              <div class="row items-center q-mb-md">
-                <q-icon name="payments" color="yellow-6" size="24px" class="q-mr-sm" />
-                <div class="text-subtitle1 text-weight-bold text-white">Payment Information</div>
+            <!-- Package Selection Grid -->
+            <div class="q-mb-lg q-pa-md rounded-borders" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1);">
+              <div class="row items-center justify-between q-mb-sm">
+                <div class="row items-center">
+                  <q-icon name="stars" color="yellow-6" size="20px" class="q-mr-xs" />
+                  <span class="text-subtitle2 text-weight-bold text-white">Select Package</span>
+                </div>
+                <div class="row q-gutter-xs">
+                  <q-btn 
+                    dense 
+                    flat 
+                    no-caps 
+                    size="xs" 
+                    :color="activeBillingCycle === 'monthly' ? 'yellow-6' : 'grey-5'"
+                    label="Monthly" 
+                    @click="activeBillingCycle = 'monthly'" 
+                  />
+                  <q-btn 
+                    dense 
+                    flat 
+                    no-caps 
+                    size="xs" 
+                    :color="activeBillingCycle === 'annual' ? 'yellow-6' : 'grey-5'"
+                    label="Annual" 
+                    @click="activeBillingCycle = 'annual'" 
+                  />
+                  <q-btn 
+                    dense 
+                    flat 
+                    no-caps 
+                    size="xs" 
+                    :color="activeBillingCycle === 'lifetime' ? 'yellow-6' : 'grey-5'"
+                    label="Lifetime" 
+                    @click="activeBillingCycle = 'lifetime'" 
+                  />
+                </div>
               </div>
 
-              <div class="row q-col-gutter-md q-mb-md">
-                <div class="col-12">
-                  <div class="text-caption text-grey-5">Choose Your Payment Option:</div>
-                </div>
-                <!-- Lifetime -->
-                <div class="col-12">
-                  <div class="q-pa-md rounded-borders bg-indigo-10 border-indigo">
-                    <div class="text-caption text-indigo-3 text-uppercase text-weight-bold">Lifetime Deal</div>
-                    <div class="text-h5 text-weight-bold text-white">
-                      <span class="text-grey-6 text-strike q-mr-xs text-subtitle1">Rs. 140,000</span> Rs. 130,000
+              <!-- 4 Tier Selector Buttons -->
+              <div class="row q-col-gutter-xs q-mb-md">
+                <div v-for="pkg in packagesList" :key="pkg.id" class="col-6">
+                  <div 
+                    class="q-pa-xs rounded-borders text-center cursor-pointer transition-all border-grey"
+                    :class="selectedPackageId === pkg.id ? 'bg-indigo-10 border-indigo' : 'bg-grey-10'"
+                    @click="selectedPackageId = pkg.id"
+                  >
+                    <div class="text-caption text-weight-bold text-white" style="font-size: 0.75rem;">{{ pkg.name }}</div>
+                    <div class="text-subtitle2 text-weight-bolder text-yellow-5" style="font-size: 0.85rem;">
+                      LKR {{ getPackageDisplayPrice(pkg).toLocaleString() }}
+                    </div>
+                    <div class="text-caption text-grey-5" style="font-size: 0.65rem;">
+                      {{ activeBillingCycle === 'lifetime' ? 'Lifetime' : (activeBillingCycle === 'annual' ? '/yr' : '/mo') }}
                     </div>
                   </div>
                 </div>
-                <!-- OR -->
-                <div class="col-12 text-center">
-                  <q-badge color="grey-9" label="OR" class="q-pa-xs" />
-                </div>
-                <!-- Monthly -->
-                <div class="col-12">
-                  <div class="q-pa-md rounded-borders" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);">
-                    <div class="text-caption text-grey-5 text-uppercase text-weight-bold">Monthly Plan</div>
-                    <div class="text-h5 text-weight-bold text-yellow-6">Rs. 5,000 / month</div>
-                  </div>
-                </div>
-              </div>
-              
-              <div v-if="adminDetails" class="q-mb-md q-pa-md rounded-borders" style="background: linear-gradient(135deg, rgba(63, 81, 181, 0.2) 0%, rgba(33, 150, 243, 0.1) 100%); border: 1px solid rgba(255,255,255,0.2);">
-                <div class="text-caption text-indigo-3 q-mb-sm text-uppercase letter-spacing-widest">Send Payment To:</div>
-                <div class="row q-col-gutter-xs">
-                  <div class="col-12">
-                    <div class="text-body2 text-grey-4">Bank Name</div>
-                    <div class="text-subtitle1 text-weight-bold text-white">{{ adminDetails.bank_name || 'Loading...' }}</div>
-                  </div>
-                  <div class="col-12 q-mt-sm">
-                    <div class="text-body2 text-grey-4">Account Number</div>
-                    <div class="text-h6 text-weight-bold text-yellow-6">{{ adminDetails.account_number || 'Loading...' }}</div>
-                  </div>
-                  <div class="col-12 q-mt-sm">
-                    <div class="text-body2 text-grey-4">Account Holder</div>
-                    <div class="text-body1 text-weight-medium text-white">{{ adminDetails.account_holder_name || 'Loading...' }}</div>
-                  </div>
-                </div>
-              </div>
-              <div v-else class="q-pa-md text-center">
-                <q-spinner-dots color="indigo-4" size="2em" />
-                <div class="text-caption text-grey-5 q-mt-sm">Fetching bank details...</div>
               </div>
 
-              <div class="q-pa-sm rounded bg-indigo-10" style="border: 1px solid rgba(255,255,255,0.1);">
-                <div class="text-caption text-grey-3">
-                  <q-icon name="info" color="white" size="14px" class="q-mr-xs" />
-                  After transfer, send your receipt and email to 
-                  <span class="text-weight-bold text-white">0702838364</span> via WhatsApp.
+              <!-- Bank Details Info -->
+              <div class="q-pa-sm rounded-borders bg-black border-dark text-caption" style="border: 1px solid rgba(255,255,255,0.1);">
+                <div class="text-caption text-indigo-3 text-uppercase text-weight-bold q-mb-xs">Bank Transfer Details:</div>
+                <div class="row items-center justify-between text-grey-4">
+                  <span>Bank: <strong class="text-white">{{ adminDetails.bank_name }}</strong></span>
+                  <span>Acc: <strong class="text-yellow-5">{{ adminDetails.account_number }}</strong></span>
+                </div>
+                <div class="text-grey-4 q-mt-xs">
+                  Holder: <strong class="text-white">{{ adminDetails.account_holder_name }}</strong>
+                </div>
+                <div class="text-grey-4 q-mt-xs flex items-center">
+                  <q-icon name="info" color="yellow-6" size="14px" class="q-mr-xs" />
+                  Send slip & email to <strong>0702838364</strong> via WhatsApp.
                 </div>
               </div>
             </div>
@@ -182,16 +191,18 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { auth } from 'src/api'
 import VueTurnstile from 'vue-turnstile'
 import { useAppStore } from 'src/store/app'
+import { useSubscriptionStore } from 'src/store/subscription'
 
 const router = useRouter()
 const $q = useQuasar()
 const appStore = useAppStore()
+const subStore = useSubscriptionStore()
 
 const email = ref('')
 const password = ref('')
@@ -199,6 +210,20 @@ const confirmPassword = ref('')
 const whatsapp = ref('')
 const loading = ref(false)
 const turnstileToken = ref('')
+const selectedPackageId = ref('enterprise')
+const activeBillingCycle = ref('monthly')
+
+const packagesList = ref(subStore.packagesList)
+
+onMounted(async () => {
+  await subStore.fetchPackages()
+  packagesList.value = subStore.packagesList
+})
+
+const getPackageDisplayPrice = (pkg) => {
+  if (!pkg || !pkg.prices) return 0
+  return pkg.prices[activeBillingCycle.value] || pkg.prices.monthly
+}
 
 const adminDetails = ref({
   bank_name: 'Bank of Ceylon (BOC)',
@@ -219,16 +244,16 @@ const onSubmit = async () => {
   loading.value = true
   
   try {
-    await auth.register(email.value, password.value, whatsapp.value, turnstileToken.value)
+    await auth.register(email.value, password.value, whatsapp.value, turnstileToken.value, selectedPackageId.value, activeBillingCycle.value)
 
     $q.notify({
       type: 'positive',
-      message: 'Registration successful!',
+      message: 'Registration successful! Your account is pending Super Admin approval.',
       position: 'top',
       timeout: 5000
     })
     
-     router.push('/dashboard')
+    router.push('/dashboard')
   } catch (error) {
     $q.notify({
       type: 'negative',

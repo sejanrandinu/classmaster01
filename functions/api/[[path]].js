@@ -296,7 +296,7 @@ export async function onRequest(context) {
 
         // --- AUTH ---
         if (path === 'auth' && subPath === 'register' && method === 'POST') {
-            const { email, password, whatsapp, turnstileToken } = await request.json();
+            const { email, password, whatsapp, turnstileToken, package_id = 'enterprise', billing_cycle = 'monthly' } = await request.json();
 
             // Turnstile Validation
             const turnstileSecret = env.TURNSTILE_SECRET || '0x4AAAAAADHUUik0ac64rysfxgfCWL1Wmcg';
@@ -314,15 +314,16 @@ export async function onRequest(context) {
             const isSuperAdmin = email.trim().toLowerCase() === 'sejanrandinu01@gmail.com';
 
             // Set to 'trial' role with is_approved=0.
-            // They will be allowed access until trial ends.
+            // Default package for trial is Enterprise.
             const role = isSuperAdmin ? 'super-admin' : 'trial';
             const approved = isSuperAdmin ? 1 : 0;
+            const selectedPackageId = isSuperAdmin ? 'enterprise' : (package_id || 'enterprise');
 
             const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
             // Email verification removed by user request - set to 1 by default
-            await db.prepare("INSERT INTO profiles (id, email, password_hash, whatsapp_number, role, is_approved, is_email_verified, verification_token, trial_ends_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-                .bind(id, email, password_hash, whatsapp, role, approved, 1, null, trialEndsAt).run();
+            await db.prepare("INSERT INTO profiles (id, email, password_hash, whatsapp_number, role, is_approved, is_email_verified, verification_token, trial_ends_at, package_id, billing_cycle) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                .bind(id, email, password_hash, whatsapp, role, approved, 1, null, trialEndsAt, selectedPackageId, billing_cycle).run();
 
             const token = await signJWT({ id, email, role, is_email_verified: 1, trial_ends_at: trialEndsAt }, JWT_SECRET);
             return json({ message: "Registered", token, user: { id, email, role, is_email_verified: 1, trial_ends_at: trialEndsAt } });
@@ -392,6 +393,15 @@ export async function onRequest(context) {
 
                 const studentDbId = student.id;
                 const instituteId = student.user_id;
+
+                // Check institute package restriction for Student Portal (Pro or Enterprise required)
+                const instituteProfile = await db.prepare("SELECT email, package_id FROM profiles WHERE id = ?").bind(instituteId).first();
+                const isSuperAdminInstitute = instituteProfile?.email?.trim().toLowerCase() === 'sejanrandinu01@gmail.com';
+                const instPackage = instituteProfile?.package_id || 'starter';
+                if (!isSuperAdminInstitute && instPackage !== 'pro' && instPackage !== 'enterprise') {
+                    return json({ error: "Student Portal access is restricted to Pro and Enterprise package subscriptions." }, 403);
+                }
+
                 try { student.subjects = JSON.parse(student.subjects_json || '[]'); } catch { student.subjects = []; }
 
                 // Fetch tutor name matching student's grade and subjects
@@ -1412,14 +1422,28 @@ export async function onRequest(context) {
             if (payload.role !== 'super-admin') return json({ error: "Forbidden" }, 403);
 
             if (method === 'GET') {
-                const { results } = await db.prepare("SELECT id, email, whatsapp_number, role, is_approved, created_at FROM profiles ORDER BY created_at DESC").all();
+                const { results } = await db.prepare("SELECT id, email, whatsapp_number, role, is_approved, package_id, billing_cycle, subscription_expires_at, trial_ends_at, created_at FROM profiles ORDER BY created_at DESC").all();
                 return json(results || []);
             }
-            if (method === 'PUT' && subPath && pathParts[2] === 'approve') {
-                const { is_approved } = await request.json();
-                // Clear trial_ends_at when approved to make the user permanent
-                await db.prepare("UPDATE profiles SET is_approved = ?, role = ?, trial_ends_at = NULL WHERE id = ?").bind(is_approved ? 1 : 0, is_approved ? 'admin' : 'pending', subPath).run();
-                return json({ message: "Approved" });
+            if (method === 'PUT' && subPath) {
+                if (pathParts[2] === 'approve') {
+                    const { is_approved } = await request.json();
+                    await db.prepare("UPDATE profiles SET is_approved = ?, role = CASE WHEN ? = 1 THEN 'admin' ELSE 'pending' END, trial_ends_at = NULL WHERE id = ?").bind(is_approved ? 1 : 0, is_approved ? 1 : 0, subPath).run();
+                    return json({ message: "Approval status updated" });
+                } else {
+                    const body = await request.json();
+                    const fields = [];
+                    const values = [];
+                    if (body.package_id !== undefined) { fields.push("package_id = ?"); values.push(body.package_id); }
+                    if (body.billing_cycle !== undefined) { fields.push("billing_cycle = ?"); values.push(body.billing_cycle); }
+                    if (body.role !== undefined) { fields.push("role = ?"); values.push(body.role); }
+                    if (body.is_approved !== undefined) { fields.push("is_approved = ?"); values.push(body.is_approved ? 1 : 0); }
+                    if (fields.length > 0) {
+                        values.push(subPath);
+                        await db.prepare(`UPDATE profiles SET ${fields.join(', ')} WHERE id = ?`).bind(...values).run();
+                    }
+                    return json({ message: "Profile updated successfully" });
+                }
             }
             if (method === 'DELETE' && subPath) {
                 await db.prepare("DELETE FROM profiles WHERE id = ?").bind(subPath).run();
@@ -1928,8 +1952,11 @@ export async function onRequest(context) {
                 expiryDate = '2099-12-31T23:59:59.000Z';
             }
 
-            await db.prepare("UPDATE profiles SET package_id = ?, billing_cycle = ?, subscription_expires_at = ?, applied_promo_code = ?, is_approved = 1, role = CASE WHEN role = 'pending' OR role = 'trial' THEN 'admin' ELSE role END WHERE id = ?")
-                .bind(package_id, billing_cycle, expiryDate, appliedCode, userId).run();
+            const isSuperAdminUser = payload.email?.trim().toLowerCase() === 'sejanrandinu01@gmail.com';
+            const newApprovedStatus = isSuperAdminUser ? 1 : 0;
+
+            await db.prepare("UPDATE profiles SET package_id = ?, billing_cycle = ?, subscription_expires_at = ?, applied_promo_code = ?, is_approved = ?, role = CASE WHEN role = 'pending' OR role = 'trial' THEN 'admin' ELSE role END WHERE id = ?")
+                .bind(package_id, billing_cycle, expiryDate, appliedCode, newApprovedStatus, userId).run();
 
             return json({
                 message: "Subscription updated successfully",

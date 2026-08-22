@@ -203,14 +203,13 @@
           </q-card>
 
           <!-- Payment Details Box -->
-          <div class="bg-blue-1 text-blue-10 q-pa-md rounded-borders text-caption q-mb-md">
+          <div class="bg-indigo-1 text-indigo-10 q-pa-md rounded-borders text-caption q-mb-md">
             <div class="text-weight-bold text-body2 q-mb-xs">
               <q-icon name="account_balance" class="q-mr-xs" /> Bank Transfer Details / ගෙවීම් විස්තර:
             </div>
-            <div>Bank: <strong>Commercial Bank</strong></div>
-            <div>Account Name: <strong>ClassMaster Management / S. Randinu</strong></div>
-            <div>Account Number: <strong>800 912 4432</strong></div>
-            <div>Branch: <strong>Galle Super Branch</strong></div>
+            <div>Bank: <strong>Bank of Ceylon (BOC)</strong></div>
+            <div>Account Name: <strong>B.L. Ruwan Manjula</strong></div>
+            <div>Account Number: <strong>86019560</strong></div>
           </div>
 
           <div class="text-caption text-grey-7 text-center">

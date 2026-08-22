@@ -28,6 +28,9 @@
             <q-badge color="green" rounded>
               Active
             </q-badge>
+            <q-badge v-if="props.row.package_id" color="indigo" class="q-ml-xs">
+              {{ props.row.package_id.toUpperCase() }}
+            </q-badge>
           </q-td>
         </template>
 

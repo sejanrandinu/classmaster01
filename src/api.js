@@ -69,8 +69,8 @@ export const auth = {
         return data;
     },
 
-    async register(email, password, whatsapp, turnstileToken) {
-        const data = await client.post('auth/register', { email, password, whatsapp, turnstileToken });
+    async register(email, password, whatsapp, turnstileToken, packageId = 'enterprise', billingCycle = 'monthly') {
+        const data = await client.post('auth/register', { email, password, whatsapp, turnstileToken, package_id: packageId, billing_cycle: billingCycle });
         if (data.token) {
             localStorage.setItem('classmaster-token', data.token);
         }
