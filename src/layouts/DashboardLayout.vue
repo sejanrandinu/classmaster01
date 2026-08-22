@@ -290,7 +290,7 @@
           <q-spinner-dots color="primary" size="40px" />
         </div>
       </template>
-      <template v-else-if="!isApproved">
+      <template v-else-if="showApprovalWall">
         <div class="q-pa-xl flex flex-center" style="min-height: 80vh;">
           <q-card flat bordered class="q-pa-xl rounded-borders text-center shadow-1" style="max-width: 600px; width: 100%">
             <div class="q-mb-lg flex flex-center">
@@ -306,8 +306,9 @@
               {{ appStore.language === 'English' ? 'We are currently reviewing your request. Your dashboard will be activated once the payment is confirmed and the account is approved by our team.' : 'අපි දැනට ඔබගේ ඉල්ලීම සමාලෝචනය කරමින් සිටිමු. මූල්‍ය කටයුතු තහවුරු කළ පසු සහ අපගේ කණ්ඩායම විසින් ගිණුම අනුමත කළ පසු ඔබගේ දර්ශක පුවරුව සක්‍රිය වනු ඇත.' }}
             </p>
             <div class="row justify-center q-gutter-md">
-              <q-btn unelevated color="primary" :label="appStore.language === 'English' ? 'Contact Support' : 'සහාය සම්බන්ධ කරගන්න'" icon="chat" no-caps class="q-px-lg" @click="handleSupport" />
+              <q-btn unelevated color="indigo-9" label="View Packages & Plans" icon="workspace_premium" no-caps class="q-px-lg text-weight-bold" to="/dashboard/pricing" />
               <q-btn outline color="indigo" :label="appStore.language === 'English' ? 'Payment Details' : 'ගෙවීම් විස්තර'" icon="payments" no-caps class="q-px-lg" @click="showPaymentDetails" />
+              <q-btn flat color="green-7" :label="appStore.language === 'English' ? 'Contact Support' : 'සහාය'" icon="chat" no-caps class="q-px-md" @click="handleSupport" />
               <q-btn flat color="grey-7" :label="appStore.language === 'English' ? 'Logout' : 'පද්ධතියෙන් ඉවත් වන්න'" icon="logout" no-caps @click="handleLogout" />
             </div>
             <div class="q-mt-xl text-caption text-grey-6">
@@ -393,6 +394,7 @@ const userName = ref('')
 const loadingProfile = ref(true)
 const dbApproved = ref(false)
 const userRole = ref('')
+const trialEndsAt = ref(null)
 const notificationsCount = ref(0)
 const pendingCount = ref(0)
 
@@ -400,9 +402,23 @@ const isSuperAdmin = computed(() => {
     return userEmail.value?.trim().toLowerCase() === 'sejanrandinu01@gmail.com'
 })
 
+const isTrialActive = computed(() => {
+    if (userRole.value !== 'trial') return false
+    if (!trialEndsAt.value) return true
+    return new Date(trialEndsAt.value) > new Date()
+})
+
 const isApproved = computed(() => {
     if (isSuperAdmin.value) return true
-    return !!dbApproved.value
+    return !!dbApproved.value || isTrialActive.value
+})
+
+const isPricingRoute = computed(() => {
+    return router.currentRoute.value.path === '/dashboard/pricing'
+})
+
+const showApprovalWall = computed(() => {
+    return !isApproved.value && !isPricingRoute.value
 })
 
 const userDisplayName = computed(() => {
@@ -470,6 +486,7 @@ const fetchProfile = async () => {
             userName.value = data.account_holder_name || '' // Use account_holder_name as fallback name
             dbApproved.value = data.is_approved
             userRole.value = data.role
+            trialEndsAt.value = data.trial_ends_at || null
             if (data.profile_image_url) {
                 userProfilePic.value = data.profile_image_url
             }
