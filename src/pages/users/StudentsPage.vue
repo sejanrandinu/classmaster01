@@ -355,6 +355,7 @@ import QrcodeVue from 'qrcode.vue'
 import html2canvas from 'html2canvas'
 import { useAppStore } from 'src/store/app'
 import { useSubscriptionStore } from 'src/store/subscription'
+import { getStudentPortalUrl } from 'src/utils/url'
 
 const $q = useQuasar()
 const appStore = useAppStore()
@@ -436,7 +437,6 @@ const toggleTuteStatus = async (tuteId) => {
 // QR State
 const showQRDialog = ref(false)
 const qrStudent = ref(null)
-import { getStudentPortalUrl } from 'src/utils/url'
 
 const getPortalUrl = (id) => {
     return getStudentPortalUrl(id)

@@ -166,6 +166,7 @@ import { ref, onMounted, computed } from 'vue'
 import { client } from 'src/api'
 import { useQuasar } from 'quasar'
 import { useAppStore } from 'src/store/app'
+import { getStudentPortalUrl } from 'src/utils/url'
 
 const $q = useQuasar()
 const appStore = useAppStore()
