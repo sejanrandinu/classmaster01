@@ -92,8 +92,9 @@
       </div>
     </q-footer>
     
-    <!-- Chatbot Component -->
+    <!-- Chatbot & PWA Install Prompt -->
     <ChatbotComponent />
+    <InstallPromptComponent />
   </q-layout>
 </template>
 
@@ -103,6 +104,7 @@ import { useRouter } from 'vue-router'
 import { auth } from 'src/api'
 import { useQuasar } from 'quasar'
 import ChatbotComponent from 'src/components/ChatbotComponent.vue'
+import InstallPromptComponent from 'src/components/InstallPromptComponent.vue'
 
 const router = useRouter()
 const $q = useQuasar()

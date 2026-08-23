@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">ClassMaster</string>
-    <string name="title_activity_main">ClassMaster</string>
-    <string name="package_name">com.classmaster.app</string>
-    <string name="custom_url_scheme">com.classmaster.app</string>
-</resources>
