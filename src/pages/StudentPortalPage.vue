@@ -947,9 +947,6 @@
       </q-card>
     </q-dialog>
     </template><!-- end v-if="portalAllowed" -->
-
-    <!-- Auto PWA Add to Home Screen Prompt -->
-    <InstallPromptComponent />
   </q-page>
 </template>
 
@@ -962,7 +959,6 @@ import { useAppStore } from 'src/store/app'
 import { useSubscriptionStore } from 'src/store/subscription'
 import VueApexCharts from 'vue3-apexcharts'
 import html2pdf from 'html2pdf.js'
-import InstallPromptComponent from 'src/components/InstallPromptComponent.vue'
 
 const apexchart = VueApexCharts
 
