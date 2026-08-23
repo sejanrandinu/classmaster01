@@ -19,6 +19,8 @@
           <q-btn flat rounded label="Pricing" @click="scrollToSection('pricing')" class="text-white text-weight-medium" no-caps />
           <q-btn flat rounded label="Student Portal" to="/student-portal" class="text-indigo-2 text-weight-bold" no-caps icon="school" />
             
+          <q-btn v-if="canInstallPwa" color="indigo-6" icon="get_app" label="Install App" @click="installPwa" no-caps class="q-ml-sm text-weight-bold" />
+            
           <template v-if="!user">
              <q-btn flat rounded label="Login" @click="scrollToAuth('login')" class="text-white text-weight-medium" no-caps />
              <q-btn rounded color="white" text-color="black" label="Get Started" @click="scrollToAuth('register')" class="q-ml-md text-weight-bold q-px-lg" no-caps />
@@ -125,7 +127,27 @@ const handleLogout = async () => {
     })
 }
 
+const canInstallPwa = ref(false)
+
+const installPwa = async () => {
+  if (window.deferredPwaPrompt) {
+    window.deferredPwaPrompt.prompt()
+    const choice = await window.deferredPwaPrompt.userChoice
+    if (choice.outcome === 'accepted') {
+      canInstallPwa.value = false
+    }
+    window.deferredPwaPrompt = null
+  }
+}
+
 onMounted(async () => {
+    if (typeof window !== 'undefined' && window.deferredPwaPrompt) {
+        canInstallPwa.value = true
+    }
+    window.addEventListener('pwa-install-available', () => {
+        canInstallPwa.value = true
+    })
+
     // Get initial user from local storage
     const userData = localStorage.getItem('classmaster-user')
     if (userData) {

@@ -6,22 +6,25 @@
 import { onMounted } from 'vue'
 import { notificationService } from 'src/utils/notifications'
 
-
 onMounted(async () => {
-    // Force unregister any Service Workers to prevent caching issues
-    if ('serviceWorker' in navigator) {
-        try {
-            const registrations = await navigator.serviceWorker.getRegistrations()
-            for (const registration of registrations) {
-                await registration.unregister()
-            }
-        } catch (e) {
-            console.warn('SW Cleanup error:', e)
-        }
+  // Register Service Worker for PWA Offline & System Notifications
+  if ('serviceWorker' in navigator) {
+    try {
+      const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      console.log('ClassMaster ServiceWorker registered with scope:', reg.scope)
+    } catch (e) {
+      console.warn('ServiceWorker registration failed:', e)
     }
-    
-    // Check for notification permissions
-    notificationService.requestPermission()
-})
+  }
 
+  // Handle PWA Install Prompt globally
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault()
+    window.deferredPwaPrompt = e
+    window.dispatchEvent(new CustomEvent('pwa-install-available'))
+  })
+
+  // Check and request notification permissions
+  notificationService.requestPermission()
+})
 </script>

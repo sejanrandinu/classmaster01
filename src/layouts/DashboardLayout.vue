@@ -23,6 +23,8 @@
                 </template>
             </q-input>
 
+            <q-btn v-if="canInstallPwa" flat dense no-caps color="primary" icon="get_app" :label="appStore.language === 'English' ? 'Install App' : 'App එක Install කරන්න'" class="q-mr-sm text-weight-bold" @click="installPwa" />
+
             <q-btn round flat color="grey-7" icon="notifications" @click="handleNotifications">
                 <q-badge color="red" floating rounded v-if="notificationsCount > 0">{{ notificationsCount }}</q-badge>
             </q-btn>
@@ -438,7 +440,27 @@ const showWhatsAppDialog = ref(false)
 const whatsappNumber = ref('')
 const whatsappLoading = ref(false)
 
+const canInstallPwa = ref(false)
+
+const installPwa = async () => {
+  if (window.deferredPwaPrompt) {
+    window.deferredPwaPrompt.prompt()
+    const choice = await window.deferredPwaPrompt.userChoice
+    if (choice.outcome === 'accepted') {
+      canInstallPwa.value = false
+    }
+    window.deferredPwaPrompt = null
+  }
+}
+
 onMounted(async () => {
+    if (typeof window !== 'undefined' && window.deferredPwaPrompt) {
+        canInstallPwa.value = true
+    }
+    window.addEventListener('pwa-install-available', () => {
+        canInstallPwa.value = true
+    })
+
     await fetchProfile()
     await subStore.syncSubscription()
     if (isSuperAdmin.value) {

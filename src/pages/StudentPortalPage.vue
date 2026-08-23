@@ -31,6 +31,19 @@
             </div>
         </div>
         <div class="row items-center q-gutter-sm">
+            <!-- Install App button -->
+            <q-btn
+                v-if="canInstallPwa"
+                flat
+                color="yellow-4"
+                dense
+                no-caps
+                class="glass-btn q-px-sm text-weight-bold"
+                @click="installPwa"
+            >
+                <q-icon name="get_app" size="xs" class="q-mr-xs text-yellow-4" />
+                {{ appStore.language === 'English' ? 'Install App' : 'App එක Install කරන්න' }}
+            </q-btn>
             <!-- Language selector -->
             <q-btn 
                 flat 
@@ -1083,7 +1096,27 @@ const certificateDialogOpen = ref(false)
 const characterDialogOpen = ref(false)
 const selectedExamForCertificate = ref(null)
 
+const canInstallPwa = ref(false)
+
+const installPwa = async () => {
+  if (window.deferredPwaPrompt) {
+    window.deferredPwaPrompt.prompt()
+    const choice = await window.deferredPwaPrompt.userChoice
+    if (choice.outcome === 'accepted') {
+      canInstallPwa.value = false
+    }
+    window.deferredPwaPrompt = null
+  }
+}
+
 onMounted(() => {
+    if (typeof window !== 'undefined' && window.deferredPwaPrompt) {
+        canInstallPwa.value = true
+    }
+    window.addEventListener('pwa-install-available', () => {
+        canInstallPwa.value = true
+    })
+
     if (route.query.id) {
         studentId.value = route.query.id
         fetchStudentStatus()
