@@ -19,18 +19,18 @@
           <!-- Left Column: High Impact Branding & Hero Copy -->
           <div class="col-xs-12 col-lg-7 text-center text-lg-left">
             <div class="hero-content">
-              <q-badge outline color="white" label="SYSTEM V3.1 INSTANT ACCESS" class="q-mb-lg q-px-md q-py-xs letter-spacing-wide opacity-0 hero-badge" rounded />
+              <q-badge outline color="white" label="SYSTEM V3.1 INSTANT ACCESS" class="q-mb-lg q-px-md q-py-xs letter-spacing-wide hero-badge" rounded />
               
-              <h1 class="text-h1 q-mb-lg text-weight-bolder text-gradient letter-spacing-tight hero-title opacity-0" style="line-height: 1.05;">
+              <h1 class="text-h1 q-mb-lg text-weight-bolder text-gradient letter-spacing-tight hero-title" style="line-height: 1.05;">
                 The Future of<br>
                 Tuition Management.
               </h1>
               
-              <p class="text-h6 q-mb-xl text-grey-4 text-weight-light hero-subtitle opacity-0" style="max-width: 620px; line-height: 1.6;">
+              <p class="text-h6 q-mb-xl text-grey-4 text-weight-light hero-subtitle" style="max-width: 620px; line-height: 1.6;">
                 A high-performance ecosystem engineered to streamline, scale, and modernize tuition institutes globally. Instant enrollment, biometric QR sync, & cloud financial ledger.
               </p>
               
-              <div class="row q-gutter-md justify-center justify-lg-start hero-btns opacity-0 q-mb-xl">
+              <div class="row q-gutter-md justify-center justify-lg-start hero-btns q-mb-xl">
                 <q-btn 
                   size="lg" 
                   color="white" 
@@ -66,7 +66,7 @@
               </div>
 
               <!-- Quick Highlights -->
-              <div class="row q-col-gutter-md justify-center justify-lg-start hero-highlights opacity-0">
+              <div class="row q-col-gutter-md justify-center justify-lg-start hero-highlights">
                 <div class="col-auto row items-center text-grey-4">
                   <q-icon name="check_circle" color="yellow-6" class="q-mr-xs" size="18px" />
                   <span>7-Day Free Trial</span>
@@ -759,22 +759,25 @@ onMounted(() => {
     }
   })
 
-  // GSAP Entrance Animations
-  const tl = gsap.timeline({ defaults: { ease: 'power3.out' } })
-  tl.to('.hero-badge', { y: 0, opacity: 1, duration: 0.6 })
-    .to('.hero-title', { y: 0, opacity: 1, duration: 0.8 }, '-=0.4')
-    .to('.hero-subtitle', { y: 0, opacity: 1, duration: 0.8 }, '-=0.6')
-    .to('.hero-btns', { y: 0, opacity: 1, duration: 0.8 }, '-=0.6')
-    .to('.hero-highlights', { y: 0, opacity: 1, duration: 0.6 }, '-=0.4')
-    .to('.scroll-indicator', { y: 0, opacity: 1, duration: 0.8 }, '-=0.4')
+  // GSAP Entrance Animations (Fail-safe)
+  try {
+    const tl = gsap.timeline({ defaults: { ease: 'power3.out' } })
+    tl.fromTo('.hero-badge', { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6 })
+      .fromTo('.hero-title', { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.8 }, '-=0.4')
+      .fromTo('.hero-subtitle', { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.8 }, '-=0.6')
+      .fromTo('.hero-btns', { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.8 }, '-=0.6')
+      .fromTo('.hero-highlights', { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6 }, '-=0.4')
 
-  gsap.to('.scroll-indicator', {
-    y: 10,
-    duration: 1.5,
-    repeat: -1,
-    yoyo: true,
-    ease: 'power1.inOut'
-  })
+    gsap.to('.scroll-indicator', {
+      y: 10,
+      duration: 1.5,
+      repeat: -1,
+      yoyo: true,
+      ease: 'power1.inOut'
+    })
+  } catch (e) {
+    console.warn('GSAP animation skipped:', e)
+  }
 })
 
 watch(() => route.query.tab, (newTab) => {

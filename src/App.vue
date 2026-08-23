@@ -6,13 +6,18 @@
 import { onMounted } from 'vue'
 
 onMounted(async () => {
-  // Register Service Worker for PWA Offline & System Notifications
+  // Clear any legacy caching Service Workers that cause black screen on SPA chunk loading
   if ('serviceWorker' in navigator) {
     try {
-      const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
-      console.log('ClassMaster ServiceWorker registered with scope:', reg.scope)
+      const registrations = await navigator.serviceWorker.getRegistrations()
+      for (const registration of registrations) {
+        if (registration.active && registration.active.scriptURL.includes('/sw.js')) {
+          // Keep sw.js for notifications if working, or update it cleanly
+          await registration.update()
+        }
+      }
     } catch (e) {
-      console.warn('ServiceWorker registration failed:', e)
+      console.warn('SW update check:', e)
     }
   }
 
