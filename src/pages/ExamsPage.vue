@@ -368,6 +368,7 @@ import { exams, examResults, client } from 'src/api'
 import { notificationService } from 'src/utils/notifications'
 import { useAppStore } from 'src/store/app'
 import { exportToCSV } from 'src/utils/export'
+import { getStudentPortalUrl } from 'src/utils/url'
 
 const $q = useQuasar()
 const appStore = useAppStore()
@@ -715,7 +716,7 @@ const sendMarksWA = async (row) => {
     if (phone.startsWith('0')) phone = '94' + phone.substring(1)
     phone = phone.replace(/\D/g, '')
 
-    const portalLink = `${window.location.origin}/student-portal?id=${row.student_id_str}`
+    const portalLink = getStudentPortalUrl(row.student_id_str)
     const group = getGroupName(row.marks_obtained, activeExam.value.max_marks)
     
     let subBreakdown = ''

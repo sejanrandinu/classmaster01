@@ -176,6 +176,7 @@ import { useRouter } from 'vue-router'
 import { client, tutes, studentTutes } from 'src/api'
 import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode'
 import { useAppStore } from 'src/store/app'
+import { getStudentPortalUrl } from 'src/utils/url'
 
 const $q = useQuasar()
 const appStore = useAppStore()
@@ -450,7 +451,7 @@ const sendAttendanceWA = (student) => {
     // Clean all non-numeric characters
     phone = phone.replace(/\D/g, '')
 
-    const portalLink = `${window.location.origin}/student-portal?id=${student.student_id}`
+    const portalLink = getStudentPortalUrl(student.student_id)
     const message = `ආයුබෝවන් ${student.name}, අද පන්තියට පැමිණි බව අපි සටහන් කර ගත්තා. ඔබේ පැමිණීම සහ ගෙවීම් මෙතැනින් පරීක්ෂා කරන්න: ${portalLink}`
     const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
     

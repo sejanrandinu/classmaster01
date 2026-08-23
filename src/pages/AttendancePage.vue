@@ -285,14 +285,13 @@ const notifyAllPresent = () => {
 }
 
 const sendWA = (student) => {
-    if (!appStore.whatsappEnabled) return
     if (!student.contact) return
     
     let phone = student.contact
     if (phone.startsWith('0')) phone = '94' + phone.substring(1)
     phone = phone.replace(/\D/g, '')
 
-    const portalLink = `${window.location.origin}/student-portal?id=${student.student_id}`
+    const portalLink = getStudentPortalUrl(student.student_id)
     const message = `ආයුබෝවන් ${student.name}, අද පන්තියට පැමිණි බව අපි සටහන් කර ගත්තා. ඔබේ පැමිණීම සහ වාර්තා මෙතැනින් බලන්න: ${portalLink}`
     const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
     window.open(url, '_blank')

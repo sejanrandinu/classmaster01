@@ -436,9 +436,10 @@ const toggleTuteStatus = async (tuteId) => {
 // QR State
 const showQRDialog = ref(false)
 const qrStudent = ref(null)
+import { getStudentPortalUrl } from 'src/utils/url'
+
 const getPortalUrl = (id) => {
-    if (!id) return ''
-    return `${window.location.origin}/student-portal?id=${id}`
+    return getStudentPortalUrl(id)
 }
 const globalSettings = ref({
     card_background_url: '',
