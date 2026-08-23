@@ -328,6 +328,7 @@
       
       <!-- Class Reminder Logic -->
       <ClassReminder />
+      <PwaInstallBanner />
 
       <!-- WhatsApp Dialog for Google Users -->
       <q-dialog v-model="showWhatsAppDialog" persistent>
@@ -359,9 +360,6 @@
         </q-card>
       </q-dialog>
 
-      <ChatbotComponent />
-      <ClassReminder />
-      <PwaInstallBanner />
     </q-page-container>
   </q-layout>
 </template>
