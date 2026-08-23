@@ -150,7 +150,7 @@ export const useSubscriptionStore = defineStore('subscription', {
       try {
         const profile = await auth.getUser()
         if (profile) {
-          this.isSuperAdmin = profile.email?.trim().toLowerCase() === 'sejanrandinu01@gmail.com'
+          this.isSuperAdmin = profile.email?.trim().toLowerCase() === 'superadmin@classmastertms.com'
           this.userRole = profile.role
           this.currentPackageId = profile.package_id || 'starter'
           this.billingCycle = profile.billing_cycle || 'monthly'

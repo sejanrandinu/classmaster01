@@ -15,7 +15,7 @@
             </q-avatar>
             <div class="text-h5 text-weight-bold text-grey-9">{{ profile.email }}</div>
             <q-chip color="green-1" text-color="green-8" class="q-mt-sm text-weight-bold" icon="verified">
-              {{ isApproved ? (profile.email === 'sejanrandinu01@gmail.com' ? 'Super Admin' : 'Approved Member') : 'Pending Approval' }}
+              {{ isApproved ? (profile.email === 'superadmin@classmastertms.com' ? 'Super Admin' : 'Approved Member') : 'Pending Approval' }}
             </q-chip>
           </q-card-section>
           
@@ -73,7 +73,7 @@
               </div>
 
               <!-- Bank Details Section (Super Admin Only) -->
-              <div v-if="profile.email === 'sejanrandinu01@gmail.com'" class="q-mt-lg">
+              <div v-if="profile.email === 'superadmin@classmastertms.com'" class="q-mt-lg">
                 <div class="text-subtitle1 text-weight-bold text-grey-9 q-mb-md">Bank Details (Private)</div>
                 <div class="row q-col-gutter-md">
                   <div class="col-12">
@@ -145,7 +145,7 @@ const profile = ref({
 })
 
 const isApproved = computed(() => {
-  if (profile.value.email?.trim().toLowerCase() === 'sejanrandinu01@gmail.com') return true
+  if (profile.value.email?.trim().toLowerCase() === 'superadmin@classmastertms.com') return true
   return profile.value.is_approved
 })
 

@@ -212,7 +212,7 @@ const processAIResponse = (userMsg) => {
 
   if (query.includes('contact') || query.includes('support') || query.includes('help') || query.includes('උදව්')) {
     return {
-      text: `📞 **Customer Support**:\n\nOur team is available 24/7 on WhatsApp at **+94 70 283 8364** or email **sejanrandinu01@gmail.com**.`,
+      text: `📞 **Customer Support**:\n\nOur team is available 24/7 on WhatsApp at **+94 70 283 8364** or email **superadmin@classmastertms.com**.`,
       action: { label: 'Contact WhatsApp Support', type: 'link', url: 'https://wa.me/94702838364' }
     }
   }

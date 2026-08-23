@@ -399,7 +399,7 @@ const notificationsCount = ref(0)
 const pendingCount = ref(0)
 
 const isSuperAdmin = computed(() => {
-    return userEmail.value?.trim().toLowerCase() === 'sejanrandinu01@gmail.com'
+    return userEmail.value?.trim().toLowerCase() === 'superadmin@classmastertms.com'
 })
 
 const isTrialActive = computed(() => {

@@ -22,7 +22,7 @@
 
           <section>
             <h2 class="text-h5 text-white text-weight-bold q-mb-md">4. Contact Us</h2>
-            <p>If you have any questions about this Privacy Policy, please contact us at support@classmaster.com.</p>
+            <p>If you have any questions about this Privacy Policy, please contact us at superadmin@classmastertms.com.</p>
           </section>
         </div>
 

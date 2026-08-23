@@ -26,7 +26,18 @@ export default defineRouter(function (/* { store, ssrContext } */) {
     history: createHistory(process.env.VUE_ROUTER_BASE)
   })
 
+  // Subdomain detection: student.classmastertms.com → /student-portal
   Router.beforeEach((to, from, next) => {
+    const hostname = window.location.hostname
+    const isStudentSubdomain =
+      hostname === 'student.classmastertms.com' ||
+      hostname.startsWith('student.')
+
+    if (isStudentSubdomain && to.path !== '/student-portal') {
+      next('/student-portal')
+      return
+    }
+
     const token = localStorage.getItem('classmaster-token')
     const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
 

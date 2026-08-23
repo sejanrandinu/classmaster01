@@ -14,7 +14,7 @@
                 <q-item-section avatar>
                   <q-icon name="mail" color="white" />
                 </q-item-section>
-                <q-item-section class="text-white">sejanrandinu01@gmail.com</q-item-section>
+                <q-item-section class="text-white">superadmin@classmastertms.com</q-item-section>
               </q-item>
               <q-item class="q-px-none">
                 <q-item-section avatar>

@@ -47,7 +47,7 @@ export const emailService = {
             from_name: formData.name,
             from_email: formData.email,
             message: formData.message,
-            to_email: 'sejanrandinu01@gmail.com'
+            to_email: 'superadmin@classmastertms.com'
         };
 
         try {

@@ -70,7 +70,7 @@
             <div class="column q-gutter-sm">
               <div class="text-grey-5 row items-center">
                 <q-icon name="mail" size="18px" class="q-mr-sm" />
-                sejanrandinu01@gmail.com
+                superadmin@classmastertms.com
               </div>
               <div class="text-grey-5 row items-center">
                 <q-icon name="phone" size="18px" class="q-mr-sm" />

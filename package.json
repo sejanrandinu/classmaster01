@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "description": "All in one tuition class management system",
   "productName": "ClassMaster",
-  "author": "Sejan Randinu <sejanrandinu01@gmail.com>",
+  "author": "Sejan Randinu <superadmin@classmastertms.com>",
   "type": "module",
   "private": true,
   "scripts": {

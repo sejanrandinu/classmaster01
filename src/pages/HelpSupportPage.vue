@@ -164,7 +164,7 @@ const chatOnWhatsapp = () => {
 }
 
 const sendEmail = () => {
-  window.location.href = 'mailto:sejanrandinu01@gmail.com'
+  window.location.href = 'mailto:superadmin@classmastertms.com'
 }
 </script>
 

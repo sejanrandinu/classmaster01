@@ -11,9 +11,9 @@ SET
   bank_name = 'Bank of Ceylon (BOC)',  -- Change this to your bank name
   account_number = '86019560',  -- Change this to your account number
   account_holder_name = 'B.L Ruwan Manjula'  -- Change this to your name
-WHERE email = 'sejanrandinu01@gmail.com';
+WHERE email = 'superadmin@classmastertms.com';
 
 -- Verify the update
 SELECT email, bank_name, account_number, account_holder_name 
 FROM public.profiles 
-WHERE email = 'sejanrandinu01@gmail.com';
+WHERE email = 'superadmin@classmastertms.com';

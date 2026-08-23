@@ -333,7 +333,7 @@ const userName = ref('')
 const userRole = ref('')
 
 const userRoleLabel = computed(() => {
-    if (userEmail.value?.trim().toLowerCase() === 'sejanrandinu01@gmail.com') return 'Super Admin'
+    if (userEmail.value?.trim().toLowerCase() === 'superadmin@classmastertms.com') return 'Super Admin'
     if (userRole.value === 'trial') return 'Trial Member'
     return profile.value.is_approved ? 'Active Member' : 'Pending Member'
 })
