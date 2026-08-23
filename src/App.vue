@@ -4,7 +4,6 @@
 
 <script setup>
 import { onMounted } from 'vue'
-import { notificationService } from 'src/utils/notifications'
 
 onMounted(async () => {
   // Register Service Worker for PWA Offline & System Notifications
@@ -23,8 +22,5 @@ onMounted(async () => {
     window.deferredPwaPrompt = e
     window.dispatchEvent(new CustomEvent('pwa-install-available'))
   })
-
-  // Check and request notification permissions
-  notificationService.requestPermission()
 })
 </script>

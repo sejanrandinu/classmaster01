@@ -32,6 +32,15 @@ export const notificationService = {
   },
 
   /**
+   * Check if notification permission prompt is needed (never asked before)
+   * @returns {boolean}
+   */
+  isPermissionNeeded() {
+    if (typeof window === 'undefined' || !('Notification' in window)) return false;
+    return Notification.permission === 'default';
+  },
+
+  /**
    * Trigger a System Notification (works on Mobile and Desktop)
    * @param {string} title - Notification title
    * @param {Object} options - Notification options (body, icon, badge, url, etc.)
@@ -39,11 +48,7 @@ export const notificationService = {
   async send(title, options = {}) {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
 
-    // Auto-request permission if not requested yet
-    if (Notification.permission === 'default') {
-      const granted = await this.requestPermission();
-      if (!granted) return;
-    } else if (Notification.permission !== 'granted') {
+    if (Notification.permission !== 'granted') {
       return;
     }
 

@@ -359,6 +359,9 @@
         </q-card>
       </q-dialog>
 
+      <ChatbotComponent />
+      <ClassReminder />
+      <PwaInstallBanner />
     </q-page-container>
   </q-layout>
 </template>
@@ -373,6 +376,7 @@ import { useSubscriptionStore } from 'src/store/subscription'
 import layoutTranslations from 'src/i18n/layout'
 import ChatbotComponent from 'src/components/ChatbotComponent.vue'
 import ClassReminder from 'src/components/ClassReminder.vue'
+import PwaInstallBanner from 'src/components/PwaInstallBanner.vue'
 import PaymentDialog from 'src/components/PaymentDialog.vue'
 import { notificationService } from 'src/utils/notifications'
 

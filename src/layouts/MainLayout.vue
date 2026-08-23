@@ -96,6 +96,9 @@
     
     <!-- Chatbot Component -->
     <ChatbotComponent />
+
+    <!-- 1st Visit PWA & Notification Banner -->
+    <PwaInstallBanner />
   </q-layout>
 </template>
 
@@ -105,6 +108,7 @@ import { useRouter } from 'vue-router'
 import { auth } from 'src/api'
 import { useQuasar } from 'quasar'
 import ChatbotComponent from 'src/components/ChatbotComponent.vue'
+import PwaInstallBanner from 'src/components/PwaInstallBanner.vue'
 
 const router = useRouter()
 const $q = useQuasar()

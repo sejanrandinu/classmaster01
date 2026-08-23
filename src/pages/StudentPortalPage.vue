@@ -959,6 +959,8 @@
         </q-card-section>
       </q-card>
     </q-dialog>
+    <!-- 1st Visit PWA & Notification Banner -->
+    <PwaInstallBanner />
     </template><!-- end v-if="portalAllowed" -->
   </q-page>
 </template>
@@ -968,6 +970,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useQuasar } from 'quasar'
 import { useRoute } from 'vue-router'
 import { client } from 'src/api'
+import PwaInstallBanner from 'src/components/PwaInstallBanner.vue'
 import { useAppStore } from 'src/store/app'
 import { useSubscriptionStore } from 'src/store/subscription'
 import VueApexCharts from 'vue3-apexcharts'
