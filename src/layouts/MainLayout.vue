@@ -53,7 +53,6 @@
       overlay
       bordered
       :width="285"
-      class="lt-md"
       style="z-index: 99999 !important;"
     >
       <div class="drawer-inner">
