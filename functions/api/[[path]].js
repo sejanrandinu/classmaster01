@@ -9,6 +9,15 @@ const json = (data, status = 200) => new Response(JSON.stringify(data), {
     }
 });
 
+const SUPER_ADMIN_EMAILS = [
+    'sejanrandinu01@gmail.com'
+];
+
+function isSuperAdminEmail(email) {
+    if (!email || typeof email !== 'string') return false;
+    return SUPER_ADMIN_EMAILS.includes(email.trim().toLowerCase());
+}
+
 // Helper: Hashing for Internal Use
 async function hashString(str) {
     const encoder = new TextEncoder();
@@ -311,7 +320,7 @@ export async function onRequest(context) {
 
             const id = crypto.randomUUID();
             const password_hash = await hashString(password + JWT_SECRET);
-            const isSuperAdmin = email.trim().toLowerCase() === 'superadmin@classmastertms.com';
+            const isSuperAdmin = isSuperAdminEmail(email);
 
             // Set to 'trial' role with is_approved=0.
             // Default package for trial is Enterprise.
@@ -396,7 +405,7 @@ export async function onRequest(context) {
 
                 // Check institute package restriction for Student Portal (Pro or Enterprise required)
                 const instituteProfile = await db.prepare("SELECT email, package_id FROM profiles WHERE id = ?").bind(instituteId).first();
-                const isSuperAdminInstitute = instituteProfile?.email?.trim().toLowerCase() === 'superadmin@classmastertms.com';
+                const isSuperAdminInstitute = isSuperAdminEmail(instituteProfile?.email);
                 const instPackage = instituteProfile?.package_id || 'starter';
                 if (!isSuperAdminInstitute && instPackage !== 'pro' && instPackage !== 'enterprise') {
                     return json({ error: "Student Portal access is restricted to Pro and Enterprise package subscriptions." }, 403);
@@ -698,7 +707,7 @@ export async function onRequest(context) {
         if (!currentUser) return json({ error: "User not found" }, 401);
 
         // Trial & Approval Logic
-        const isSuperAdmin = userEmail.trim().toLowerCase() === 'superadmin@classmastertms.com';
+        const isSuperAdmin = isSuperAdminEmail(userEmail);
         if (!isSuperAdmin) {
             const now = new Date();
             const trialEnd = currentUser.trial_ends_at ? new Date(currentUser.trial_ends_at) : null;
@@ -845,7 +854,7 @@ export async function onRequest(context) {
 
         // SYSTEM LOGS (Super Admin only)
         if (path === 'system' && subPath === 'verification-links' && method === 'GET') {
-            if (userEmail.trim().toLowerCase() !== 'superadmin@classmastertms.com') return json({ error: "Forbidden" }, 403);
+            if (!isSuperAdminEmail(userEmail)) return json({ error: "Forbidden" }, 403);
             const links = await db.prepare("SELECT * FROM system_notifications WHERE type LIKE 'email_verification%' ORDER BY created_at DESC LIMIT 10").all();
             return json(links.results);
         }
@@ -1952,7 +1961,7 @@ export async function onRequest(context) {
                 expiryDate = '2099-12-31T23:59:59.000Z';
             }
 
-            const isSuperAdminUser = payload.email?.trim().toLowerCase() === 'superadmin@classmastertms.com';
+            const isSuperAdminUser = isSuperAdminEmail(payload.email);
             const newApprovedStatus = isSuperAdminUser ? 1 : 0;
 
             await db.prepare("UPDATE profiles SET package_id = ?, billing_cycle = ?, subscription_expires_at = ?, applied_promo_code = ?, is_approved = ?, role = CASE WHEN role = 'pending' OR role = 'trial' THEN 'admin' ELSE role END WHERE id = ?")

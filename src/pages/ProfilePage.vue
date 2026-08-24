@@ -15,7 +15,7 @@
             </q-avatar>
             <div class="text-h5 text-weight-bold text-grey-9">{{ profile.email }}</div>
             <q-chip color="green-1" text-color="green-8" class="q-mt-sm text-weight-bold" icon="verified">
-              {{ isApproved ? (profile.email === 'superadmin@classmastertms.com' ? 'Super Admin' : 'Approved Member') : 'Pending Approval' }}
+              {{ isApproved ? (isSuperAdminEmail(profile.email) ? 'Super Admin' : 'Approved Member') : 'Pending Approval' }}
             </q-chip>
           </q-card-section>
           
@@ -73,7 +73,7 @@
               </div>
 
               <!-- Bank Details Section (Super Admin Only) -->
-              <div v-if="profile.email === 'superadmin@classmastertms.com'" class="q-mt-lg">
+              <div v-if="isSuperAdminEmail(profile.email)" class="q-mt-lg">
                 <div class="text-subtitle1 text-weight-bold text-grey-9 q-mb-md">Bank Details (Private)</div>
                 <div class="row q-col-gutter-md">
                   <div class="col-12">
@@ -129,6 +129,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useQuasar } from 'quasar'
 import { auth, client } from 'src/api'
 import { useAppStore } from 'src/store/app'
+import { isSuperAdminEmail } from 'src/utils/superadmin'
 
 const $q = useQuasar()
 const appStore = useAppStore()
@@ -145,7 +146,7 @@ const profile = ref({
 })
 
 const isApproved = computed(() => {
-  if (profile.value.email?.trim().toLowerCase() === 'superadmin@classmastertms.com') return true
+  if (isSuperAdminEmail(profile.value.email)) return true
   return profile.value.is_approved
 })
 

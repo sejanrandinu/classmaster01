@@ -9,9 +9,7 @@
           <div>
             <div class="text-subtitle1 text-weight-bold text-white row items-center">
               <span>{{ isEnglish ? 'Install ClassMaster Web App' : 'ClassMaster ඇප් එක ෆෝන් එකට ගනිමු' }}</span>
-              <q-chip dense color="amber-5" text-color="black" class="q-ml-sm text-weight-bold" style="font-size: 10px;">
-                {{ isEnglish ? 'Official App' : 'නිල ඇප් එක' }}
-              </q-chip>
+              <q-chip dense color="amber-5" text-color="black" class="q-ml-sm text-weight-bold" style="font-size: 10px;" :label="chipLabel" />
             </div>
             <div class="text-caption text-indigo-2">
               {{ isEnglish ? 'Get real-time system alerts, instant access & offline support.' : 'ක්ෂණික පැමිණීම්, ලකුණු සහ පන්ති නිවේදන පද්ධති දැනුම්දීම් ලබාගන්න.' }}
@@ -70,6 +68,7 @@ import { useAppStore } from 'src/store/app'
 
 const appStore = useAppStore()
 const isEnglish = computed(() => appStore.language === 'English')
+const chipLabel = computed(() => isEnglish.value ? 'Official App' : 'නිල ඇප් එක')
 
 const showBanner = ref(false)
 const canInstall = ref(false)

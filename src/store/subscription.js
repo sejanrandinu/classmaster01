@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { packages as packagesApi, auth } from 'src/api'
+import { isSuperAdminEmail } from 'src/utils/superadmin'
 
 const DEFAULT_PACKAGES = [
   {
@@ -150,7 +151,7 @@ export const useSubscriptionStore = defineStore('subscription', {
       try {
         const profile = await auth.getUser()
         if (profile) {
-          this.isSuperAdmin = profile.email?.trim().toLowerCase() === 'superadmin@classmastertms.com'
+          this.isSuperAdmin = isSuperAdminEmail(profile.email)
           this.userRole = profile.role
           this.currentPackageId = profile.package_id || 'starter'
           this.billingCycle = profile.billing_cycle || 'monthly'

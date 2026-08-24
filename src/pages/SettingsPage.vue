@@ -313,6 +313,7 @@ import { useQuasar } from 'quasar'
 import { auth, client, storage } from 'src/api'
 import { useAppStore } from 'src/store/app'
 import { notificationService } from 'src/utils/notifications'
+import { isSuperAdminEmail } from 'src/utils/superadmin'
 
 const $q = useQuasar()
 const appStore = useAppStore()
@@ -333,7 +334,7 @@ const userName = ref('')
 const userRole = ref('')
 
 const userRoleLabel = computed(() => {
-    if (userEmail.value?.trim().toLowerCase() === 'superadmin@classmastertms.com') return 'Super Admin'
+    if (isSuperAdminEmail(userEmail.value)) return 'Super Admin'
     if (userRole.value === 'trial') return 'Trial Member'
     return profile.value.is_approved ? 'Active Member' : 'Pending Member'
 })

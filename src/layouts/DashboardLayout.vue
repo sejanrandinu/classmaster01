@@ -377,6 +377,7 @@ import ClassReminder from 'src/components/ClassReminder.vue'
 import PwaInstallBanner from 'src/components/PwaInstallBanner.vue'
 import PaymentDialog from 'src/components/PaymentDialog.vue'
 import { notificationService } from 'src/utils/notifications'
+import { isSuperAdminEmail } from 'src/utils/superadmin'
 
 const appStore = useAppStore()
 const subStore = useSubscriptionStore()
@@ -403,7 +404,7 @@ const notificationsCount = ref(0)
 const pendingCount = ref(0)
 
 const isSuperAdmin = computed(() => {
-    return userEmail.value?.trim().toLowerCase() === 'superadmin@classmastertms.com'
+    return isSuperAdminEmail(userEmail.value)
 })
 
 const isTrialActive = computed(() => {
