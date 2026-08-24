@@ -705,7 +705,7 @@ const allPackages = ref([
     badge: 'Ultimate Deal',
     color: 'amber-9',
     student_limit: 999999,
-    prices: { monthly: 15000, annual: 144000, lifetime: 130000 },
+    prices: { monthly: 15000, annual: 144000, lifetime: 300000 },
     features: [
       'Unlimited Active Students',
       'Unlimited Classes & Tutors',
