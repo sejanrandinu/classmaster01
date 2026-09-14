@@ -112,6 +112,13 @@ const turnstileToken = ref('')
 const rememberMe = ref(false)
 
 onMounted(() => {
+  // If already logged in, redirect to dashboard immediately
+  const token = localStorage.getItem('classmaster-token')
+  if (token) {
+    router.replace('/dashboard')
+    return
+  }
+
   // Load remembered email
   const savedEmail = localStorage.getItem('remembered_email')
   if (savedEmail) {

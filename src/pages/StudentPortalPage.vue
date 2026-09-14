@@ -57,7 +57,7 @@
                 {{ appStore.language === 'English' ? 'සිංහල' : 'English' }}
             </q-btn>
             <div v-if="studentData">
-                <q-btn flat color="white" icon="logout" :label="appStore.language === 'English' ? 'Sign Out' : 'ඉවත් වන්න'" @click="studentData = null" no-caps class="glass-btn" />
+                <q-btn flat color="white" icon="logout" :label="appStore.language === 'English' ? 'Sign Out' : 'ඉවත් වන්න'" @click="logoutStudent" no-caps class="glass-btn" />
             </div>
         </div>
       </div>
@@ -973,6 +973,7 @@ import { client } from 'src/api'
 import PwaInstallBanner from 'src/components/PwaInstallBanner.vue'
 import { useAppStore } from 'src/store/app'
 import { useSubscriptionStore } from 'src/store/subscription'
+import { notificationService } from 'src/utils/notifications'
 import VueApexCharts from 'vue3-apexcharts'
 import html2pdf from 'html2pdf.js'
 
@@ -1074,6 +1075,18 @@ const submitPayment = async () => {
             timeout: 5000
         })
 
+        // Send System Notification if granted
+        if (notificationService.isGranted()) {
+            notificationService.send(
+                appStore.language === 'English' ? 'Payment Submitted 💳' : 'ගෙවීම ඉදිරිපත් කරන ලදී 💳',
+                {
+                    body: appStore.language === 'English'
+                        ? `Payment of LKR ${payForm.value.amount} for ${payForm.value.month} submitted.`
+                        : `${payForm.value.month} මාසය සඳහා රු. ${payForm.value.amount} ගෙවීම ඉදිරිපත් කළෙමු.`
+                }
+            )
+        }
+
         // Refresh portal data
         payForm.value = { class_id: null, month: new Date().toLocaleString('en-US', { month: 'long' }), amount: '', payment_method: 'Online Transfer', receipt_url: '' }
         receiptFile.value = null
@@ -1120,13 +1133,22 @@ onMounted(() => {
         canInstallPwa.value = true
     })
 
-    if (route.query.id) {
-        studentId.value = route.query.id
+    // Detect parameter key from link (id, student_id, studentId, code, no, index, sid)
+    const queryId = route.query.id || route.query.student_id || route.query.studentId || route.query.code || route.query.no || route.query.index || route.query.sid
+    const savedStudentId = localStorage.getItem('classmaster-student-id')
+
+    if (queryId) {
+        studentId.value = String(queryId).trim()
+        localStorage.setItem('classmaster-student-id', studentId.value)
+        fetchStudentStatus()
+    } else if (savedStudentId) {
+        studentId.value = savedStudentId.trim()
         fetchStudentStatus()
     }
 })
 
 const fetchStudentStatus = async () => {
+    if (!studentId.value) return
     loading.value = true
     try {
         const data = await client.get(`students/public-portal/${studentId.value}`)
@@ -1147,6 +1169,22 @@ const fetchStudentStatus = async () => {
         recordingsList.value = data.recordings || []
         classList.value = data.classes || []
 
+        // Persist session ID
+        localStorage.setItem('classmaster-student-id', studentId.value.trim())
+
+        // Request system notification permission if needed & notify login
+        if (notificationService.isPermissionNeeded()) {
+            await notificationService.requestPermission()
+        }
+        if (notificationService.isGranted()) {
+            notificationService.send(
+                appStore.language === 'English' ? 'Student Portal Active 🎓' : 'ශිෂ්‍ය ද්වාරය සක්‍රීයයි 🎓',
+                {
+                    body: `${data.student.name || 'Student'} (${data.student.student_id})`
+                }
+            )
+        }
+
     } catch (err) {
         if (err.message && err.message.includes('Pro and Enterprise')) {
             isAccessRestricted.value = true
@@ -1159,6 +1197,16 @@ const fetchStudentStatus = async () => {
     } finally {
         loading.value = false
     }
+}
+
+const logoutStudent = () => {
+    localStorage.removeItem('classmaster-student-id')
+    studentData.value = null
+    studentId.value = ''
+    $q.notify({
+        type: 'info',
+        message: appStore.language === 'English' ? 'Signed out successfully' : 'සාර්ථකව ඉවත් විය'
+    })
 }
 
 // Analytics Helpers

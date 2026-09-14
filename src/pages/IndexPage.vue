@@ -740,6 +740,13 @@ const adminDetails = ref({
 })
 
 onMounted(() => {
+  // If already logged in, redirect to dashboard immediately
+  const token = localStorage.getItem('classmaster-token')
+  if (token) {
+    router.replace('/dashboard')
+    return
+  }
+
   // Sync tab from query if present
   if (route.query.tab) {
     authTab.value = route.query.tab

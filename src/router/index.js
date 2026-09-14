@@ -34,7 +34,7 @@ export default defineRouter(function (/* { store, ssrContext } */) {
       hostname.startsWith('student.')
 
     if (isStudentSubdomain && to.path !== '/student-portal') {
-      next('/student-portal')
+      next({ path: '/student-portal', query: to.query })
       return
     }
 
@@ -43,9 +43,16 @@ export default defineRouter(function (/* { store, ssrContext } */) {
 
     if (requiresAuth && !token) {
       next('/login')
-    } else {
-      next()
+      return
     }
+
+    // Auto-redirect authenticated users to dashboard if accessing public auth/landing routes
+    if (token && (to.path === '/' || to.path === '/login' || to.path === '/register')) {
+      next('/dashboard')
+      return
+    }
+
+    next()
   })
 
   return Router
