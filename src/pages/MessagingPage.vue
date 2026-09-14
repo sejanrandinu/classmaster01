@@ -131,7 +131,16 @@
         <div class="row q-col-gutter-lg">
             <div class="col-12 col-md-4">
                 <q-card flat class="glass-modern q-pa-lg">
-                    <div class="text-h6 text-weight-bold q-mb-md">Pending Fees Finder</div>
+                    <div class="row items-center justify-between q-mb-sm">
+                        <div class="text-h6 text-weight-bold">Pending Fees & Bi-weekly Reminders</div>
+                        <q-chip dense color="amber-3" text-color="black" icon="schedule" class="text-weight-bold">
+                            සති 2ක මතක් කිරීම (Bi-Weekly)
+                        </q-chip>
+                    </div>
+                    <div class="text-caption text-grey-6 q-mb-md">
+                        {{ appStore.language === 'English' ? 'Find unpaid students for 14-day intervals and send automated reminders.' : 'දින 14ක් ඇතුලත ගාස්තු නොගෙවූ සිසුන් සොයා සති 2ක මතක් කිරීම් යවන්න.' }}
+                    </div>
+
                     <div class="q-gutter-md">
                         <q-select 
                             filled 
@@ -147,15 +156,36 @@
                             :options="monthOptions" 
                             label="Check for Month" 
                         />
-                        <q-btn 
-                            color="primary" 
-                            label="Find Unpaid Students" 
-                            unelevated 
-                            class="full-width" 
-                            icon="search"
-                            :loading="loadingReminders"
-                            @click="fetchUnpaidStudents"
-                        />
+
+                        <div class="row q-col-gutter-sm">
+                            <div class="col-6">
+                                <q-btn 
+                                    color="primary" 
+                                    label="Find Unpaid" 
+                                    unelevated 
+                                    class="full-width" 
+                                    icon="search"
+                                    :loading="loadingReminders"
+                                    @click="fetchUnpaidStudents"
+                                    no-caps
+                                />
+                            </div>
+                            <div class="col-6">
+                                <q-btn 
+                                    color="amber-9" 
+                                    text-color="white"
+                                    label="Bulk Send (Bi-Weekly)" 
+                                    unelevated 
+                                    class="full-width text-weight-bold" 
+                                    icon="send"
+                                    :disabled="unpaidStudents.length === 0"
+                                    @click="bulkSendBiWeeklyReminders"
+                                    no-caps
+                                >
+                                    <q-tooltip>Send bi-weekly fee reminders to all unpaid students in 1-click</q-tooltip>
+                                </q-btn>
+                            </div>
+                        </div>
                     </div>
                 </q-card>
             </div>
@@ -390,8 +420,34 @@ const sendWA = (phone, text) => {
 
 const sendFeeReminder = (student) => {
     const cls = classOptions.value.find(c => c.value === reminderForm.value.class_id)
-    const msg = `Halo ${student.name}, reminder එකක් විදිහට මේ පණිවිඩය එවන්නේ. ${cls.label} පන්තිය සඳහා ${reminderForm.value.month} මාසයේ ගාස්තුව තවම ලැබී නැත. කරුණාකර හැකි ඉක්මනින් ගෙවීම් කටයුතු සිදු කරන්න. ස්තූතියි!`
+    const clsName = cls ? cls.label : 'Class'
+    const msg = `Halo ${student.name}, reminder එකක් විදිහට මේ පණිවිඩය එවන්නේ. ${clsName} පන්තිය සඳහා ${reminderForm.value.month} මාසයේ ගාස්තුව තවම ලැබී නැත. (සති 2ක ගාස්තු මතක් කිරීම). කරුණාකර හැකි ඉක්මනින් ගෙවීම් කටයුතු සිදු කරන්න. ස්තූතියි!`
     sendWA(student.contact, msg)
+}
+
+const bulkSendBiWeeklyReminders = () => {
+    if (unpaidStudents.value.length === 0) return
+    const cls = classOptions.value.find(c => c.value === reminderForm.value.class_id)
+    const clsName = cls ? cls.label : 'Class'
+
+    $q.dialog({
+        title: 'Confirm Bulk Bi-weekly Reminders',
+        message: `Send bi-weekly fee reminder to ${unpaidStudents.value.length} unpaid student(s) for ${clsName}?`,
+        cancel: true,
+        persistent: true
+    }).onOk(() => {
+        let sentCount = 0
+        unpaidStudents.value.forEach(student => {
+            const msg = `Dear ${student.name}, [Bi-weekly Fee Reminder / සති 2ක ගාස්තු මතක් කිරීම] ${clsName} පන්තියේ ${reminderForm.value.month} මාසයේ ගාස්තු ගෙවීම තවමත් ලැබී නැත. කරුණාකර හැකි ඉක්මනින් ගෙවීමට කාරුණික වන්න. ස්තූතියි!`
+            sendWA(student.contact, msg)
+            sentCount++
+        })
+        $q.notify({
+            type: 'positive',
+            message: `Bi-weekly reminders sent to ${sentCount} student(s)!`,
+            icon: 'notifications_active'
+        })
+    })
 }
 
 const sendMessage = async () => {

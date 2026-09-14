@@ -42,6 +42,16 @@
                         <template v-slot:prepend><q-icon name="badge" color="primary" /></template>
                     </q-input>
 
+                    <q-separator class="q-my-md" />
+                    <div class="text-subtitle1 text-weight-bold text-grey-9 q-mb-xs">Automated Reminders</div>
+                    <div class="row items-center justify-between bg-amber-1 q-pa-md rounded-borders border-amber q-mb-md">
+                        <div>
+                            <div class="text-weight-bold text-subtitle2 text-amber-10">Bi-Weekly Fee Reminders (සති 2ක ගාස්තු නිවේදන)</div>
+                            <div class="text-caption text-grey-7">Automatically trigger fee reminders every 14 days for unpaid students.</div>
+                        </div>
+                        <q-toggle v-model="settings.biweeklyReminders" color="amber-9" />
+                    </div>
+
                     <div class="bg-blue-1 q-pa-md rounded-borders text-primary">
                         <div class="row items-center no-wrap">
                             <q-icon name="info" size="24px" class="q-mr-sm" />
@@ -117,7 +127,8 @@ const connected = ref(true)
 const settings = ref({
     provider: 'Notify.lk',
     apiKey: '************************',
-    senderId: 'CLASSMASTER'
+    senderId: 'CLASSMASTER',
+    biweeklyReminders: true
 })
 
 const saveSettings = () => {

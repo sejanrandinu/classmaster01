@@ -102,6 +102,35 @@
 
       <!-- Dashboard State -->
       <div v-else class="row q-col-gutter-lg">
+        <!-- Bi-weekly Fee Reminder Alert Banner -->
+        <div class="col-12" v-if="pendingFees > 0">
+          <q-banner rounded class="bg-amber-10 text-white q-pa-md shadow-10" inline-actions style="border-radius: 16px;">
+            <template v-slot:avatar>
+              <q-icon name="schedule" color="amber-3" size="32px" />
+            </template>
+            <div class="text-subtitle1 text-weight-bold">
+              {{ appStore.language === 'English' ? 'Bi-weekly Fee Reminder (සති 2ක ගාස්තු මතක් කිරීම)' : 'සති 2ක ගාස්තු මතක් කිරීම (Bi-weekly Reminder)' }}
+            </div>
+            <div class="text-caption text-amber-1">
+              {{ appStore.language === 'English'
+                ? 'Your monthly tuition fee payment is currently due. Please upload your payment receipt or clear your dues.'
+                : 'ඔබගේ මාසික පන්ති ගාස්තු ගෙවීම මතක් කර සිටිමු. නොනවත්වා පන්ති කටයුතු කරගෙන යාමට කරුණාකර රිසිට්පත Upload කරන්න.' }}
+            </div>
+            <template v-slot:action>
+              <q-btn
+                unelevated
+                color="amber-4"
+                text-color="dark"
+                icon="upload_file"
+                :label="appStore.language === 'English' ? 'Upload Receipt' : 'රිසිට්පත යොමු කරන්න'"
+                no-caps
+                class="text-weight-bold"
+                @click="scrollToPayment"
+              />
+            </template>
+          </q-banner>
+        </div>
+
         <!-- Student Header Card -->
         <div class="col-12">
             <q-card flat class="glass-modern profile-banner overflow-hidden">

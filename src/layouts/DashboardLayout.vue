@@ -17,6 +17,61 @@
 
         <!-- Top Right Actions -->
         <div class="row q-gutter-sm items-center">
+            <!-- Institute Selector Dropdown -->
+            <q-btn flat no-caps color="primary" class="gt-xs rounded-borders q-px-sm q-mr-sm">
+                <q-icon name="apartment" size="20px" class="q-mr-xs text-indigo-7" />
+                <div class="text-left" style="line-height: 1.1;">
+                    <div class="text-weight-bold text-caption text-indigo-10" style="max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        {{ instituteStore.activeInstitute?.name || 'Select Institute' }}
+                    </div>
+                    <div class="text-grey-6" style="font-size: 10px;">
+                        {{ instituteStore.activeInstitute?.code }} {{ instituteStore.activeInstitute?.is_default ? '★ (Default)' : '' }}
+                    </div>
+                </div>
+                <q-icon name="arrow_drop_down" color="grey-7" size="18px" />
+
+                <q-menu auto-close class="rounded-borders shadow-4">
+                    <q-list style="min-width: 240px;">
+                        <div class="q-px-md q-py-sm bg-indigo-1 text-indigo-10 text-caption text-weight-bold row items-center justify-between">
+                            <span>{{ appStore.language === 'English' ? 'Switch Institute' : 'ආයතනය තෝරන්න' }}</span>
+                            <q-badge color="indigo" label="Multi-Campus" />
+                        </div>
+                        <q-item
+                            v-for="inst in instituteStore.institutes"
+                            :key="inst.id"
+                            clickable
+                            v-ripple
+                            @click="instituteStore.setActiveInstitute(inst.id)"
+                            :active="inst.id === instituteStore.activeInstituteId"
+                            active-class="bg-blue-1 text-indigo-10 text-weight-bold"
+                        >
+                            <q-item-section avatar style="min-width: 28px;">
+                                <q-icon name="apartment" size="18px" :color="inst.id === instituteStore.activeInstituteId ? 'indigo' : 'grey-7'" />
+                            </q-item-section>
+                            <q-item-section>
+                                <q-item-label class="text-body2 row items-center">
+                                    <span>{{ inst.name }}</span>
+                                    <span v-if="inst.is_default" class="text-amber-9 text-caption text-weight-bolder q-ml-xs">★</span>
+                                </q-item-label>
+                                <q-item-label caption class="text-grey-6">{{ inst.code }} | {{ inst.city || 'Campus' }}</q-item-label>
+                            </q-item-section>
+                            <q-item-section side v-if="inst.id === instituteStore.activeInstituteId">
+                                <q-icon name="check" color="indigo" size="18px" />
+                            </q-item-section>
+                        </q-item>
+                        <q-separator class="q-my-xs" />
+                        <q-item clickable v-ripple @click="showInstituteManager = true" class="text-indigo-9 text-weight-bold">
+                            <q-item-section avatar style="min-width: 28px;">
+                                <q-icon name="settings" size="18px" color="indigo" />
+                            </q-item-section>
+                            <q-item-section>
+                                {{ appStore.language === 'English' ? 'Manage Institutes...' : 'ආයතන කළමනාකරණය...' }}
+                            </q-item-section>
+                        </q-item>
+                    </q-list>
+                </q-menu>
+            </q-btn>
+
             <q-input dense outlined v-model="search" :placeholder="appStore.language === 'English' ? 'Search students...' : 'සිසුන් සොයන්න...'" class="gt-sm q-mr-md search-input" bg-color="grey-1" borderless @keyup.enter="handleSearch">
                 <template v-slot:prepend>
                     <q-icon name="search" color="grey-5" />
@@ -360,6 +415,9 @@
         </q-card>
       </q-dialog>
 
+      <!-- Institute Manager Dialog -->
+      <InstituteManagerDialog v-model="showInstituteManager" />
+
     </q-page-container>
   </q-layout>
 </template>
@@ -378,6 +436,8 @@ import PwaInstallBanner from 'src/components/PwaInstallBanner.vue'
 import PaymentDialog from 'src/components/PaymentDialog.vue'
 import { notificationService } from 'src/utils/notifications'
 import { isSuperAdminEmail } from 'src/utils/superadmin'
+import { useInstituteStore } from 'src/store/institute'
+import InstituteManagerDialog from 'src/components/InstituteManagerDialog.vue'
 
 const appStore = useAppStore()
 const subStore = useSubscriptionStore()
@@ -387,6 +447,8 @@ const leftDrawerOpen = ref(false)
 const search = ref('')
 const router = useRouter()
 const $q = useQuasar()
+const instituteStore = useInstituteStore()
+const showInstituteManager = ref(false)
 
 const showPaymentDetails = () => {
     $q.dialog({
