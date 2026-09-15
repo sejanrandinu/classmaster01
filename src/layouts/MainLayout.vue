@@ -17,6 +17,9 @@
           <q-btn flat rounded label="Home" @click="scrollToSection('hero')" class="text-white text-weight-medium" no-caps />
           <q-btn flat rounded label="Features" @click="scrollToSection('features')" class="text-white text-weight-medium" no-caps />
           <q-btn flat rounded label="Pricing" @click="scrollToSection('pricing')" class="text-white text-weight-medium" no-caps />
+          <q-btn flat rounded label="What's New" icon="auto_awesome" @click="triggerWhatsNew" class="text-amber-4 text-weight-bold" no-caps>
+            <q-badge color="amber-9" text-color="dark" floating rounded style="font-size: 9px; padding: 2px 4px;">NEW</q-badge>
+          </q-btn>
           <q-btn flat rounded label="Student Portal" to="/student-portal" class="text-indigo-2 text-weight-bold" no-caps icon="school" />
             
           <q-btn v-if="canInstallPwa" color="indigo-6" icon="get_app" label="Install App" @click="installPwa" no-caps class="q-ml-sm text-weight-bold" />
@@ -99,6 +102,9 @@
 
     <!-- 1st Visit PWA & Notification Banner -->
     <PwaInstallBanner />
+
+    <!-- What's New Release Popup -->
+    <WhatsNewDialog />
   </q-layout>
 </template>
 
@@ -109,11 +115,18 @@ import { auth } from 'src/api'
 import { useQuasar } from 'quasar'
 import ChatbotComponent from 'src/components/ChatbotComponent.vue'
 import PwaInstallBanner from 'src/components/PwaInstallBanner.vue'
+import WhatsNewDialog from 'src/components/WhatsNewDialog.vue'
 
 const router = useRouter()
 const $q = useQuasar()
 
 const user = ref(null)
+
+const triggerWhatsNew = () => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('open-whats-new'))
+  }
+}
 
 const handleLogout = async () => {
     auth.logout()

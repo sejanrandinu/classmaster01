@@ -80,6 +80,11 @@
 
             <q-btn v-if="canInstallPwa" flat dense no-caps color="primary" icon="get_app" :label="appStore.language === 'English' ? 'Install App' : 'App එක Install කරන්න'" class="q-mr-sm text-weight-bold" @click="installPwa" />
 
+            <q-btn round flat color="amber-9" icon="auto_awesome" @click="triggerWhatsNew" class="q-mr-xs">
+                <q-tooltip>{{ appStore.language === 'English' ? "What's New (v3.2)" : "නව විශේෂාංග (v3.2)" }}</q-tooltip>
+                <q-badge color="amber-10" text-color="dark" floating rounded style="font-size: 8px; padding: 2px 3px;">✨</q-badge>
+            </q-btn>
+
             <q-btn round flat color="grey-7" icon="notifications" @click="handleNotifications">
                 <q-badge color="red" floating rounded v-if="notificationsCount > 0">{{ notificationsCount }}</q-badge>
             </q-btn>
@@ -418,6 +423,9 @@
       <!-- Institute Manager Dialog -->
       <InstituteManagerDialog v-model="showInstituteManager" />
 
+      <!-- What's New Release Popup -->
+      <WhatsNewDialog />
+
     </q-page-container>
   </q-layout>
 </template>
@@ -438,6 +446,13 @@ import { notificationService } from 'src/utils/notifications'
 import { isSuperAdminEmail } from 'src/utils/superadmin'
 import { useInstituteStore } from 'src/store/institute'
 import InstituteManagerDialog from 'src/components/InstituteManagerDialog.vue'
+import WhatsNewDialog from 'src/components/WhatsNewDialog.vue'
+
+const triggerWhatsNew = () => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('open-whats-new'))
+  }
+}
 
 const appStore = useAppStore()
 const subStore = useSubscriptionStore()
