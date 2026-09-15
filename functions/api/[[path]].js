@@ -266,9 +266,32 @@ export async function onRequest(context) {
                 console.error("Migration warning (promo_redemptions):", _err.message);
             }
 
+            // Institutes table (Multi-Campus)
+            try {
+                await db.prepare(`
+                    CREATE TABLE IF NOT EXISTS institutes (
+                        id TEXT PRIMARY KEY,
+                        user_id TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        code TEXT NOT NULL,
+                        city TEXT,
+                        phone TEXT,
+                        is_default INTEGER DEFAULT 0,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY(user_id) REFERENCES profiles(id) ON DELETE CASCADE
+                    )
+                `).run();
+            } catch (_err) {
+                console.error("Migration warning (institutes):", _err.message);
+            }
+
             // Alter tables to add columns safely (try-catch because SQLite doesn't have ADD COLUMN IF NOT EXISTS)
             try { await db.prepare("ALTER TABLE exams ADD COLUMN sub_subjects_json TEXT").run(); } catch { /* ignore */ }
+            try { await db.prepare("ALTER TABLE exams ADD COLUMN is_online INTEGER DEFAULT 0").run(); } catch { /* ignore */ }
+            try { await db.prepare("ALTER TABLE exams ADD COLUMN duration_minutes INTEGER DEFAULT 30").run(); } catch { /* ignore */ }
+            try { await db.prepare("ALTER TABLE exams ADD COLUMN questions_json TEXT").run(); } catch { /* ignore */ }
             try { await db.prepare("ALTER TABLE exam_results ADD COLUMN sub_marks_json TEXT").run(); } catch { /* ignore */ }
+            try { await db.prepare("ALTER TABLE exam_results ADD COLUMN percentage REAL").run(); } catch { /* ignore */ }
             try { await db.prepare("ALTER TABLE exam_results ADD COLUMN tutor_marks REAL").run(); } catch { /* ignore */ }
             try { await db.prepare("ALTER TABLE exam_results ADD COLUMN tutor_sub_marks_json TEXT").run(); } catch { /* ignore */ }
             try { await db.prepare("ALTER TABLE profiles ADD COLUMN whatsapp_enabled INTEGER DEFAULT 1").run(); } catch { /* ignore */ }
@@ -717,8 +740,12 @@ export async function onRequest(context) {
             const { student_id, exam_id, answers } = await request.json();
             if (!student_id || !exam_id) return json({ error: "Missing student_id or exam_id" }, 400);
 
+            // Resolve student record (accepts integer ID or index student_id string like STU1002)
+            const student = await db.prepare("SELECT * FROM students WHERE id = ? OR student_id = ?").bind(student_id, student_id).first();
+            if (!student) return json({ error: "Student record not found" }, 404);
+
             const exam = await db.prepare("SELECT * FROM exams WHERE id = ?").bind(exam_id).first();
-            if (!exam) return json({ error: "Exam not found" }, 404);
+            if (!exam) return json({ error: "Exam record not found" }, 404);
 
             let questions = [];
             try { questions = JSON.parse(exam.questions_json || '[]'); } catch { questions = []; }
@@ -729,8 +756,8 @@ export async function onRequest(context) {
 
             for (let i = 0; i < questions.length; i++) {
                 const q = questions[i];
-                const selected = answers[i] !== undefined ? Number(answers[i]) : null;
-                const isCorrect = selected === Number(q.correct_option);
+                const selected = (answers && answers[i] !== undefined) ? Number(answers[i]) : null;
+                const isCorrect = (selected !== null && selected >= 0) && (selected === Number(q.correct_option));
                 const marksAwarded = isCorrect ? (Number(q.marks) || 10) : 0;
                 totalObtained += marksAwarded;
 
@@ -748,14 +775,14 @@ export async function onRequest(context) {
 
             const percentage = totalMax > 0 ? (totalObtained / totalMax) * 100 : 0;
 
-            // Insert or update exam result in D1 database
-            const existing = await db.prepare("SELECT id FROM exam_results WHERE student_id = ? AND exam_id = ?").bind(student_id, exam_id).first();
+            // Insert or update exam result in D1 database using student.id integer
+            const existing = await db.prepare("SELECT id FROM exam_results WHERE student_id = ? AND exam_id = ?").bind(student.id, exam_id).first();
             if (existing) {
                 await db.prepare("UPDATE exam_results SET marks_obtained = ?, percentage = ?, sub_marks_json = ? WHERE id = ?")
                     .bind(totalObtained, percentage, JSON.stringify({ answers, breakdown }), existing.id).run();
             } else {
                 await db.prepare("INSERT INTO exam_results (id, student_id, exam_id, marks_obtained, percentage, sub_marks_json) VALUES (?, ?, ?, ?, ?, ?)")
-                    .bind(crypto.randomUUID(), student_id, exam_id, totalObtained, percentage, JSON.stringify({ answers, breakdown })).run();
+                    .bind(crypto.randomUUID(), student.id, exam_id, totalObtained, percentage, JSON.stringify({ answers, breakdown })).run();
             }
 
             return json({
@@ -2157,6 +2184,110 @@ export async function onRequest(context) {
             if (method === 'DELETE' && subPath) {
                 await db.prepare("DELETE FROM promo_codes WHERE id = ?").bind(subPath).run();
                 return json({ message: "Promo code deleted" });
+            }
+        }
+
+        // --- INSTITUTES MANAGEMENT (Multi-Campus D1 SQLite) ---
+        if (path === 'institutes') {
+            const authHeader = request.headers.get('Authorization');
+            if (!authHeader) return json({ error: "Authorization required" }, 401);
+            const token = authHeader.replace('Bearer ', '');
+            const payload = await verifyJWT(token, JWT_SECRET);
+            if (!payload || !payload.id) return json({ error: "Invalid token" }, 401);
+            const userId = payload.id;
+
+            if (method === 'GET') {
+                const { results } = await db.prepare("SELECT * FROM institutes WHERE user_id = ? ORDER BY is_default DESC, created_at ASC").bind(userId).all();
+                let list = results || [];
+
+                // If user has no institutes yet, auto-create default 'Main Campus' in D1 DB
+                if (list.length === 0) {
+                    const defaultId = 'inst-' + Date.now();
+                    await db.prepare(`
+                        INSERT INTO institutes (id, user_id, name, code, city, phone, is_default)
+                        VALUES (?, ?, ?, ?, ?, ?, 1)
+                    `).bind(defaultId, userId, 'Main Campus (ප්‍රධාන ආයතනය)', 'MAIN', 'Colombo', '0112345678').run();
+
+                    const created = await db.prepare("SELECT * FROM institutes WHERE id = ?").bind(defaultId).first();
+                    if (created) list = [created];
+                }
+
+                return json(list.map(i => ({ ...i, is_default: Boolean(i.is_default) })));
+            }
+
+            if (method === 'POST') {
+                const data = await request.json();
+                if (!data.name) return json({ error: "Institute name is required" }, 400);
+
+                const id = 'inst-' + Date.now();
+                const code = (data.code || 'INST').toUpperCase();
+                const isDefault = Boolean(data.is_default);
+
+                if (isDefault) {
+                    await db.prepare("UPDATE institutes SET is_default = 0 WHERE user_id = ?").bind(userId).run();
+                }
+
+                await db.prepare(`
+                    INSERT INTO institutes (id, user_id, name, code, city, phone, is_default)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                `).bind(id, userId, data.name, code, data.city || '', data.phone || '', isDefault ? 1 : 0).run();
+
+                const newInst = await db.prepare("SELECT * FROM institutes WHERE id = ?").bind(id).first();
+                return json({ message: "Institute created", institute: { ...newInst, is_default: Boolean(newInst.is_default) } });
+            }
+
+            if (method === 'PUT') {
+                const data = await request.json();
+                const instId = subPath || data.id;
+                if (!instId) return json({ error: "Institute ID required" }, 400);
+
+                if (data.is_default) {
+                    await db.prepare("UPDATE institutes SET is_default = 0 WHERE user_id = ?").bind(userId).run();
+                }
+
+                await db.prepare(`
+                    UPDATE institutes
+                    SET name = COALESCE(?, name),
+                        code = COALESCE(?, code),
+                        city = COALESCE(?, city),
+                        phone = COALESCE(?, phone),
+                        is_default = CASE WHEN ? IS NOT NULL THEN ? ELSE is_default END
+                    WHERE id = ? AND user_id = ?
+                `).bind(
+                    data.name || null,
+                    data.code ? data.code.toUpperCase() : null,
+                    data.city !== undefined ? data.city : null,
+                    data.phone !== undefined ? data.phone : null,
+                    data.is_default !== undefined ? 1 : null,
+                    data.is_default ? 1 : 0,
+                    instId,
+                    userId
+                ).run();
+
+                const updated = await db.prepare("SELECT * FROM institutes WHERE id = ?").bind(instId).first();
+                return json({ message: "Institute updated", institute: { ...updated, is_default: Boolean(updated?.is_default) } });
+            }
+
+            if (method === 'DELETE') {
+                const instId = subPath || url.searchParams.get('id');
+                if (!instId) return json({ error: "Institute ID required" }, 400);
+
+                const { results } = await db.prepare("SELECT * FROM institutes WHERE user_id = ?").bind(userId).all();
+                if (!results || results.length <= 1) {
+                    return json({ error: "At least one institute must remain in the system." }, 400);
+                }
+
+                const target = results.find(i => i.id === instId);
+                await db.prepare("DELETE FROM institutes WHERE id = ? AND user_id = ?").bind(instId, userId).run();
+
+                if (target && target.is_default) {
+                    const nextOne = results.find(i => i.id !== instId);
+                    if (nextOne) {
+                        await db.prepare("UPDATE institutes SET is_default = 1 WHERE id = ?").bind(nextOne.id).run();
+                    }
+                }
+
+                return json({ message: "Institute deleted successfully" });
             }
         }
 

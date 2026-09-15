@@ -269,4 +269,18 @@ CREATE TABLE IF NOT EXISTS promo_redemptions (
     FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
 );
 
+-- 15. Institutes (Multi-Campus Support)
+CREATE TABLE IF NOT EXISTS institutes (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    code TEXT NOT NULL,
+    city TEXT,
+    phone TEXT,
+    is_default INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES profiles(id) ON DELETE CASCADE
+);
+
+
 

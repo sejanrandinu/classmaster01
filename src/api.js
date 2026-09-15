@@ -254,3 +254,19 @@ export const promoCodes = {
     }
 };
 
+export const institutesApi = {
+    async getAll() {
+        return await client.get('institutes');
+    },
+    async create(data) {
+        return await client.post('institutes', data);
+    },
+    async update(id, data) {
+        return await client.put(`institutes/${id}`, data);
+    },
+    async delete(id) {
+        return await client.delete(`institutes/${id}`);
+    }
+};
+
+

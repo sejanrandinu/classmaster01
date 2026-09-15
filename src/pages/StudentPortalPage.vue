@@ -1345,7 +1345,7 @@ const submitOnlineExam = async (timedOut = false) => {
     examSubmitting.value = true
     try {
         const result = await client.post('public/submit-online-exam', {
-            student_id: studentData.value.student_id,
+            student_id: studentData.value.id || studentData.value.student_id,
             exam_id: activeOnlineExam.value.id,
             answers: examAnswers.value.map(a => a !== null ? a : -1)
         })

@@ -543,6 +543,7 @@ onMounted(async () => {
 
     await fetchProfile()
     await subStore.syncSubscription()
+    await instituteStore.fetchInstitutes()
     if (isSuperAdmin.value) {
         fetchPendingCount()
     }
