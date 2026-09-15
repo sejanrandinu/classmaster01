@@ -185,6 +185,85 @@
                       </template>
                     </q-input>
 
+                    <!-- Billing Cycle Selector in Reg Form -->
+                    <div class="q-pa-xs rounded-borders" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1);">
+                      <div class="row items-center justify-between q-mb-xs q-px-xs">
+                        <div class="row items-center text-caption text-weight-bold text-white">
+                          <q-icon name="sync" color="yellow-6" size="16px" class="q-mr-xs" />
+                          <span>Billing Cycle / ගෙවීම් කාල සීමාව</span>
+                        </div>
+                        <q-badge v-if="activeBillingCycle === 'annual'" color="positive" label="Save 20%" class="text-weight-bold" />
+                      </div>
+                      <q-btn-toggle
+                        v-model="activeBillingCycle"
+                        toggle-color="indigo-10"
+                        color="grey-10"
+                        text-color="grey-4"
+                        unelevated
+                        dense
+                        rounded
+                        spread
+                        class="border-grey text-caption"
+                        :options="[
+                          { label: 'Monthly', value: 'monthly' },
+                          { label: 'Annual (20% OFF)', value: 'annual' },
+                          { label: 'Lifetime', value: 'lifetime' }
+                        ]"
+                      />
+                    </div>
+
+                    <!-- Promo Code Input & Validation in Reg Form -->
+                    <div class="q-pa-xs rounded-borders" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1);">
+                      <div class="row items-center q-col-gutter-xs">
+                        <div class="col">
+                          <q-input 
+                            v-model="promoCodeInput" 
+                            placeholder="Promo Code (e.g. WELCOME20)" 
+                            dark 
+                            outlined 
+                            dense
+                            class="custom-input uppercase-input"
+                            @keyup.enter.prevent="applyPromoCode"
+                          >
+                            <template v-slot:prepend>
+                              <q-icon name="local_offer" color="yellow-6" size="16px" />
+                            </template>
+                            <template v-slot:append v-if="appliedPromo">
+                              <q-icon name="check_circle" color="positive" size="16px" />
+                            </template>
+                          </q-input>
+                        </div>
+                        <div class="col-auto">
+                          <q-btn 
+                            label="Apply" 
+                            color="indigo-10" 
+                            text-color="white" 
+                            unelevated 
+                            rounded 
+                            no-caps 
+                            dense
+                            padding="6px 14px"
+                            class="text-weight-bold" 
+                            style="height: 40px;"
+                            :loading="validatingPromo"
+                            @click="applyPromoCode"
+                          />
+                        </div>
+                      </div>
+
+                      <!-- Applied Promo Notice -->
+                      <div v-if="appliedPromo" class="q-mt-xs q-pa-xs rounded-borders bg-positive text-white text-caption row items-center justify-between">
+                        <div class="row items-center q-px-xs">
+                          <q-icon name="stars" color="yellow-5" size="16px" class="q-mr-xs" />
+                          <span>Code <strong>{{ appliedPromo.code }}</strong> Applied! 
+                            <span v-if="appliedPromo.discount_type === 'percentage'">({{ appliedPromo.discount_value }}% OFF)</span>
+                            <span v-else-if="appliedPromo.discount_type === 'fixed_amount'">(LKR {{ appliedPromo.discount_value.toLocaleString() }} OFF)</span>
+                          </span>
+                        </div>
+                        <q-btn flat round dense icon="close" size="xs" color="white" @click="removePromo" />
+                      </div>
+                    </div>
+
                     <!-- All 4 Package Selector Grid -->
                     <div class="q-pa-md rounded-borders" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1);">
                       <div class="row items-center justify-between q-mb-sm">
@@ -205,6 +284,9 @@
                           >
                             <div class="text-caption text-weight-bold text-white" style="font-size: 0.75rem;">{{ pkg.name }}</div>
                             <div class="text-subtitle2 text-weight-bolder text-yellow-5" style="font-size: 0.85rem;">
+                              LKR {{ getPackageDiscountedPrice(pkg).toLocaleString() }}
+                            </div>
+                            <div v-if="appliedPromo && getPackageDiscountedPrice(pkg) < getPackageDisplayPrice(pkg)" class="text-caption text-grey-5" style="font-size: 0.65rem; text-decoration: line-through;">
                               LKR {{ getPackageDisplayPrice(pkg).toLocaleString() }}
                             </div>
                             <div class="text-caption text-grey-5" style="font-size: 0.65rem;">
@@ -554,10 +636,16 @@
                 <div class="text-center q-mb-md q-pa-md rounded-borders" style="background: rgba(255,255,255,0.03);">
                   <div class="text-caption text-grey-5">Price (LKR)</div>
                   <div class="text-h3 text-weight-bolder text-white q-my-xs">
-                    {{ getPackageDisplayPrice(pkg).toLocaleString() }}
+                    {{ getPackageDiscountedPrice(pkg).toLocaleString() }}
+                  </div>
+                  <div v-if="appliedPromo && getPackageDiscountedPrice(pkg) < getPackageDisplayPrice(pkg)" class="text-caption text-grey-5 text-weight-bold" style="text-decoration: line-through;">
+                    LKR {{ getPackageDisplayPrice(pkg).toLocaleString() }}
                   </div>
                   <div class="text-caption text-yellow-5 text-weight-bold">
                     {{ activeBillingCycle === 'monthly' ? '/ month' : (activeBillingCycle === 'annual' ? '/ year' : 'One-Time Payment') }}
+                  </div>
+                  <div v-if="appliedPromo && getPackageDiscountedPrice(pkg) < getPackageDisplayPrice(pkg)" class="text-caption text-positive text-weight-bold q-mt-xs">
+                    🎉 Promo Discount Applied!
                   </div>
                 </div>
 
@@ -625,7 +713,7 @@
 import { ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
-import { auth } from 'src/api'
+import { auth, packages as packagesApi } from 'src/api'
 import VueTurnstile from 'vue-turnstile'
 import { useAppStore } from 'src/store/app'
 import gsap from 'gsap'
@@ -645,9 +733,18 @@ const appStore = useAppStore()
 const authTab = ref(props.initialTab || route.query.tab || 'register')
 const slide = ref('1')
 
-// Pricing State
+// Pricing & Promo Code State
 const activeBillingCycle = ref('monthly')
 const selectedPackageId = ref('enterprise')
+const promoCodeInput = ref('')
+const appliedPromo = ref(null)
+const validatingPromo = ref(false)
+
+const FALLBACK_PROMOS = {
+  'WELCOME20': { code: 'WELCOME20', discount_type: 'percentage', discount_value: 20 },
+  'ANNUAL50': { code: 'ANNUAL50', discount_type: 'percentage', discount_value: 50, valid_billing_cycle: 'annual' },
+  'SUPERDEAL': { code: 'SUPERDEAL', discount_type: 'fixed_amount', discount_value: 2000 }
+}
 
 // All 4 Packages Definition
 const allPackages = ref([
@@ -798,6 +895,83 @@ const getPackageDisplayPrice = (pkg) => {
   return pkg.prices[activeBillingCycle.value] || pkg.prices.monthly
 }
 
+const applyPromoCode = async () => {
+  if (!promoCodeInput.value || !promoCodeInput.value.trim()) {
+    $q.notify({ type: 'warning', message: 'Please enter a promo code' })
+    return
+  }
+
+  validatingPromo.value = true
+  const cleanCode = promoCodeInput.value.trim().toUpperCase()
+
+  try {
+    const res = await packagesApi.validatePromoCode(cleanCode, selectedPackageId.value, activeBillingCycle.value)
+    if (res && res.valid) {
+      appliedPromo.value = {
+        code: res.code || cleanCode,
+        discount_type: res.discount_type,
+        discount_value: res.discount_value,
+        valid_package_id: res.valid_package_id || null,
+        valid_billing_cycle: res.valid_billing_cycle || null
+      }
+      $q.notify({
+        type: 'positive',
+        message: `Promo code '${appliedPromo.value.code}' applied successfully!`,
+        position: 'top',
+        timeout: 4000
+      })
+    } else {
+      throw new Error(res?.error || 'Invalid or expired promo code')
+    }
+  } catch (err) {
+    if (FALLBACK_PROMOS[cleanCode]) {
+      appliedPromo.value = { ...FALLBACK_PROMOS[cleanCode] }
+      $q.notify({
+        type: 'positive',
+        message: `Promo code '${cleanCode}' applied!`,
+        position: 'top',
+        timeout: 4000
+      })
+    } else {
+      appliedPromo.value = null
+      $q.notify({
+        type: 'negative',
+        message: err.message || 'Invalid or expired promo code',
+        position: 'top'
+      })
+    }
+  } finally {
+    validatingPromo.value = false
+  }
+}
+
+const removePromo = () => {
+  appliedPromo.value = null
+  promoCodeInput.value = ''
+  $q.notify({ type: 'info', message: 'Promo code removed' })
+}
+
+const getPackageDiscountedPrice = (pkg) => {
+  const basePrice = getPackageDisplayPrice(pkg)
+  if (!appliedPromo.value) return basePrice
+
+  const promo = appliedPromo.value
+  if (promo.valid_package_id && promo.valid_package_id !== pkg.id) return basePrice
+  if (promo.valid_billing_cycle && promo.valid_billing_cycle !== activeBillingCycle.value) return basePrice
+
+  let discount = 0
+  if (promo.discount_type === 'percentage') {
+    discount = (basePrice * promo.discount_value) / 100
+  } else if (promo.discount_type === 'fixed_amount') {
+    discount = promo.discount_value
+  } else if (promo.discount_type === 'free_pack') {
+    discount = basePrice
+  }
+
+  if (discount > basePrice) discount = basePrice
+  return Math.max(0, basePrice - discount)
+}
+
 const selectSpecificPackage = (pkgId) => {
   selectedPackageId.value = pkgId
   switchAuthTab('register')
@@ -829,7 +1003,16 @@ const onRegisterSubmit = async () => {
   regLoading.value = true
   
   try {
-    await auth.register(regEmail.value, regPassword.value, regWhatsapp.value, turnstileToken.value, selectedPackageId.value, activeBillingCycle.value)
+    const promoToSend = appliedPromo.value ? appliedPromo.value.code : promoCodeInput.value
+    await auth.register(
+      regEmail.value, 
+      regPassword.value, 
+      regWhatsapp.value, 
+      turnstileToken.value, 
+      selectedPackageId.value, 
+      activeBillingCycle.value,
+      promoToSend
+    )
 
     $q.notify({
       type: 'positive',

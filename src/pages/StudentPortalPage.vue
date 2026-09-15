@@ -803,12 +803,283 @@
             </q-card>
         </div>
 
+        <!-- ============ ONLINE MCQ EXAMS SECTION ============ -->
+        <div class="col-12" v-if="onlineExamsList.length > 0">
+            <q-card flat class="glass-modern">
+                <q-card-section class="row items-center justify-between">
+                    <div class="text-h6 text-white text-weight-bold flex items-center">
+                        <q-icon name="devices" color="indigo-3" class="q-mr-sm" />
+                        {{ appStore.language === 'English' ? 'Online MCQ Exams' : 'අන්තර්ජාල MCQ විභාග' }}
+                    </div>
+                    <q-badge color="indigo-8" class="text-weight-bold">
+                        {{ appStore.language === 'English' ? `${onlineExamsList.length} Available` : `${onlineExamsList.length} ක් ඇත` }}
+                    </q-badge>
+                </q-card-section>
+                <q-card-section class="q-pa-md">
+                    <div class="row q-col-gutter-md">
+                        <div v-for="exam in onlineExamsList" :key="exam.id" class="col-12 col-sm-6 col-md-4">
+                            <q-card flat class="glass-modern q-pa-md relative-position overflow-hidden"
+                                :class="exam.submitted ? 'border-left-teal' : 'border-left-indigo'">
+                                <div class="absolute-top-right q-pa-sm">
+                                    <q-chip dense
+                                        :color="exam.submitted ? 'teal-9' : 'indigo-9'"
+                                        :text-color="exam.submitted ? 'teal-2' : 'indigo-2'"
+                                        :icon="exam.submitted ? 'check_circle' : 'pending'"
+                                        class="text-weight-bold">
+                                        {{ exam.submitted
+                                            ? (appStore.language === 'English' ? 'SUBMITTED' : 'ඉදිරිපත් කළා')
+                                            : (appStore.language === 'English' ? 'PENDING' : 'ඉදිරිපත් නොකළා') }}
+                                    </q-chip>
+                                </div>
+                                <div class="text-subtitle2 text-white text-weight-bold q-mb-xs">{{ exam.title }}</div>
+                                <div class="text-caption text-indigo-3 q-mb-xs">{{ exam.class_name }} · {{ exam.subject_name }}</div>
+                                <div class="row q-gutter-xs q-mb-md">
+                                    <q-chip dense color="indigo-10" text-color="white" icon="quiz" size="sm">
+                                        {{ exam.question_count }} {{ appStore.language === 'English' ? 'Questions' : 'ප්‍රශ්න' }}
+                                    </q-chip>
+                                    <q-chip dense color="deep-purple-9" text-color="white" icon="timer" size="sm">
+                                        {{ exam.duration_minutes }}{{ appStore.language === 'English' ? ' min' : ' min' }}
+                                    </q-chip>
+                                    <q-chip dense color="amber-9" text-color="white" icon="grade" size="sm">
+                                        {{ exam.max_marks }} {{ appStore.language === 'English' ? 'Marks' : 'ලකුණු' }}
+                                    </q-chip>
+                                </div>
+
+                                <!-- If submitted show result -->
+                                <div v-if="exam.submitted && exam.submitted_result" class="q-pa-sm rounded-borders bg-teal-10 q-mb-sm">
+                                    <div class="text-teal-2 text-caption text-weight-bold">
+                                        {{ appStore.language === 'English' ? 'Your Score' : 'ඔබේ ලකුණු' }}:
+                                        <span class="text-white text-subtitle2">
+                                            {{ exam.submitted_result.marks_obtained }} / {{ exam.max_marks }}
+                                            ({{ Math.round(exam.submitted_result.percentage) }}%)
+                                        </span>
+                                    </div>
+                                    <q-linear-progress
+                                        :value="exam.submitted_result.percentage / 100"
+                                        :color="exam.submitted_result.percentage >= 70 ? 'positive' : (exam.submitted_result.percentage >= 50 ? 'warning' : 'negative')"
+                                        class="q-mt-xs" style="border-radius: 4px; height: 6px;"
+                                    />
+                                </div>
+
+                                <q-btn
+                                    v-if="!exam.submitted"
+                                    unelevated
+                                    no-caps
+                                    color="indigo-10"
+                                    icon="play_arrow"
+                                    :label="appStore.language === 'English' ? 'Start Exam' : 'විභාගය ආරම්භ කරන්න'"
+                                    class="full-width text-weight-bold"
+                                    style="border-radius: 12px;"
+                                    @click="startOnlineExam(exam)"
+                                />
+                                <q-btn
+                                    v-else
+                                    outline
+                                    no-caps
+                                    color="teal-4"
+                                    icon="visibility"
+                                    :label="appStore.language === 'English' ? 'View Result' : 'ප්‍රතිඵලය බලන්න'"
+                                    class="full-width text-weight-bold"
+                                    style="border-radius: 12px;"
+                                    @click="viewExamResult(exam)"
+                                />
+                            </q-card>
+                        </div>
+                    </div>
+                </q-card-section>
+            </q-card>
+        </div>
+
       </div>
 
       <div class="text-center q-mt-xl text-indigo-4 text-caption q-pb-xl">
         &copy; 2026 ClassMaster v3.1 Premium - Institute Management Ecosystem
       </div>
     </div>
+
+    <!-- ===== Online Exam Attempt Dialog ===== -->
+    <q-dialog v-model="examDialog" persistent maximized transition-show="slide-up" transition-hide="slide-down">
+      <q-card class="portal-root" style="background: linear-gradient(135deg, #080c2e 0%, #0f1744 60%, #151c4e 100%);">
+        <!-- Sticky Header with Timer -->
+        <q-bar class="bg-indigo-10 text-white q-py-md" style="position: sticky; top: 0; z-index: 10;">
+          <q-icon name="devices" class="q-mr-sm" />
+          <div class="text-subtitle1 text-weight-bold ellipsis" style="max-width: 50vw;">
+            {{ activeOnlineExam?.title }}
+          </div>
+          <q-space />
+          <!-- Timer -->
+          <div class="row items-center q-gutter-sm q-mr-md">
+            <q-icon name="timer" :color="examTimerColor" size="20px" />
+            <div class="text-h6 text-weight-bolder font-mono" :class="`text-${examTimerColor}`">
+              {{ examTimerDisplay }}
+            </div>
+          </div>
+          <q-linear-progress
+            :value="activeOnlineExam ? examTimeLeft / (activeOnlineExam.duration_minutes * 60) : 1"
+            :color="examTimerColor"
+            size="4px"
+            class="absolute-bottom"
+          />
+        </q-bar>
+
+        <!-- Questions -->
+        <q-card-section class="q-pa-lg" style="max-width: 860px; margin: 0 auto;">
+          <div class="text-caption text-indigo-3 q-mb-lg text-center">
+            {{ appStore.language === 'English' ? 'Select the correct answer for each question' : 'සෑම ප්‍රශ්නයකටම නිවැරදි පිළිතුර තෝරන්න' }}
+          </div>
+
+          <div v-for="(question, qIdx) in (activeOnlineExam?.questions || [])" :key="qIdx"
+               class="q-mb-xl q-pa-md rounded-borders"
+               style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);">
+            <!-- Question Number & Text -->
+            <div class="row items-start q-mb-md">
+              <q-avatar color="indigo-9" text-color="white" size="32px" class="q-mr-sm text-weight-bold text-subtitle2">
+                {{ qIdx + 1 }}
+              </q-avatar>
+              <div class="col text-white text-subtitle1 text-weight-bold" style="line-height: 1.5;">
+                {{ question.question }}
+              </div>
+              <q-chip dense :color="examAnswers[qIdx] !== null ? 'positive' : 'grey-8'" text-color="white" size="sm" icon="check" class="q-ml-sm">
+                {{ question.marks }} {{ appStore.language === 'English' ? 'pts' : 'ලකු.' }}
+              </q-chip>
+            </div>
+
+            <!-- Options -->
+            <div class="row q-col-gutter-sm">
+              <div v-for="(option, oIdx) in question.options" :key="oIdx" class="col-12 col-sm-6">
+                <div
+                  class="q-pa-sm rounded-borders cursor-pointer row items-center transition-all"
+                  :class="examAnswers[qIdx] === oIdx
+                    ? 'bg-indigo-9 text-white border-indigo-glow'
+                    : 'bg-grey-10 text-grey-3 hover-option'"
+                  @click="examAnswers[qIdx] = oIdx"
+                  style="border: 1px solid; border-color: transparent; user-select: none;"
+                  :style="examAnswers[qIdx] === oIdx ? 'border-color: #7c4dff;' : ''"
+                >
+                  <q-avatar
+                    size="24px"
+                    class="q-mr-sm text-caption text-weight-bolder"
+                    :color="examAnswers[qIdx] === oIdx ? 'indigo-7' : 'grey-8'"
+                    text-color="white"
+                  >
+                    {{ String.fromCharCode(65 + oIdx) }}
+                  </q-avatar>
+                  <span class="text-caption text-weight-medium">{{ option }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Progress -->
+          <div class="q-mb-lg">
+            <div class="text-caption text-indigo-3 q-mb-xs">
+              {{ appStore.language === 'English' ? 'Answered' : 'පිළිතුරු දුන්' }}:
+              {{ examAnswers.filter(a => a !== null).length }} / {{ activeOnlineExam?.questions?.length }}
+            </div>
+            <q-linear-progress
+              :value="activeOnlineExam?.questions?.length ? examAnswers.filter(a => a !== null).length / activeOnlineExam.questions.length : 0"
+              color="indigo-5"
+              track-color="grey-9"
+              rounded
+              style="height: 8px;"
+            />
+          </div>
+
+          <!-- Submit Button -->
+          <div class="row q-gutter-md justify-center q-pb-xl">
+            <q-btn
+              flat
+              color="grey-5"
+              label="Cancel"
+              no-caps
+              @click="examDialog = false; clearInterval(examTimerInterval)"
+            />
+            <q-btn
+              unelevated
+              color="indigo-10"
+              icon="send"
+              :label="appStore.language === 'English' ? 'Submit Exam' : 'විභාගය ඉදිරිපත් කරන්න'"
+              no-caps
+              class="text-weight-bold q-px-xl"
+              style="border-radius: 12px; min-width: 200px;"
+              :loading="examSubmitting"
+              @click="submitOnlineExam(false)"
+            />
+          </div>
+        </q-card-section>
+      </q-card>
+    </q-dialog>
+
+    <!-- ===== Online Exam Result Dialog ===== -->
+    <q-dialog v-model="examResultDialog" transition-show="scale" transition-hide="scale">
+      <q-card style="width: 480px; max-width: 95vw; background: linear-gradient(135deg, #0d124d, #1a237e); border-radius: 20px; border: 1px solid rgba(99,102,241,0.3);" class="q-pa-md">
+        <q-card-section class="text-center q-pb-none">
+          <q-icon
+            :name="examResultData?.percentage >= 50 ? 'emoji_events' : 'sentiment_dissatisfied'"
+            :color="examResultData?.percentage >= 70 ? 'amber-4' : (examResultData?.percentage >= 50 ? 'green-4' : 'red-4')"
+            size="72px"
+            class="glow-shadow q-mb-sm"
+          />
+          <div class="text-h5 text-white text-weight-bolder q-mb-xs">
+            {{ examResultData?.percentage >= 70
+                ? (appStore.language === 'English' ? 'Excellent!' : 'විශිෂ්ටයි!')
+                : examResultData?.percentage >= 50
+                    ? (appStore.language === 'English' ? 'Good Job!' : 'හොඳයි!')
+                    : (appStore.language === 'English' ? 'Keep Trying!' : 'නැවත උත්සාහ කරන්න!') }}
+          </div>
+          <div class="text-indigo-2 text-caption">{{ examResultData?.title }}</div>
+        </q-card-section>
+
+        <q-card-section class="q-pa-lg">
+          <!-- Score display -->
+          <div class="text-center q-mb-lg">
+            <div class="text-h2 text-weight-bolder text-white font-mono">
+              {{ examResultData?.marks_obtained }}
+              <span class="text-h5 text-indigo-3">/ {{ examResultData?.max_marks }}</span>
+            </div>
+            <div class="text-h6 text-weight-bold q-mt-xs"
+                 :class="examResultData?.percentage >= 70 ? 'text-amber-4' : (examResultData?.percentage >= 50 ? 'text-green-4' : 'text-red-4')">
+              {{ Math.round(examResultData?.percentage || 0) }}%
+            </div>
+          </div>
+
+          <q-linear-progress
+            :value="(examResultData?.percentage || 0) / 100"
+            :color="(examResultData?.percentage || 0) >= 70 ? 'amber-5' : ((examResultData?.percentage || 0) >= 50 ? 'positive' : 'negative')"
+            track-color="indigo-10"
+            rounded
+            style="height: 10px;"
+            class="q-mb-lg"
+          />
+
+          <!-- Pass/Fail status -->
+          <div class="flex flex-center q-mb-lg">
+            <q-chip
+              :color="(examResultData?.percentage || 0) >= 50 ? 'positive' : 'negative'"
+              text-color="white"
+              class="text-weight-bolder text-subtitle2 q-px-lg q-py-sm"
+              :icon="(examResultData?.percentage || 0) >= 50 ? 'check_circle' : 'cancel'"
+            >
+              {{ (examResultData?.percentage || 0) >= 50
+                  ? (appStore.language === 'English' ? 'PASSED' : 'සමත් විය')
+                  : (appStore.language === 'English' ? 'NOT PASSED' : 'අසමත් විය') }}
+            </q-chip>
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="center" class="q-pb-lg">
+          <q-btn
+            unelevated
+            color="indigo-8"
+            :label="appStore.language === 'English' ? 'Close' : 'වසන්න'"
+            no-caps
+            class="q-px-xl text-weight-bold"
+            style="border-radius: 12px;"
+            v-close-popup
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
 
     <!-- Certificate Overlay Dialog (Off-print elements) -->
     <q-dialog v-model="certificateDialogOpen" transition-show="scale" transition-hide="scale">
@@ -1028,6 +1299,82 @@ const pairingsList = ref([])
 const disciplineRecords = ref([])
 const recordingsList = ref([])
 const classList = ref([])
+const onlineExamsList = ref([])
+
+// ============ ONLINE EXAM ============
+const activeOnlineExam = ref(null)
+const examDialog = ref(false)
+const examAnswers = ref([])
+const examSubmitting = ref(false)
+const examTimeLeft = ref(0)
+const examTimerInterval = ref(null)
+const examResultDialog = ref(false)
+const examResultData = ref(null)
+
+const startOnlineExam = (exam) => {
+    activeOnlineExam.value = exam
+    examAnswers.value = Array(exam.questions.length).fill(null)
+    examTimeLeft.value = (exam.duration_minutes || 30) * 60
+    examDialog.value = true
+    clearInterval(examTimerInterval.value)
+    examTimerInterval.value = setInterval(() => {
+        if (examTimeLeft.value > 0) {
+            examTimeLeft.value--
+        } else {
+            clearInterval(examTimerInterval.value)
+            submitOnlineExam(true)
+        }
+    }, 1000)
+}
+
+const examTimerDisplay = computed(() => {
+    const m = Math.floor(examTimeLeft.value / 60)
+    const s = examTimeLeft.value % 60
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+})
+
+const examTimerColor = computed(() => {
+    if (examTimeLeft.value < 60) return 'negative'
+    if (examTimeLeft.value < 300) return 'warning'
+    return 'positive'
+})
+
+const submitOnlineExam = async (timedOut = false) => {
+    if (!activeOnlineExam.value) return
+    clearInterval(examTimerInterval.value)
+    examSubmitting.value = true
+    try {
+        const result = await client.post('public/submit-online-exam', {
+            student_id: studentData.value.student_id,
+            exam_id: activeOnlineExam.value.id,
+            answers: examAnswers.value.map(a => a !== null ? a : -1)
+        })
+        examResultData.value = result
+        examDialog.value = false
+        examResultDialog.value = true
+
+        if (timedOut) {
+            $q.notify({ type: 'warning', message: appStore.language === 'English' ? 'Time is up! Exam auto-submitted.' : 'කාලය ශේෂ නොවීය! විභාගය ස්වයංක්‍රීයව ඉදිරිපත් විය.' })
+        } else {
+            $q.notify({ type: 'positive', icon: 'check_circle', message: appStore.language === 'English' ? 'Exam submitted successfully!' : 'විභාගය සාර්ථකව ඉදිරිපත් කළෙමු!' })
+        }
+        await fetchStudentStatus()
+    } catch (err) {
+        $q.notify({ type: 'negative', message: err.message || 'Submission failed.' })
+    } finally {
+        examSubmitting.value = false
+    }
+}
+
+const viewExamResult = (exam) => {
+    examResultData.value = exam.submitted_result ? {
+        marks_obtained: exam.submitted_result.marks_obtained,
+        max_marks: exam.max_marks,
+        percentage: exam.submitted_result.percentage,
+        title: exam.title
+    } : null
+    examResultDialog.value = true
+}
 
 // ============ PAYMENT UPLOAD ============
 const paymentSubmitting = ref(false)
@@ -1197,6 +1544,7 @@ const fetchStudentStatus = async () => {
         disciplineRecords.value = data.discipline || []
         recordingsList.value = data.recordings || []
         classList.value = data.classes || []
+        onlineExamsList.value = data.onlineExams || []
 
         // Persist session ID
         localStorage.setItem('classmaster-student-id', studentId.value.trim())
@@ -1897,6 +2245,32 @@ const downloadCharacterCertificate = () => {
 
 
 /* Print CSS Stylesheet (Global) */
+
+/* Online Exam Card border helpers */
+.border-left-indigo {
+    border-left: 4px solid #5c6bc0 !important;
+}
+.border-left-teal {
+    border-left: 4px solid #26a69a !important;
+}
+.border-left-warning {
+    border-left: 4px solid #ff8f00 !important;
+}
+
+/* MCQ Option hover effect */
+.hover-option {
+    transition: background 0.18s ease, border-color 0.18s ease;
+    &:hover {
+        background: rgba(92, 107, 192, 0.25) !important;
+        border-color: rgba(92, 107, 192, 0.5) !important;
+    }
+}
+
+/* Selected MCQ option glow */
+.border-indigo-glow {
+    box-shadow: 0 0 8px rgba(99, 102, 241, 0.45);
+}
+
 </style>
 
 <style lang="scss">

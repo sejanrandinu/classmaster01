@@ -305,7 +305,7 @@ export async function onRequest(context) {
 
         // --- AUTH ---
         if (path === 'auth' && subPath === 'register' && method === 'POST') {
-            const { email, password, whatsapp, turnstileToken, package_id = 'enterprise', billing_cycle = 'monthly' } = await request.json();
+            const { email, password, whatsapp, turnstileToken, package_id = 'enterprise', billing_cycle = 'monthly', promo_code = '' } = await request.json();
 
             // Turnstile Validation
             const turnstileSecret = env.TURNSTILE_SECRET || '0x4AAAAAADHUUik0ac64rysfxgfCWL1Wmcg';
@@ -330,9 +330,24 @@ export async function onRequest(context) {
 
             const trialEndsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
+            let cleanPromoCode = null;
+            if (promo_code && typeof promo_code === 'string' && promo_code.trim()) {
+                cleanPromoCode = promo_code.trim().toUpperCase();
+                try {
+                    const promo = await db.prepare("SELECT * FROM promo_codes WHERE code = ? AND is_active = 1").bind(cleanPromoCode).first();
+                    if (promo) {
+                        await db.prepare("UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ?").bind(promo.id).run();
+                        await db.prepare("INSERT INTO promo_redemptions (id, promo_code_id, user_id, package_id, billing_cycle, discount_applied, final_price) VALUES (?, ?, ?, ?, ?, ?, ?)")
+                            .bind(crypto.randomUUID(), promo.id, id, selectedPackageId, billing_cycle, promo.discount_value || 0, 0).run();
+                    }
+                } catch (pe) {
+                    console.warn("Promo registration record error:", pe.message);
+                }
+            }
+
             // Email verification removed by user request - set to 1 by default
-            await db.prepare("INSERT INTO profiles (id, email, password_hash, whatsapp_number, role, is_approved, is_email_verified, verification_token, trial_ends_at, package_id, billing_cycle) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-                .bind(id, email, password_hash, whatsapp, role, approved, 1, null, trialEndsAt, selectedPackageId, billing_cycle).run();
+            await db.prepare("INSERT INTO profiles (id, email, password_hash, whatsapp_number, role, is_approved, is_email_verified, verification_token, trial_ends_at, package_id, billing_cycle, applied_promo_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                .bind(id, email, password_hash, whatsapp, role, approved, 1, null, trialEndsAt, selectedPackageId, billing_cycle, cleanPromoCode).run();
 
             const token = await signJWT({ id, email, role, is_email_verified: 1, trial_ends_at: trialEndsAt }, JWT_SECRET);
             return json({ message: "Registered", token, user: { id, email, role, is_email_verified: 1, trial_ends_at: trialEndsAt } });
@@ -628,6 +643,50 @@ export async function onRequest(context) {
                     });
                 }
 
+                // Fetch Online Exams available for student's enrolled classes
+                let availableOnlineExams = [];
+                if (classIds && classIds.length > 0) {
+                    const classPlaceholders = classIds.map(() => "?").join(",");
+                    const { results: onlineExamList } = await db.prepare(`
+                        SELECT e.*, c.name as class_name
+                        FROM exams e
+                        JOIN classes c ON e.class_id = c.id
+                        WHERE e.class_id IN (${classPlaceholders}) AND COALESCE(e.is_online, 0) = 1
+                        ORDER BY e.date DESC
+                    `).bind(...classIds).all();
+
+                    availableOnlineExams = (onlineExamList || []).map(e => {
+                        let questions = [];
+                        try { questions = JSON.parse(e.questions_json || '[]'); } catch { questions = []; }
+                        
+                        const myResult = (rawResults || []).find(r => r.exam_id === e.id);
+
+                        return {
+                            id: e.id,
+                            title: e.title,
+                            class_name: e.class_name,
+                            subject_name: e.subject_name,
+                            date: e.date,
+                            max_marks: e.max_marks,
+                            duration_minutes: e.duration_minutes || 30,
+                            certificate_cutoff: e.certificate_cutoff || 50,
+                            question_count: questions.length,
+                            questions: questions.map(q => ({
+                                id: q.id,
+                                question: q.question,
+                                options: q.options,
+                                marks: q.marks
+                            })),
+                            submitted: !!myResult,
+                            submitted_result: myResult ? {
+                                marks_obtained: myResult.marks_obtained,
+                                percentage: myResult.percentage,
+                                sub_marks_json: myResult.sub_marks_json
+                            } : null
+                        };
+                    });
+                }
+
                 // Return classes for payment form dropdown
                 const { results: enrolledClasses } = await db.prepare(
                     `SELECT id, name as class_name, subject_name, grade FROM classes WHERE user_id = ? AND grade = ?`
@@ -644,12 +703,69 @@ export async function onRequest(context) {
                     pairings,
                     discipline,
                     recordings,
-                    classes: enrolledClasses || []
+                    classes: enrolledClasses || [],
+                    onlineExams: availableOnlineExams
                 });
             } catch (e) {
                 console.error('Public Portal API Error:', e);
                 return json({ error: `Public Portal Sync Error: ${e.message}` }, 500);
             }
+        }
+
+        // Public Online Exam Submission Endpoint
+        if (path === 'public' && subPath === 'submit-online-exam' && method === 'POST') {
+            const { student_id, exam_id, answers } = await request.json();
+            if (!student_id || !exam_id) return json({ error: "Missing student_id or exam_id" }, 400);
+
+            const exam = await db.prepare("SELECT * FROM exams WHERE id = ?").bind(exam_id).first();
+            if (!exam) return json({ error: "Exam not found" }, 404);
+
+            let questions = [];
+            try { questions = JSON.parse(exam.questions_json || '[]'); } catch { questions = []; }
+
+            let totalObtained = 0;
+            const totalMax = exam.max_marks || (questions.length * 10) || 100;
+            const breakdown = [];
+
+            for (let i = 0; i < questions.length; i++) {
+                const q = questions[i];
+                const selected = answers[i] !== undefined ? Number(answers[i]) : null;
+                const isCorrect = selected === Number(q.correct_option);
+                const marksAwarded = isCorrect ? (Number(q.marks) || 10) : 0;
+                totalObtained += marksAwarded;
+
+                breakdown.push({
+                    question_index: i,
+                    question: q.question,
+                    options: q.options,
+                    selected_option: selected,
+                    correct_option: Number(q.correct_option),
+                    is_correct: isCorrect,
+                    marks_awarded: marksAwarded,
+                    max_marks: Number(q.marks) || 10
+                });
+            }
+
+            const percentage = totalMax > 0 ? (totalObtained / totalMax) * 100 : 0;
+
+            // Insert or update exam result in D1 database
+            const existing = await db.prepare("SELECT id FROM exam_results WHERE student_id = ? AND exam_id = ?").bind(student_id, exam_id).first();
+            if (existing) {
+                await db.prepare("UPDATE exam_results SET marks_obtained = ?, percentage = ?, sub_marks_json = ? WHERE id = ?")
+                    .bind(totalObtained, percentage, JSON.stringify({ answers, breakdown }), existing.id).run();
+            } else {
+                await db.prepare("INSERT INTO exam_results (id, student_id, exam_id, marks_obtained, percentage, sub_marks_json) VALUES (?, ?, ?, ?, ?, ?)")
+                    .bind(crypto.randomUUID(), student_id, exam_id, totalObtained, percentage, JSON.stringify({ answers, breakdown })).run();
+            }
+
+            return json({
+                success: true,
+                marks_obtained: totalObtained,
+                max_marks: totalMax,
+                percentage,
+                is_passed: percentage >= (exam.certificate_cutoff || 50),
+                breakdown
+            });
         }
 
         // --- PUBLIC PORTAL ONLINE PAYMENT SUBMISSION WITH RECEIPT ---
@@ -1487,14 +1603,19 @@ export async function onRequest(context) {
         }
         // EXAMS
         if (path === 'exams') {
-            // Self-heal: add certificate_cutoff column if not present
+            // Self-heal: add certificate_cutoff, is_online, duration_minutes, questions_json columns if not present
             try { await db.prepare("ALTER TABLE exams ADD COLUMN certificate_cutoff INTEGER DEFAULT 50").run(); } catch { /* ignore */ }
+            try { await db.prepare("ALTER TABLE exams ADD COLUMN is_online INTEGER DEFAULT 0").run(); } catch { /* ignore */ }
+            try { await db.prepare("ALTER TABLE exams ADD COLUMN duration_minutes INTEGER DEFAULT 30").run(); } catch { /* ignore */ }
+            try { await db.prepare("ALTER TABLE exams ADD COLUMN questions_json TEXT").run(); } catch { /* ignore */ }
 
             if (method === 'GET') {
                 // Fetch exams ordered by date ASC (chronological), include draft counts per exam
                 const { results: examRows } = await db.prepare(`
                     SELECT e.*, c.name as class_name,
                         COALESCE(e.certificate_cutoff, 50) as certificate_cutoff,
+                        COALESCE(e.is_online, 0) as is_online,
+                        COALESCE(e.duration_minutes, 30) as duration_minutes,
                         (SELECT COUNT(*) FROM exam_results er WHERE er.exam_id = e.id AND er.tutor_marks IS NOT NULL AND er.tutor_marks > 0) as draft_count
                     FROM exams e
                     LEFT JOIN classes c ON e.class_id = c.id
@@ -1506,14 +1627,14 @@ export async function onRequest(context) {
             if (method === 'POST') {
                 const d = await request.json();
                 const id = crypto.randomUUID();
-                await db.prepare("INSERT INTO exams (id, title, class_id, subject_name, date, max_marks, sub_subjects_json, certificate_cutoff) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-                    .bind(id, d.title, d.class_id, d.subject_name, d.date, d.max_marks || 100, JSON.stringify(d.sub_subjects || []), d.certificate_cutoff ?? 50).run();
+                await db.prepare("INSERT INTO exams (id, title, class_id, subject_name, date, max_marks, sub_subjects_json, certificate_cutoff, is_online, duration_minutes, questions_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                    .bind(id, d.title, d.class_id, d.subject_name, d.date, d.max_marks || 100, JSON.stringify(d.sub_subjects || []), d.certificate_cutoff ?? 50, d.is_online ? 1 : 0, d.duration_minutes || 30, JSON.stringify(d.questions || [])).run();
                 return json({ message: "Created", id });
             }
             if (method === 'PUT' && subPath) {
                 const d = await request.json();
-                await db.prepare("UPDATE exams SET title = ?, subject_name = ?, date = ?, max_marks = ?, sub_subjects_json = ?, certificate_cutoff = ? WHERE id = ?")
-                    .bind(d.title, d.subject_name, d.date, d.max_marks, JSON.stringify(d.sub_subjects || []), d.certificate_cutoff ?? 50, subPath).run();
+                await db.prepare("UPDATE exams SET title = ?, subject_name = ?, date = ?, max_marks = ?, sub_subjects_json = ?, certificate_cutoff = ?, is_online = ?, duration_minutes = ?, questions_json = ? WHERE id = ?")
+                    .bind(d.title, d.subject_name, d.date, d.max_marks, JSON.stringify(d.sub_subjects || []), d.certificate_cutoff ?? 50, d.is_online ? 1 : 0, d.duration_minutes || 30, JSON.stringify(d.questions || []), subPath).run();
                 return json({ message: "Updated" });
             }
             if (method === 'DELETE' && subPath) {

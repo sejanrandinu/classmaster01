@@ -71,6 +71,13 @@
               <span>Pass: {{ exam.certificate_cutoff ?? 50 }}</span>
             </div>
 
+            <!-- Online Exam Badge -->
+            <div v-if="exam.is_online" class="q-mt-sm row items-center q-gutter-xs">
+              <q-chip dense color="indigo-10" text-color="white" icon="devices" class="text-weight-bold shadow-1">
+                ONLINE MCQ EXAM ({{ exam.duration_minutes || 30 }}m)
+              </q-chip>
+            </div>
+
             <!-- Draft marks badge -->
             <div v-if="exam.draft_count > 0" class="q-mt-sm">
               <q-chip dense color="amber-2" text-color="amber-9" icon="edit_note" class="text-weight-bold">
@@ -166,7 +173,7 @@
             </q-input>
 
             <!-- Sub Subjects List Builder -->
-            <div class="border-indigo-light q-pa-md rounded-borders q-mt-sm">
+            <div v-if="!form.is_online" class="border-indigo-light q-pa-md rounded-borders q-mt-sm">
               <div class="row justify-between items-center q-mb-sm">
                 <div class="text-subtitle2 text-indigo-10 text-weight-bold">Sub-Subjects (Optional)</div>
                 <q-btn size="sm" color="indigo" icon="add" label="Add Sub-Subject" flat no-caps @click="addSubSubjectField" />
@@ -185,6 +192,80 @@
                 </div>
                 <div class="col-1 text-center">
                   <q-btn flat round dense color="red" icon="delete" size="sm" @click="removeSubSubjectField(idx)" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Online MCQ Exam Builder Section -->
+            <div class="q-pa-md rounded-borders bg-indigo-1 border-indigo-light q-mt-sm">
+              <div class="row items-center justify-between">
+                <div class="row items-center">
+                  <q-icon name="devices" color="indigo-10" size="20px" class="q-mr-xs" />
+                  <span class="text-subtitle2 text-weight-bold text-indigo-10">Online MCQ Exam / අන්තර්ජාල විභාගය</span>
+                </div>
+                <q-toggle v-model="form.is_online" color="indigo-10" />
+              </div>
+
+              <div v-if="form.is_online" class="q-mt-md q-gutter-y-sm">
+                <div class="row q-col-gutter-sm items-center">
+                  <div class="col-12 col-sm-6">
+                    <q-input 
+                      outlined 
+                      dense 
+                      v-model.number="form.duration_minutes" 
+                      type="number" 
+                      label="Duration (Minutes)" 
+                      hint="Time limit for exam session"
+                    >
+                      <template v-slot:prepend><q-icon name="timer" color="indigo-10" /></template>
+                    </q-input>
+                  </div>
+                  <div class="col-12 col-sm-6">
+                    <div class="text-caption text-grey-7">Questions: <strong>{{ form.questions.length }}</strong></div>
+                    <div class="text-caption text-indigo-10 text-weight-bold">Total MCQ Marks: {{ calculateQuestionsTotalMarks() }}</div>
+                  </div>
+                </div>
+
+                <!-- MCQ Questions List -->
+                <div class="q-mt-md">
+                  <div class="row items-center justify-between q-mb-sm">
+                    <span class="text-caption text-weight-bold text-grey-9">MCQ Question Items</span>
+                    <q-btn size="sm" color="indigo-10" icon="add_task" label="Add Question" unelevated no-caps @click="addQuestionField" />
+                  </div>
+
+                  <div v-if="form.questions.length === 0" class="text-caption text-grey-6 text-center q-pa-sm bg-white rounded-borders border-grey">
+                    No MCQ questions added yet. Click "Add Question" to build test.
+                  </div>
+
+                  <div v-for="(q, qIdx) in form.questions" :key="qIdx" class="q-mb-md q-pa-sm bg-white rounded-borders shadow-1 border-grey">
+                    <div class="row items-center justify-between q-mb-xs">
+                      <span class="text-weight-bold text-indigo-10 text-caption">Q{{ qIdx + 1 }}. Question Text</span>
+                      <q-btn flat round dense icon="delete" color="red" size="xs" @click="removeQuestionField(qIdx)" />
+                    </div>
+                    <q-input outlined dense v-model="q.question" placeholder="Enter question..." class="q-mb-xs" />
+
+                    <div class="row q-col-gutter-xs q-mb-xs">
+                      <div class="col-6" v-for="(opt, oIdx) in 4" :key="oIdx">
+                        <q-input 
+                          outlined 
+                          dense 
+                          v-model="q.options[oIdx]" 
+                          :placeholder="`Option ${String.fromCharCode(65 + oIdx)}`"
+                        >
+                          <template v-slot:prepend>
+                            <q-radio v-model="q.correct_option" :val="oIdx" dense color="indigo-10" />
+                          </template>
+                        </q-input>
+                      </div>
+                    </div>
+                    <div class="row items-center justify-between text-caption text-grey-7 q-px-xs">
+                      <span>Correct: <strong class="text-positive">Option {{ String.fromCharCode(65 + (q.correct_option || 0)) }}</strong></span>
+                      <div class="row items-center">
+                        <span class="q-mr-xs">Marks:</span>
+                        <q-input outlined dense type="number" v-model.number="q.marks" style="width: 70px;" size="xs" @update:model-value="recalculateExamMax" />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -389,7 +470,10 @@ const form = ref({
   date: '',
   max_marks: 100,
   sub_subjects: [],
-  certificate_cutoff: 50
+  certificate_cutoff: 50,
+  is_online: false,
+  duration_minutes: 30,
+  questions: []
 })
 
 const sortOrder = ref('asc')
@@ -475,8 +559,33 @@ const removeSubSubjectField = (idx) => {
   recalculateExamMax()
 }
 
+const addQuestionField = () => {
+  if (!form.value.questions) form.value.questions = []
+  form.value.questions.push({
+    question: '',
+    options: ['', '', '', ''],
+    correct_option: 0,
+    marks: 10
+  })
+  recalculateExamMax()
+}
+
+const removeQuestionField = (idx) => {
+  form.value.questions.splice(idx, 1)
+  recalculateExamMax()
+}
+
+const calculateQuestionsTotalMarks = () => {
+  if (!form.value.questions || form.value.questions.length === 0) return 0
+  return form.value.questions.reduce((sum, q) => sum + (Number(q.marks) || 0), 0)
+}
+
 const recalculateExamMax = () => {
-  if (form.value.sub_subjects.length > 0) {
+  if (form.value.is_online && form.value.questions && form.value.questions.length > 0) {
+    form.value.max_marks = calculateQuestionsTotalMarks()
+    return
+  }
+  if (form.value.sub_subjects && form.value.sub_subjects.length > 0) {
     let total = 0
     form.value.sub_subjects.forEach(ss => {
       total += Number(ss.max || 0)
@@ -495,7 +604,10 @@ const openExamDialog = () => {
     date: new Date().toISOString().split('T')[0], 
     max_marks: 100,
     sub_subjects: [],
-    certificate_cutoff: 50
+    certificate_cutoff: 50,
+    is_online: false,
+    duration_minutes: 30,
+    questions: []
   }
   examDialog.value = true
 }
@@ -508,10 +620,20 @@ const editExam = (exam) => {
   } catch {
     sub_subjects = []
   }
+  let questions = []
+  try {
+    questions = JSON.parse(exam.questions_json || '[]')
+  } catch {
+    questions = []
+  }
+
   form.value = { 
     ...exam,
     sub_subjects,
-    certificate_cutoff: exam.certificate_cutoff ?? 50
+    certificate_cutoff: exam.certificate_cutoff ?? 50,
+    is_online: exam.is_online === 1 || exam.is_online === true,
+    duration_minutes: exam.duration_minutes || 30,
+    questions
   }
   examDialog.value = true
 }
@@ -525,9 +647,12 @@ const saveExam = async () => {
       class_id: form.value.class_id,
       subject_name: form.value.subject_name,
       date: form.value.date,
-      max_marks: form.value.max_marks,
+      max_marks: form.value.is_online ? calculateQuestionsTotalMarks() : form.value.max_marks,
       sub_subjects: form.value.sub_subjects,
-      certificate_cutoff: form.value.certificate_cutoff ?? 50
+      certificate_cutoff: form.value.certificate_cutoff ?? 50,
+      is_online: form.value.is_online ? 1 : 0,
+      duration_minutes: form.value.duration_minutes || 30,
+      questions: form.value.questions || []
     }
     
     if (isEdit.value) {

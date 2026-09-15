@@ -69,8 +69,8 @@ export const auth = {
         return data;
     },
 
-    async register(email, password, whatsapp, turnstileToken, packageId = 'enterprise', billingCycle = 'monthly') {
-        const data = await client.post('auth/register', { email, password, whatsapp, turnstileToken, package_id: packageId, billing_cycle: billingCycle });
+    async register(email, password, whatsapp, turnstileToken, packageId = 'enterprise', billingCycle = 'monthly', promoCode = '') {
+        const data = await client.post('auth/register', { email, password, whatsapp, turnstileToken, package_id: packageId, billing_cycle: billingCycle, promo_code: promoCode });
         if (data.token) {
             localStorage.setItem('classmaster-token', data.token);
         }
@@ -145,7 +145,8 @@ export const exams = {
     getAll: (params) => client.get('exams', params),
     create: (data) => client.post('exams', data),
     update: (id, data) => client.put(`exams/${id}`, data),
-    delete: (id) => client.delete(`exams/${id}`)
+    delete: (id) => client.delete(`exams/${id}`),
+    submitOnline: (student_id, exam_id, answers) => client.post('public/submit-online-exam', { student_id, exam_id, answers })
 }
 
 export const examResults = {
