@@ -14,7 +14,10 @@ export const client = {
             ...options.headers,
         };
 
-        if (token) {
+        // Attach Authorization header only for endpoints that require authentication.
+        // Promo code validation should be publicly accessible, so we omit the token for that path.
+        const authRequired = !path.startsWith('promo-codes/');
+        if (token && authRequired) {
             headers['Authorization'] = `Bearer ${token}`;
         }
 
