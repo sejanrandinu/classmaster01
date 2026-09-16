@@ -55,5 +55,23 @@ export default defineRouter(function (/* { store, ssrContext } */) {
     next()
   })
 
+  // Auto-reload on Vite chunk / CSS preload load failure after new deployment updates
+  Router.onError((error) => {
+    const isChunkOrCssError =
+      error?.message?.includes('Unable to preload CSS') ||
+      error?.message?.includes('Failed to fetch dynamically imported module') ||
+      error?.message?.includes('Importing a module script failed')
+
+    if (isChunkOrCssError) {
+      const lastReload = sessionStorage.getItem('cm-last-chunk-reload')
+      const now = Date.now()
+      if (!lastReload || now - parseInt(lastReload, 10) > 10000) {
+        sessionStorage.setItem('cm-last-chunk-reload', now.toString())
+        window.location.reload()
+      }
+    }
+  })
+
   return Router
 })
+

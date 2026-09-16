@@ -21,7 +21,20 @@ onMounted(async () => {
     }
   }
 
-  // Handle PWA Install Prompt globally
+  // Handle stale chunk & CSS preload errors gracefully across deployments
+  window.addEventListener('error', (event) => {
+    const msg = event?.message || event?.error?.message || ''
+    if (msg.includes('Unable to preload CSS') || msg.includes('Failed to fetch dynamically imported module')) {
+      const lastReload = sessionStorage.getItem('cm-last-chunk-reload')
+      const now = Date.now()
+      if (!lastReload || now - parseInt(lastReload, 10) > 10000) {
+        sessionStorage.setItem('cm-last-chunk-reload', now.toString())
+        window.location.reload()
+      }
+    }
+  }, true)
+
+  // Handle PWA Install Prompt globally (preventDefault allows custom install buttons)
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault()
     window.deferredPwaPrompt = e
