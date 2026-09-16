@@ -301,18 +301,18 @@ export async function onRequest(context) {
             try { await db.prepare("ALTER TABLE profiles ADD COLUMN subscription_expires_at TEXT").run(); } catch { /* ignore */ }
             try { await db.prepare("ALTER TABLE profiles ADD COLUMN applied_promo_code TEXT").run(); } catch { /* ignore */ }
 
-            // Seed default promo codes if empty
+            // Always guarantee default promo codes exist in DB
             try {
-                const countRes = await db.prepare("SELECT COUNT(*) as c FROM promo_codes").first();
-                if (!countRes || countRes.c === 0) {
-                    await db.prepare("INSERT INTO promo_codes (id, code, discount_type, discount_value, max_uses, expires_at) VALUES (?, ?, ?, ?, ?, ?)")
-                        .bind(crypto.randomUUID(), 'WELCOME20', 'percentage', 20, 100, '2027-12-31').run();
-                    await db.prepare("INSERT INTO promo_codes (id, code, discount_type, discount_value, max_uses, expires_at) VALUES (?, ?, ?, ?, ?, ?)")
-                        .bind(crypto.randomUUID(), 'ANNUAL50', 'percentage', 50, 50, '2027-12-31').run();
-                    await db.prepare("INSERT INTO promo_codes (id, code, discount_type, discount_value, max_uses, expires_at) VALUES (?, ?, ?, ?, ?, ?)")
-                        .bind(crypto.randomUUID(), 'SUPERDEAL', 'fixed_amount', 2000, 200, '2027-12-31').run();
-                }
-            } catch { /* ignore seed error */ }
+                await db.prepare("INSERT OR IGNORE INTO promo_codes (id, code, discount_type, discount_value, max_uses, expires_at, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)")
+                    .bind('promo-welcome20', 'WELCOME20', 'percentage', 20, 100, '2027-12-31').run();
+                await db.prepare("INSERT OR IGNORE INTO promo_codes (id, code, discount_type, discount_value, max_uses, expires_at, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)")
+                    .bind('promo-annual50', 'ANNUAL50', 'percentage', 50, 50, '2027-12-31').run();
+                await db.prepare("INSERT OR IGNORE INTO promo_codes (id, code, discount_type, discount_value, max_uses, expires_at, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)")
+                    .bind('promo-superdeal', 'SUPERDEAL', 'fixed_amount', 2000, 200, '2027-12-31').run();
+            } catch (se) {
+                console.warn("Promo code seed error:", se.message);
+            }
+
 
             globalThis.dbMigrated = true;
         }
