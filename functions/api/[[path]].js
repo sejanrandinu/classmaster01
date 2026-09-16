@@ -831,12 +831,17 @@ export async function onRequest(context) {
         }
 
         // --- PROTECTED ---
-        const authHeader = request.headers.get('Authorization');
-        const tokenStr = authHeader?.split(' ')[1];
-        const payload = tokenStr ? await verifyJWT(tokenStr, JWT_SECRET) : null;
-        if (!payload) return json({ error: "Unauthorized" }, 401);
-        const userId = payload.id;
-        const userEmail = payload.email;
+        // Allow public access to promo code validation endpoint
+        if (path === 'promo-codes' && subPath === 'validate' && method === 'POST') {
+            // No authentication required for promo code validation
+        } else {
+            const authHeader = request.headers.get('Authorization');
+            const tokenStr = authHeader?.split(' ')[1];
+            const payload = tokenStr ? await verifyJWT(tokenStr, JWT_SECRET) : null;
+            if (!payload) return json({ error: "Unauthorized" }, 401);
+            var userId = payload.id;
+            var userEmail = payload.email;
+        }
 
         let currentUser = null;
         try {
