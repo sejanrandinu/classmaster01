@@ -2013,29 +2013,29 @@ export async function onRequest(context) {
 
         if (path === 'promo-codes' && subPath === 'validate' && method === 'POST') {
             const { code, package_id = 'standard', billing_cycle = 'monthly' } = await request.json();
-            if (!code || !code.trim()) return json({ error: 'Promo code is required' }, 400);
+            if (!code || !code.trim()) return json({ valid: false, error: 'Promo code is required' }, 200);
 
             const cleanCode = code.trim().toUpperCase();
-            const promo = await db.prepare("SELECT * FROM promo_codes WHERE code = ? AND is_active = 1").bind(cleanCode).first();
+            const promo = await db.prepare("SELECT * FROM promo_codes WHERE UPPER(code) = ? AND (is_active = 1 OR is_active IS NULL)").bind(cleanCode).first();
 
             if (!promo) {
-                return json({ valid: false, error: 'Invalid or expired promo code' }, 400);
+                return json({ valid: false, error: 'Invalid or expired promo code' }, 200);
             }
 
             if (promo.expires_at && new Date(promo.expires_at) < new Date()) {
-                return json({ valid: false, error: 'This promo code has expired' }, 400);
+                return json({ valid: false, error: 'This promo code has expired' }, 200);
             }
 
             if (promo.max_uses > 0 && promo.used_count >= promo.max_uses) {
-                return json({ valid: false, error: 'This promo code usage limit has been reached' }, 400);
+                return json({ valid: false, error: 'This promo code usage limit has been reached' }, 200);
             }
 
             if (promo.valid_package_id && promo.valid_package_id !== package_id) {
-                return json({ valid: false, error: `This promo code is only valid for the ${promo.valid_package_id.toUpperCase()} package` }, 400);
+                return json({ valid: false, error: `This promo code is only valid for the ${promo.valid_package_id.toUpperCase()} package` }, 200);
             }
 
             if (promo.valid_billing_cycle && promo.valid_billing_cycle !== billing_cycle) {
-                return json({ valid: false, error: `This promo code is only valid for ${promo.valid_billing_cycle} billing` }, 400);
+                return json({ valid: false, error: `This promo code is only valid for ${promo.valid_billing_cycle} billing` }, 200);
             }
 
             const pkg = ALL_PACKAGES.find(p => p.id === package_id) || ALL_PACKAGES[1];
@@ -2067,6 +2067,15 @@ export async function onRequest(context) {
         }
 
         if (path === 'packages' && subPath === 'subscribe' && method === 'POST') {
+            const authHeader = request.headers.get('Authorization');
+            let userId = null;
+            let payload = null;
+            if (authHeader) {
+                const token = authHeader.replace('Bearer ', '');
+                payload = await verifyJWT(token, JWT_SECRET);
+                if (payload) userId = payload.id;
+            }
+
             const { package_id, billing_cycle = 'monthly', promo_code } = await request.json();
             const pkg = ALL_PACKAGES.find(p => p.id === package_id);
             if (!pkg) return json({ error: "Invalid package selected" }, 400);
@@ -2077,7 +2086,7 @@ export async function onRequest(context) {
 
             if (promo_code) {
                 const cleanCode = promo_code.trim().toUpperCase();
-                const promo = await db.prepare("SELECT * FROM promo_codes WHERE code = ? AND is_active = 1").bind(cleanCode).first();
+                const promo = await db.prepare("SELECT * FROM promo_codes WHERE UPPER(code) = ? AND (is_active = 1 OR is_active IS NULL)").bind(cleanCode).first();
                 if (promo && (!promo.expires_at || new Date(promo.expires_at) >= new Date()) && (promo.max_uses === 0 || promo.used_count < promo.max_uses)) {
                     appliedCode = promo.code;
                     if (promo.discount_type === 'percentage') {
@@ -2091,8 +2100,10 @@ export async function onRequest(context) {
                     finalPrice = Math.max(0, finalPrice - discountApplied);
 
                     await db.prepare("UPDATE promo_codes SET used_count = used_count + 1 WHERE id = ?").bind(promo.id).run();
-                    await db.prepare("INSERT INTO promo_redemptions (id, promo_code_id, user_id, package_id, billing_cycle, discount_applied, final_price) VALUES (?, ?, ?, ?, ?, ?, ?)")
-                        .bind(crypto.randomUUID(), promo.id, userId, package_id, billing_cycle, discountApplied, finalPrice).run();
+                    if (userId) {
+                        await db.prepare("INSERT INTO promo_redemptions (id, promo_code_id, user_id, package_id, billing_cycle, discount_applied, final_price) VALUES (?, ?, ?, ?, ?, ?, ?)")
+                            .bind(crypto.randomUUID(), promo.id, userId, package_id, billing_cycle, discountApplied, finalPrice).run();
+                    }
                 }
             }
 
@@ -2109,11 +2120,13 @@ export async function onRequest(context) {
                 expiryDate = '2099-12-31T23:59:59.000Z';
             }
 
-            const isSuperAdminUser = isSuperAdminEmail(payload.email);
+            const isSuperAdminUser = payload && payload.email ? isSuperAdminEmail(payload.email) : false;
             const newApprovedStatus = isSuperAdminUser ? 1 : 0;
 
-            await db.prepare("UPDATE profiles SET package_id = ?, billing_cycle = ?, subscription_expires_at = ?, applied_promo_code = ?, is_approved = ?, role = CASE WHEN role = 'pending' OR role = 'trial' THEN 'admin' ELSE role END WHERE id = ?")
-                .bind(package_id, billing_cycle, expiryDate, appliedCode, newApprovedStatus, userId).run();
+            if (userId) {
+                await db.prepare("UPDATE profiles SET package_id = ?, billing_cycle = ?, subscription_expires_at = ?, applied_promo_code = ?, is_approved = ?, role = CASE WHEN role = 'pending' OR role = 'trial' THEN 'admin' ELSE role END WHERE id = ?")
+                    .bind(package_id, billing_cycle, expiryDate, appliedCode, newApprovedStatus, userId).run();
+            }
 
             return json({
                 message: "Subscription updated successfully",
