@@ -2012,34 +2012,40 @@ export async function onRequest(context) {
         }
 
         if (path === 'promo-codes' && subPath === 'validate' && method === 'POST') {
-            const { code, package_id = 'standard', billing_cycle = 'monthly' } = await request.json();
+            const { code, package_id, billing_cycle } = await request.json();
             if (!code || !code.trim()) return json({ valid: false, error: 'Promo code is required' }, 200);
 
             const cleanCode = code.trim().toUpperCase();
-            const promo = await db.prepare("SELECT * FROM promo_codes WHERE UPPER(code) = ? AND (is_active = 1 OR is_active IS NULL)").bind(cleanCode).first();
+            const promo = await db.prepare("SELECT * FROM promo_codes WHERE UPPER(code) = ? AND (is_active = 1 OR is_active IS NULL OR is_active = '1' OR is_active = 'true')").bind(cleanCode).first();
 
             if (!promo) {
                 return json({ valid: false, error: 'Invalid or expired promo code' }, 200);
             }
 
-            if (promo.expires_at && new Date(promo.expires_at) < new Date()) {
-                return json({ valid: false, error: 'This promo code has expired' }, 200);
+            // Expiry Date Comparison: Ensure date includes end of day (23:59:59)
+            if (promo.expires_at) {
+                const expStr = promo.expires_at.includes('T') ? promo.expires_at : `${promo.expires_at}T23:59:59.999Z`;
+                if (new Date(expStr) < new Date()) {
+                    return json({ valid: false, error: 'This promo code has expired' }, 200);
+                }
             }
 
             if (promo.max_uses > 0 && promo.used_count >= promo.max_uses) {
                 return json({ valid: false, error: 'This promo code usage limit has been reached' }, 200);
             }
 
-            if (promo.valid_package_id && promo.valid_package_id !== package_id) {
+            if (promo.valid_package_id && package_id && promo.valid_package_id !== package_id) {
                 return json({ valid: false, error: `This promo code is only valid for the ${promo.valid_package_id.toUpperCase()} package` }, 200);
             }
 
-            if (promo.valid_billing_cycle && promo.valid_billing_cycle !== billing_cycle) {
+            if (promo.valid_billing_cycle && billing_cycle && promo.valid_billing_cycle !== billing_cycle) {
                 return json({ valid: false, error: `This promo code is only valid for ${promo.valid_billing_cycle} billing` }, 200);
             }
 
-            const pkg = ALL_PACKAGES.find(p => p.id === package_id) || ALL_PACKAGES[1];
-            const basePrice = pkg.prices[billing_cycle] || pkg.prices.monthly;
+            const targetPkgId = package_id || promo.valid_package_id || 'standard';
+            const targetCycle = billing_cycle || promo.valid_billing_cycle || 'monthly';
+            const pkg = ALL_PACKAGES.find(p => p.id === targetPkgId) || ALL_PACKAGES[1];
+            const basePrice = pkg.prices[targetCycle] || pkg.prices.monthly;
 
             let discountAmount = 0;
             if (promo.discount_type === 'percentage') {
@@ -2058,11 +2064,13 @@ export async function onRequest(context) {
                 code: promo.code,
                 discount_type: promo.discount_type,
                 discount_value: promo.discount_value,
+                valid_package_id: promo.valid_package_id,
+                valid_billing_cycle: promo.valid_billing_cycle,
                 base_price: basePrice,
                 discount_amount: discountAmount,
                 final_price: finalPrice,
-                package_id,
-                billing_cycle
+                package_id: targetPkgId,
+                billing_cycle: targetCycle
             });
         }
 
